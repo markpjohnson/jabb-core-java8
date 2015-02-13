@@ -25,7 +25,7 @@ public class Pipeline<I, O> {
 	public static <O> Pipeline<O, O> endWith(Collection<O> outputCollection){
 		return new Pipeline<O, O>(MoreExecutors.newDirectExecutorService(), input -> {
 			outputCollection.add(input);
-			return null;
+			return input;
 		});
 	}
 
