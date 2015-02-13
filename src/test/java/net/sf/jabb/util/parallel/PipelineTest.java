@@ -7,6 +7,7 @@ import static org.junit.Assert.*;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -52,12 +53,15 @@ public class PipelineTest {
 	
 	Pipeline<String, Integer> createPipeline(){
 		Pipeline<String, Integer> pipeline = 
-			new Pipeline<BigInteger, Integer>(threadPool4, bigIntegerToInteger)
+			Pipeline.endWith(new LinkedList<Integer>())
+				.prepend(threadPool4, bigIntegerToInteger)
 				.prepend(threadPool3, longToBigInteger)
 				.prepend(threadPool2, integerToLong)
 				.prepend(threadPool1, stringToInteger);
 		return pipeline;
 	}
+	
+
 	
 	Integer createPipelineAndFeed(String input) throws InterruptedException, ExecutionException{
 		Pipeline<String, Integer> pipeline = createPipeline();
