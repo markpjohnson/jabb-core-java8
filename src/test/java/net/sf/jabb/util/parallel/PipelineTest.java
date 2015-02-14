@@ -47,13 +47,14 @@ public class PipelineTest {
 
 	@Test
 	public void testSyntax() {
-		Pipeline<String, Integer> pipeline = createPipeline();
+		PipelineRecursiveImpl<String, Integer> pipeline = createPipeline();
 		assertNotNull(pipeline);
 	};
 	
-	Pipeline<String, Integer> createPipeline(){
-		Pipeline<String, Integer> pipeline = 
-			Pipeline.endWith(new LinkedList<Integer>())
+	PipelineRecursiveImpl<String, Integer> createPipeline(){
+		PipelineRecursiveImpl<String, Integer> pipeline = 
+			//PipelineRecursiveImpl.outputTo(new LinkedList<Integer>())
+			PipelineRecursiveImpl.<Integer>noOutput()
 				.prepend(threadPool4, bigIntegerToInteger)
 				.prepend(threadPool3, longToBigInteger)
 				.prepend(threadPool2, integerToLong)
@@ -64,7 +65,7 @@ public class PipelineTest {
 
 	
 	Integer createPipelineAndFeed(String input) throws InterruptedException, ExecutionException{
-		Pipeline<String, Integer> pipeline = createPipeline();
+		PipelineRecursiveImpl<String, Integer> pipeline = createPipeline();
 		Future<Integer> result = pipeline.feed(input);
 		Integer output = result.get();
 		return output;
@@ -92,7 +93,7 @@ public class PipelineTest {
 	@Test(expected=CancellationException.class)
 	public void testCancel() throws InterruptedException, ExecutionException{
 		String input = "18763";
-		Pipeline<String, Integer> pipeline = createPipeline();
+		PipelineRecursiveImpl<String, Integer> pipeline = createPipeline();
 		Future<Integer> result = pipeline.feed(input);
 		assertTrue(result.cancel(true));
 		result.get();
@@ -100,7 +101,7 @@ public class PipelineTest {
 	
 	@Test
 	public void testFeedMore() throws InterruptedException, ExecutionException{
-		Pipeline<String, Integer> pipeline = createPipeline();
+		PipelineRecursiveImpl<String, Integer> pipeline = createPipeline();
 		
 		int SIZE = 50;
 		String[] inputs = new String[SIZE];
