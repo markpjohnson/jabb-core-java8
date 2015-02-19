@@ -4,7 +4,8 @@
 package net.sf.jabb.util.stat;
 
 import java.math.BigInteger;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -21,30 +22,9 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public class BigIntegerAdder extends Number{
 	private static final long serialVersionUID = -9214671662034042785L;
-	private static long THRESHOLD = Long.MAX_VALUE / 2;
 	
-	/**
-	 * The class to wrap LongAdder with Comparable interface.
-	 * @author James Hu
-	 *
-	 */
-	private static class AdderWrapper implements Comparable<AdderWrapper>{
-		private LongAdder adder;
-		private long createdTime;
-		
-		private AdderWrapper(){
-			this.adder = new LongAdder();
-			this.createdTime = System.currentTimeMillis();
-		}
-
-		@Override
-		public int compareTo(AdderWrapper o) {
-			return (int)(this.createdTime - o.createdTime);
-		}
-	}
-
 	private AtomicBigInteger baseValue;
-	private ConcurrentSkipListSet<AdderWrapper> adders = new ConcurrentSkipListSet<>();
+	private Collection<LongAdder> adders = new ConcurrentLinkedQueue<>();
 	private LongAdder adder;
 	
 	public BigIntegerAdder(){
@@ -57,10 +37,9 @@ public class BigIntegerAdder extends Number{
 	}
 	
 	private LongAdder addNewAdder(){
-		AdderWrapper newAdderWrapper = new AdderWrapper();
-		LongAdder newAdder = newAdderWrapper.adder;
+		LongAdder newAdder = new LongAdder();
 		adder = newAdder;
-		adders.add(newAdderWrapper);
+		adders.add(newAdder);
 		return newAdder;
 	}
 	
@@ -69,15 +48,12 @@ public class BigIntegerAdder extends Number{
      *
      * @param x the value to add
      */
-    public void add(long x) {
-    	if (x >= THRESHOLD){
-    		add(BigInteger.valueOf(x));
+    public void add(int x) {
+     	if ((x > 0 && adder.longValue() >= Integer.MAX_VALUE)
+     			|| (x < 0 && adder.longValue() <= Integer.MIN_VALUE)){
+    		addNewAdder().add(x);
     	}else{
-         	if (adder.longValue() >= THRESHOLD){
-        		addNewAdder().add(x);
-        	}else{
-            	adder.add(x);
-        	}
+        	adder.add(x);
     	}
     }
     
@@ -89,14 +65,14 @@ public class BigIntegerAdder extends Number{
      * Equivalent to {@code add(1)}.
      */
     public void increment() {
-        add(1L);
+        add(1);
     }
 
     /**
      * Equivalent to {@code add(-1)}.
      */
     public void decrement() {
-        add(-1L);
+        add(-1);
     }
 
     /**
@@ -110,8 +86,8 @@ public class BigIntegerAdder extends Number{
      */
     public BigInteger sum() {
     	BigInteger value = baseValue.get();
-    	for (AdderWrapper wrapper: adders){
-    		value = value.add(BigInteger.valueOf(wrapper.adder.longValue()));
+    	for (LongAdder adder: adders){
+    		value = value.add(BigInteger.valueOf(adder.longValue()));
     	}
     	return value;
     }
