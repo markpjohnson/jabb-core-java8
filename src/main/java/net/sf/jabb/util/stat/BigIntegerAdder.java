@@ -22,6 +22,8 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public class BigIntegerAdder extends Number{
 	private static final long serialVersionUID = -9214671662034042785L;
+	static final long THRESHOLD_POSITIVE = Long.MAX_VALUE / 100_000L;
+	static final long THRESHOLD_NEGATIVE = -THRESHOLD_POSITIVE;
 	
 	private AtomicBigInteger baseValue;
 	private Collection<LongAdder> adders = new ConcurrentLinkedQueue<>();
@@ -49,8 +51,8 @@ public class BigIntegerAdder extends Number{
      * @param x the value to add
      */
     public void add(int x) {
-     	if ((x > 0 && adder.longValue() >= Integer.MAX_VALUE)
-     			|| (x < 0 && adder.longValue() <= Integer.MIN_VALUE)){
+     	if ((x > 0 && adder.longValue() >= THRESHOLD_POSITIVE)
+     			|| (x < 0 && adder.longValue() <= -THRESHOLD_NEGATIVE)){
     		addNewAdder().add(x);
     	}else{
         	adder.add(x);
