@@ -12,9 +12,9 @@ import java.math.BigInteger;
  */
 public class AdvancedNumberStatistics {
 	
-	BigIntegerAdder count;
-	BigIntegerAdder sum;
-	AtomicMinMaxBigInteger minMax;
+	BigIntegerAdder count = new BigIntegerAdder();;
+	BigIntegerAdder sum = new BigIntegerAdder();
+	AtomicMinMaxBigInteger minMax = new AtomicMinMaxBigInteger();
 	
 	public void put(BigInteger x){
 		count.add(1);
@@ -39,4 +39,33 @@ public class AdvancedNumberStatistics {
 		}
 		count.add(1);
 	}
+	
+	public BigInteger getCount(){
+		return count.sum();
+	}
+	
+	public BigInteger getSum(){
+		return sum.sum();
+	}
+	
+	public BigInteger getMin(){
+		return minMax.getMin();
+	}
+	
+	public BigInteger getMax(){
+		return minMax.getMax();
+	}
+	
+	public void reset(){
+		count.reset();
+		sum.reset();
+		minMax.reset();
+	}
+	
+	public void merge(AdvancedNumberStatistics another){
+		count.set(getCount().add(another.getCount()));
+		sum.set(getSum().add(another.getSum()));
+		minMax.merge(another.minMax);
+	}
+	
 }
