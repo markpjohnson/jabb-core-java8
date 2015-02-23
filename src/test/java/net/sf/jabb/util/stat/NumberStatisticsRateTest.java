@@ -52,7 +52,7 @@ public class NumberStatisticsRateTest {
 
 	@Test
 	public void testAdvanced_int_small() throws Exception {
-		AdvancedNumberStatistics stat = new AdvancedNumberStatistics();
+		ConcurrentBigIntegerStatistics stat = new ConcurrentBigIntegerStatistics();
 		RateTestUtility.doRateTest("AdvancedNumberStatistics", testThreads, 
 				warmUpSeconds, TimeUnit.SECONDS, null, 
 				testSeconds, TimeUnit.SECONDS, endTime -> {
@@ -64,5 +64,44 @@ public class NumberStatisticsRateTest {
 					return i*2;
 				});
 	}
+	
+	@Test
+	public void testMinMaxHolders() throws Exception {
+		long[] randomLongs = NumberGenerator.randomLongs(Long.MIN_VALUE, Long.MAX_VALUE, batchSize * 1000);
+		
+		LongMinMaxHolder longHolder = new ConcurrentLongMinMaxHolder();
+		doLongMinMaxHolderTest("AtomicLongMinMaxHolder - long", longHolder, randomLongs);
+		BigIntegerMinMaxHolder bigIntegerHolder = new ConcurrentBigIntegerMinMaxHolder();
+		doLongMinMaxHolderTest("AtomicBigIntegerMinMaxHolder - long", bigIntegerHolder, randomLongs);
+
+		BigInteger[] randomBigIntegers = NumberGenerator.randomBigIntegers(Double.MIN_VALUE/10, Double.MAX_VALUE/10, batchSize * 1000);
+		bigIntegerHolder.reset();
+		doBigIntegerMinMaxHolderTest("AtomicBigIntegerMinMaxHolder - BigInteger", bigIntegerHolder, randomBigIntegers);
+	}
+
+	protected void doLongMinMaxHolderTest(String title, LongMinMaxHolder holder, long[] randomLongs) throws Exception {
+		RateTestUtility.doRateTest(title, testThreads, 
+				warmUpSeconds, TimeUnit.SECONDS, null, 
+				testSeconds, TimeUnit.SECONDS, endTime -> {
+					int i;
+					for (i = 0; i < randomLongs.length && System.currentTimeMillis() < endTime; i ++){
+						holder.minMax(randomLongs[i]);
+					}
+					return i;
+				});
+	}
+
+	protected void doBigIntegerMinMaxHolderTest(String title, BigIntegerMinMaxHolder holder, BigInteger[] randomBigIntegers) throws Exception {
+		RateTestUtility.doRateTest(title, testThreads, 
+				warmUpSeconds, TimeUnit.SECONDS, null, 
+				testSeconds, TimeUnit.SECONDS, endTime -> {
+					int i;
+					for (i = 0; i < randomBigIntegers.length && System.currentTimeMillis() < endTime; i ++){
+						holder.minMax(randomBigIntegers[i]);
+					}
+					return i;
+				});
+	}
+
 
 }

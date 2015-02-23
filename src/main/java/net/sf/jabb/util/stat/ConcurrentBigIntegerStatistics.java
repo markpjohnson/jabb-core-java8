@@ -10,11 +10,11 @@ import java.math.BigInteger;
  * @author James Hu
  *
  */
-public class AdvancedNumberStatistics {
+public class ConcurrentBigIntegerStatistics {
 	
-	BigIntegerAdder count = new BigIntegerAdder();;
+	BigIntegerAdder count = new BigIntegerAdder();
 	BigIntegerAdder sum = new BigIntegerAdder();
-	AtomicMinMaxBigInteger minMax = new AtomicMinMaxBigInteger();
+	ConcurrentBigIntegerMinMaxHolder minMax = new ConcurrentBigIntegerMinMaxHolder();
 	
 	public void put(BigInteger x){
 		count.add(1);
@@ -62,7 +62,7 @@ public class AdvancedNumberStatistics {
 		minMax.reset();
 	}
 	
-	public void merge(AdvancedNumberStatistics another){
+	public void merge(ConcurrentBigIntegerStatistics another){
 		count.set(getCount().add(another.getCount()));
 		sum.set(getSum().add(another.getSum()));
 		minMax.merge(another.minMax);
