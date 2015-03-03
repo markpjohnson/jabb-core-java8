@@ -3,11 +3,8 @@
  */
 package net.sf.jabb.util.stat;
 
-import static org.junit.Assert.*;
-
 import java.math.BigInteger;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.LongAdder;
 
 import net.sf.jabb.util.test.RateTestUtility;
 
@@ -17,91 +14,88 @@ import org.junit.Test;
  * @author James Hu
  *
  */
-public class NumberStatisticsRateTest {
-	static final int warmUpSeconds = 2;
-	static final int testSeconds = 10;
-	static final int testThreads = 50;
-	static final int batchSize = 1000;
-	
-	static final long longTestValue1 = Integer.MAX_VALUE;
-	static final long longTestValue2 = 99783;
-	static final long longTestValue3 = Integer.MAX_VALUE /1000;
-	static final long longTestValue4 = Integer.MAX_VALUE * 100;
-	static final int intTestValue1 = Integer.MAX_VALUE/100;
-	static final int intTestValue2 = 99783;
-	static final BigInteger bitIntegerTestValue1 = BigInteger.valueOf(Integer.MAX_VALUE);
-	static final BigInteger bitIntegerTestValue2= BigInteger.valueOf(99783);
-	
-	static final BigInteger bitIntegerTestValue3= BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(Long.MAX_VALUE));
-	static final BigInteger bitIntegerTestValue4= bitIntegerTestValue3.multiply(bitIntegerTestValue3);
+public class NumberStatisticsRateTest extends BaseTest {
 
 	@Test
-	public void testBasic_int_small() throws Exception {
-		BasicNumberStatistics stat = new BasicNumberStatistics();
-		RateTestUtility.doRateTest("BasicNumberStatistics", testThreads, 
+	public void testAtomicLongStatistics() throws Exception {
+		NumberStatistics<Long> stat = new AtomicLongStatistics();
+		doStatisticsTest(stat);
+	}
+
+	@Test
+	public void testConcurrentLongStatistics() throws Exception {
+		NumberStatistics<Long> stat = new ConcurrentLongStatistics();
+		doStatisticsTest(stat);
+	}
+
+	@Test
+	public void testConcurrentBigIntegerStatistics() throws Exception {
+		NumberStatistics<BigInteger> stat = new ConcurrentBigIntegerStatistics();
+		doStatisticsTest(stat);
+	}
+	
+	@Test
+	public void testConcurrentBigIntegerStatistics50() throws Exception {
+		NumberStatistics<BigInteger> stat = new ConcurrentBigIntegerStatistics(50);
+		doStatisticsTest(stat);
+	}
+	
+	@Test
+	public void testConcurrentBigIntegerStatistics1() throws Exception {
+		NumberStatistics<BigInteger> stat = new ConcurrentBigIntegerStatistics(1);
+		doStatisticsTest(stat);
+	}
+	
+	protected void doStatisticsTest(NumberStatistics<?> stat) throws Exception{
+		stat.reset();
+		doStatisticsTestInt(stat.getClass().getSimpleName() + " - int", stat, randomIntegers);
+		stat.reset();
+		doStatisticsTestLong(stat.getClass().getSimpleName() + " - long", stat, randomLongs);
+		stat.reset();
+		doStatisticsTestBigInteger(stat.getClass().getSimpleName() + " - int as BigInteger", stat, randomIntegersAsBigIntegers);
+		stat.reset();
+		doStatisticsTestBigInteger(stat.getClass().getSimpleName() + " - long as BigInteger", stat, randomLongsAsBigIntegers);
+		stat.reset();
+		doStatisticsTestBigInteger(stat.getClass().getSimpleName() + " - BigInteger", stat, randomBigIntegers);
+	}
+
+	protected void doStatisticsTestInt(String title, NumberStatistics<?> stat, int[] randomIntegers) throws Exception {
+		RateTestUtility.doRateTest(title, testThreads, 
 				warmUpSeconds, TimeUnit.SECONDS, null, 
 				testSeconds, TimeUnit.SECONDS, endTime -> {
 					int i;
-					for (i = 0; i < batchSize && System.currentTimeMillis() < endTime; i ++){
-						stat.put(83747);
-						stat.put(98237434);
+					for (i = 0; i < randomIntegers.length && System.currentTimeMillis() < endTime; i ++){
+						stat.evaluate(randomIntegers[i]);
 					}
-					return i*2;
-				});
-	}
-
-	@Test
-	public void testAdvanced_int_small() throws Exception {
-		ConcurrentBigIntegerStatistics stat = new ConcurrentBigIntegerStatistics();
-		RateTestUtility.doRateTest("AdvancedNumberStatistics", testThreads, 
-				warmUpSeconds, TimeUnit.SECONDS, null, 
-				testSeconds, TimeUnit.SECONDS, endTime -> {
-					int i;
-					for (i = 0; i < batchSize && System.currentTimeMillis() < endTime; i ++){
-						stat.put(83747);
-						stat.put(98237434);
-					}
-					return i*2;
+					return i;
 				});
 	}
 	
-	@Test
-	public void testMinMaxHolders() throws Exception {
-		long[] randomLongs = NumberGenerator.randomLongs(Long.MIN_VALUE, Long.MAX_VALUE, batchSize * 1000);
-		
-		LongMinMaxHolder longHolder = new ConcurrentLongMinMaxHolder();
-		doLongMinMaxHolderTest("AtomicLongMinMaxHolder - long", longHolder, randomLongs);
-		BigIntegerMinMaxHolder bigIntegerHolder = new ConcurrentBigIntegerMinMaxHolder();
-		doLongMinMaxHolderTest("AtomicBigIntegerMinMaxHolder - long", bigIntegerHolder, randomLongs);
-
-		BigInteger[] randomBigIntegers = NumberGenerator.randomBigIntegers(Double.MIN_VALUE/10, Double.MAX_VALUE/10, batchSize * 1000);
-		bigIntegerHolder.reset();
-		doBigIntegerMinMaxHolderTest("AtomicBigIntegerMinMaxHolder - BigInteger", bigIntegerHolder, randomBigIntegers);
-	}
-
-	protected void doLongMinMaxHolderTest(String title, LongMinMaxHolder holder, long[] randomLongs) throws Exception {
+	protected void doStatisticsTestLong(String title, NumberStatistics<?> stat, long[] randomLongs) throws Exception {
 		RateTestUtility.doRateTest(title, testThreads, 
 				warmUpSeconds, TimeUnit.SECONDS, null, 
 				testSeconds, TimeUnit.SECONDS, endTime -> {
 					int i;
 					for (i = 0; i < randomLongs.length && System.currentTimeMillis() < endTime; i ++){
-						holder.minMax(randomLongs[i]);
+						stat.evaluate(randomLongs[i]);
 					}
 					return i;
 				});
 	}
-
-	protected void doBigIntegerMinMaxHolderTest(String title, BigIntegerMinMaxHolder holder, BigInteger[] randomBigIntegers) throws Exception {
+	
+	protected void doStatisticsTestBigInteger(String title, NumberStatistics<?> stat, BigInteger[] randomBigIntegers) throws Exception {
 		RateTestUtility.doRateTest(title, testThreads, 
 				warmUpSeconds, TimeUnit.SECONDS, null, 
 				testSeconds, TimeUnit.SECONDS, endTime -> {
 					int i;
 					for (i = 0; i < randomBigIntegers.length && System.currentTimeMillis() < endTime; i ++){
-						holder.minMax(randomBigIntegers[i]);
+						stat.evaluate(randomBigIntegers[i]);
 					}
 					return i;
 				});
 	}
+	
+
 
 
 }

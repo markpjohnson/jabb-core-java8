@@ -22,59 +22,79 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public class BigIntegerAdder extends Number{
 	private static final long serialVersionUID = -9214671662034042785L;
-	static final long THRESHOLD_POSITIVE = Long.MAX_VALUE / 100_000L;
-	static final long THRESHOLD_NEGATIVE = -THRESHOLD_POSITIVE;
+	protected static final int DEFAULT_NUM_VALUES = 5;
+	protected static final BigInteger MINUS_ONE = BigInteger.ONE.negate();
 	
-	private AtomicBigInteger baseValue;
-	private Collection<LongAdder> adders = new ConcurrentLinkedQueue<>();
-	private LongAdder adder;
+	protected AtomicBigInteger[] values;
+	
+	//volatile 
+	transient protected int j = 0;
+	//transient protected int valueLength;
 	
 	public BigIntegerAdder(){
-		this(BigInteger.ZERO);
+		this(DEFAULT_NUM_VALUES, BigInteger.ZERO);
 	}
 	
+	public BigIntegerAdder(int concurrencyFactor){
+		this(concurrencyFactor, BigInteger.ZERO);
+	}
+
 	public BigIntegerAdder(BigInteger initialValue){
-		baseValue = new AtomicBigInteger(initialValue);
-		addNewAdder();
+		this(DEFAULT_NUM_VALUES, initialValue);
 	}
-	
-	private LongAdder addNewAdder(){
-		LongAdder newAdder = new LongAdder();
-		adder = newAdder;
-		adders.add(newAdder);
-		return newAdder;
+
+	public BigIntegerAdder(int concurrencyFactor, BigInteger initialValue){
+		if (concurrencyFactor < 1){
+			throw new IllegalArgumentException("Concurrency factor must not be less than 1.");
+		}
+		//valueLength = concurrencyFactor;
+		values = new AtomicBigInteger[concurrencyFactor];
+		for (int i = 0; i < values.length; i ++){
+			values[i] = new AtomicBigInteger(BigInteger.ZERO);
+		}
+		set(initialValue);
 	}
-	
+
     /**
      * Adds the given value.
      *
      * @param x the value to add
      */
     public void add(int x) {
-     	if ((x > 0 && adder.longValue() >= THRESHOLD_POSITIVE)
-     			|| (x < 0 && adder.longValue() <= -THRESHOLD_NEGATIVE)){
-    		addNewAdder().add(x);
-    	}else{
-        	adder.add(x);
+    	if (x == 0){
+    		return;
     	}
+		values[j++ % values.length].add(BigInteger.valueOf(x));
+    }
+    
+    /**
+     * Adds the given value.
+     *
+     * @param x the value to add
+     */
+    public void add(long x) {
+    	if (x == 0){
+    		return;
+    	}
+		values[j++ % values.length].add(BigInteger.valueOf(x));
     }
     
 	public void add(BigInteger x) {
-		baseValue.addAndGet(x);
+		values[j++ % values.length].add(x);
 	}
     
     /**
      * Equivalent to {@code add(1)}.
      */
     public void increment() {
-        add(1);
+		values[j++ % values.length].add(BigInteger.ONE);
     }
 
     /**
      * Equivalent to {@code add(-1)}.
      */
     public void decrement() {
-        add(-1);
+		values[j++ % values.length].add(MINUS_ONE);
     }
 
     /**
@@ -87,9 +107,9 @@ public class BigIntegerAdder extends Number{
      * @return the sum
      */
     public BigInteger sum() {
-    	BigInteger value = baseValue.get();
-    	for (LongAdder adder: adders){
-    		value = value.add(BigInteger.valueOf(adder.longValue()));
+    	BigInteger value = values[0].get();
+    	for (int i = 1; i < values.length; i ++){
+    		value = value.add(values[i].get());
     	}
     	return value;
     }
@@ -114,10 +134,11 @@ public class BigIntegerAdder extends Number{
      * @param newValue the new value
      */
     public void set(BigInteger newValue) {
-    	baseValue.set(newValue);
-    	adders.clear();
-    	addNewAdder();
-    }
+    	values[0].set(newValue);
+		for (int i = 1; i < values.length; i ++){
+			values[i].set(BigInteger.ZERO);
+		}
+     }
     
     /**
      * Equivalent in effect to {@link #sum} followed by {@link

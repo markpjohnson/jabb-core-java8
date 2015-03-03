@@ -31,6 +31,14 @@ public class RateTestUtility {
 	public static LongConsumer sleepFunction = milliseconds -> 
 		Uninterruptibles.sleepUninterruptibly(milliseconds, TimeUnit.MILLISECONDS);
 
+	public static void doRateTest(int numThreads, 
+			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
+			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
+			) throws Exception{
+		doRateTest(numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
+				testPeriod, testPeriodUnit, testFunction);
+	}
+		
 	public static void doRateTest(String title, int numThreads, 
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
@@ -68,8 +76,10 @@ public class RateTestUtility {
 			}
 		}).sum();
 		
-		double rate = (double)total/TimeUnit.SECONDS.convert(testPeriod, testPeriodUnit);
-		System.out.println("Rate of " + title + " is " + formatDouble("###,###.####", rate) + " per second" );
+		if (title != null){
+			double rate = (double)total/TimeUnit.SECONDS.convert(testPeriod, testPeriodUnit);
+			System.out.println("Rate of " + title + " is " + formatDouble("###,###.####", rate) + " per second" );
+		}
 		if (errorHappened.get()){
 			System.out.println("Error happened during the test.");
 		}
