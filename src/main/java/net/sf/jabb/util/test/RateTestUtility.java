@@ -3,24 +3,16 @@
  */
 package net.sf.jabb.util.test;
 
-import static org.junit.Assert.*;
-
 import java.text.DecimalFormat;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
-
-import org.junit.Test;
-
-import com.google.common.util.concurrent.Uninterruptibles;
 
 /**
  * @author James Hu
