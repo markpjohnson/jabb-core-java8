@@ -28,25 +28,40 @@ import com.google.common.util.concurrent.Uninterruptibles;
  */
 public class RateTestUtility {
 	
-	public static LongConsumer sleepFunction = milliseconds -> 
-		Uninterruptibles.sleepUninterruptibly(milliseconds, TimeUnit.MILLISECONDS);
+	public static LongConsumer emptyLoop = endTime -> {
+		while(System.currentTimeMillis() < endTime){}
+	};
 
+	public static void doRateTest(ExecutorService threadPool, int numThreads, 
+			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
+			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
+			) throws Exception{
+		doRateTest(null, threadPool, numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
+				testPeriod, testPeriodUnit, testFunction);
+	}
 	public static void doRateTest(int numThreads, 
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
 			) throws Exception{
-		doRateTest(numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
+		doRateTest(null, Executors.newFixedThreadPool(numThreads), numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
+				testPeriod, testPeriodUnit, testFunction);
+	}
+	
+	public static void doRateTest(String title, int numThreads, 
+			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
+			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
+			) throws Exception{
+		doRateTest(title, Executors.newFixedThreadPool(numThreads), numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
 				testPeriod, testPeriodUnit, testFunction);
 	}
 		
-	public static void doRateTest(String title, int numThreads, 
+	public static void doRateTest(String title, ExecutorService threadPool, int numThreads, 
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
 			) throws Exception{
 		LongConsumer warmUpFunction = warmUpConsumer != null? 
 				warmUpConsumer : endTime -> testFunction.applyAsLong(endTime);
 		
-		ExecutorService threadPool = Executors.newFixedThreadPool(numThreads);
 		long start = System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(warmUpPeriod, warmUpPeriodUnit);
 		long end = start + TimeUnit.MILLISECONDS.convert(testPeriod, testPeriodUnit);
 		

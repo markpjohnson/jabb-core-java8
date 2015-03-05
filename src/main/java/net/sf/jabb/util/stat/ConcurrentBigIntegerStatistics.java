@@ -152,4 +152,9 @@ public class ConcurrentBigIntegerStatistics implements NumberStatistics<BigInteg
 		}
 	}
 
+	@Override
+	public String toString(){
+		return "(" + count.sum() + ", " + sum.sum() + ", " + getMin() + "/" + getMax() + ")";
+	}
+
 }
