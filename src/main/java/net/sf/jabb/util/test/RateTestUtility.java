@@ -39,15 +39,15 @@ public class RateTestUtility {
 				testPeriod, testPeriodUnit, testFunction);
 	}
 	
-	public static void doRateTest(String title, int numThreads, 
+	public static double doRateTest(String title, int numThreads, 
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
 			) throws Exception{
-		doRateTest(title, Executors.newFixedThreadPool(numThreads), numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
+		return doRateTest(title, Executors.newFixedThreadPool(numThreads), numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
 				testPeriod, testPeriodUnit, testFunction);
 	}
 		
-	public static void doRateTest(String title, ExecutorService threadPool, int numThreads, 
+	public static double doRateTest(String title, ExecutorService threadPool, int numThreads, 
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
 			) throws Exception{
@@ -83,13 +83,14 @@ public class RateTestUtility {
 			}
 		}).sum();
 		
+		double rate = (double)total/TimeUnit.SECONDS.convert(testPeriod, testPeriodUnit);
 		if (title != null){
-			double rate = (double)total/TimeUnit.SECONDS.convert(testPeriod, testPeriodUnit);
 			System.out.println("Rate of " + title + " is " + formatDouble("###,###.####", rate) + " per second" );
 		}
 		if (errorHappened.get()){
 			System.out.println("Error happened during the test.");
 		}
+		return rate;
 	}
 	
 	static public String formatDouble(String pattern, double value) {
