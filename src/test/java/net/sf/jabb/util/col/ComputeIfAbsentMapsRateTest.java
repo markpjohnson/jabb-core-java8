@@ -65,11 +65,19 @@ public class ComputeIfAbsentMapsRateTest {
 		maps.put("AtomicComputeIfAbsentMap<HashMap>", new AtomicComputeIfAbsentMap<Map<Integer, LongAdder>, Integer, LongAdder>(new HashMap<Integer, LongAdder>(), computeFunction));	
 		maps.put("AtomicComputeIfAbsentMap<ConcurrentHashMap>", new AtomicComputeIfAbsentMap<Map<Integer, LongAdder>, Integer, LongAdder>(new ConcurrentHashMap<Integer, LongAdder>(), computeFunction));	
 
+		
 		Map<String, Map<Integer, ConcurrentLongStatistics>> result = new TreeMap<>();
 		for (Map.Entry<String, Map<Integer, LongAdder>> entry: maps.entrySet()){
 			result.put(entry.getKey(), new PutIfAbsentMap<Integer, ConcurrentLongStatistics>(new TreeMap<Integer, ConcurrentLongStatistics>(), ConcurrentLongStatistics.class));
 		}
 		
+		// warm up the memory
+		for (Map.Entry<String, Map<Integer, LongAdder>> entry: maps.entrySet()){
+			doTest(entry.getKey(), entry.getValue(), threadPool, 1);
+			entry.getValue().clear();
+		}
+
+		// tests
 		for (int i = 0; i < 5; i ++){
 			for (Map.Entry<String, Map<Integer, LongAdder>> entry: maps.entrySet()){
 				for (int testSeconds: new int[] {1, 2, 5, 10, 30, 60, 120}){
