@@ -8,7 +8,7 @@
 	<packaging>jar</packaging>
 
 	<name>jabb-core-java8</name>
-	<url>http://maven.apache.org</url>
+	<url>https://github.com/james-hu/jabb-core-java8</url>
 
 	<scm>
 		<url>https://github.com/james-hu/jabb-core-java8</url>
@@ -132,4 +132,5 @@
 			<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
 		</repository>
 	</distributionManagement>
+	<description>Additions to jabb-core that require Java 8</description>
 </project>
