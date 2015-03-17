@@ -2,4 +2,4 @@
 Additions to jabb-core that require Java 8
 
 
-[ ![Codeship Status for james-hu/jabb-core-java8](https://codeship.com/projects/68ae8720-9682-0132-8354-7a1406c9da98/status?branch=master)](https://codeship.com/projects/63046)
+[ ![Codeship Status for james-hu/jabb-core-java8](https://codeship.com/projects/bba807c0-a5f8-0132-667d-0e35fa3a3375/status?branch=master)](https://codeship.com/projects/66886)
