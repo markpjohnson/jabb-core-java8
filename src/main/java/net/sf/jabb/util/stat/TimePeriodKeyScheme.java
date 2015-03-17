@@ -71,7 +71,6 @@ public interface TimePeriodKeyScheme {
 	/**
 	 * Get the start time (exclusive) of the time period represented by the key
 	 * @param key	the time period key
-	 * @param zone	the time zone
 	 * @return	the start time (inclusive) of the time period
 	 */
 	LocalDateTime getStartTime(String key);

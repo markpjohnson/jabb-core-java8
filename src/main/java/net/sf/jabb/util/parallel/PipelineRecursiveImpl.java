@@ -21,6 +21,8 @@ import com.google.common.util.concurrent.MoreExecutors;
  * 
  * @author James Hu
  *
+ * @param <I>	type of input
+ * @param <O>	type of output
  */
 public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	ExecutorService executor;
@@ -29,6 +31,7 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	/**
 	 * Start building a pipeline, and specify a collection that all the final output will be put into.
 	 * @param outputCollection	the collection that will be used to hold all the output.
+	 * @param <O> type of output
 	 * @return	a new pipeline that you can prepend stages
 	 */
 	public static <O> PipelineRecursiveImpl<O, O> outputTo(Collection<O> outputCollection){
@@ -42,6 +45,8 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	 * Start building a pipeline, and specify another pipeline that all the final output from this 
 	 * pipleline will be fed to.
 	 * @param downstreamPipeline	another pipeline
+	 * @param <O> type of the output of this pipeline which is also the input of the downstream pipeline
+	 * @param <O2> type of the output of the downstream pipeline
 	 * @return	a new pipeline that you can prepend stages
 	 */
 	public static <O, O2> PipelineRecursiveImpl<O, Pipeline.IntermediateOutput<O, O2>> outputTo(Pipeline<O, O2> downstreamPipeline){
@@ -54,8 +59,9 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 
 	/**
 	 * Start building a pipleline that doesn't put the final output anywhere.
-	 * Usage example: <code>PipelineRecursiveImpl.<Integer>endsInNothing()</code>
-	 * @return
+	 * Usage example: <code>PipelineRecursiveImpl.&lt;Integer&gt;noOutput()</code>
+	 * @param <O> type of the output
+	 * @return a pipeline that does not output to anywhere
 	 */
 	public static <O> PipelineRecursiveImpl<O, O> noOutput(){
 		return new PipelineRecursiveImpl<O, O>(MoreExecutors.newDirectExecutorService(), input -> input);
@@ -113,6 +119,7 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	 * Prepend a stage to the pipeline
 	 * @param executor		the executor service for the processing in the prepended stage
 	 * @param function		the function to be applied in the prepended stage
+	 * @param <I0> type of the new input
 	 * @return		the new pipeline with the stage prepended
 	 */
 	public <I0> PipelineRecursiveImpl<I0, O> prepend(ExecutorService executor, Function<I0, I> function){
@@ -124,6 +131,7 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	 * garbage collection when the pipleline itself is eligible for garbage collection. 
 	 * @param fixedThreadPoolSize		the thread pool size of a fixed size thread pool which will be used for the processing in the prepended stage
 	 * @param function		the function to be applied in the prepended stage
+	 * @param <I0> type of the new input
 	 * @return		the new pipeline with the stage prepended
 	 */
 	public <I0> PipelineRecursiveImpl<I0, O> prepend(int fixedThreadPoolSize, Function<I0, I> function){

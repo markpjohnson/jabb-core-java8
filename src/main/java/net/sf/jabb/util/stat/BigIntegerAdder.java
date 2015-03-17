@@ -164,6 +164,7 @@ public class BigIntegerAdder extends Number{
      * <em>not</em> guaranteed to be the final value occurring before
      * the set.
      *
+     * @param newValue the new value
      * @return the sum
      */
     public BigInteger sumThenSet(BigInteger newValue) {
