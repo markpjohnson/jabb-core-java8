@@ -51,13 +51,19 @@
 		<dependency>
 			<groupId>net.sf.jabb</groupId>
 			<artifactId>jabb-core</artifactId>
-			<version>1.0.63-201503050244</version>
+			<version>1.0.63-201503102225</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>commons-logging</artifactId>
 					<groupId>commons-logging</groupId>
 				</exclusion>
 			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.jgroups</groupId>
+			<artifactId>jgroups</artifactId>
+			<version>3.6.2.Final</version>
+			<optional>true</optional>
 		</dependency>
 	</dependencies>
 	<build>
