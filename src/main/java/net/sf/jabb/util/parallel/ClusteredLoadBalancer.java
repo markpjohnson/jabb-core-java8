@@ -19,6 +19,8 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 import org.jgroups.util.Util;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Throwables;
 
@@ -29,6 +31,7 @@ import com.google.common.base.Throwables;
  *
  */
 public class ClusteredLoadBalancer<L, R, P extends Serializable> extends BasicLoadBalancer<L, R, P> {
+	private static final Logger logger = LoggerFactory.getLogger(ClusteredLoadBalancer.class);
 	protected JChannel channel;
 	
 	
@@ -67,6 +70,7 @@ public class ClusteredLoadBalancer<L, R, P extends Serializable> extends BasicLo
 		try {
 			channel.connect(clusterName);
 		} catch (Exception e) {
+			logger.error("Unable to connect to cluster '{}' through channel: {}", clusterName, channel, e);
 			Throwables.propagate(e);
 		}
 	}
@@ -112,8 +116,7 @@ public class ClusteredLoadBalancer<L, R, P extends Serializable> extends BasicLo
 		try {
 			channel.send(null, getState(withProcessorMap, withActiveProcessors, withBackupProcessors));
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logger.error("Unable to propagate state through channel: {}", channel, e);
 		}
 	}
 	
@@ -136,8 +139,7 @@ public class ClusteredLoadBalancer<L, R, P extends Serializable> extends BasicLo
 					ClusteredLoadBalancer.this.setState(stateData);
 				}
 			} catch (Exception e) {
-				// ignore
-				e.printStackTrace();
+				logger.error("Error when receiving and processing received massage: {}", msg, e);
 			}
 			
 		}
