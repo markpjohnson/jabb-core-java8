@@ -246,6 +246,7 @@ public class BasicLoadBalancer<L, R, P> implements LoadBalancer<L, R, P> {
 	public R dispatch(L load){
 		long startTime = System.currentTimeMillis();
 		boolean successful = false;
+		Integer exceptionType = null;
 		P processor = null;
 		try{
 			processor = chooseProcessor(load);
@@ -253,6 +254,7 @@ public class BasicLoadBalancer<L, R, P> implements LoadBalancer<L, R, P> {
 			successful = true;
 			return result;
 		}catch(DispatchingException e){
+			exceptionType = e.getType();
 			if (fallback != null){
 				try{
 					fallback.accept(load);
@@ -265,7 +267,7 @@ public class BasicLoadBalancer<L, R, P> implements LoadBalancer<L, R, P> {
 		}finally{
 			if (statistics != null){
 				try{
-					statistics.accept(new DispatchingStatistics<L, P>(load, processor, System.currentTimeMillis() - startTime, successful));
+					statistics.accept(new DispatchingStatistics<L, P>(load, processor, System.currentTimeMillis() - startTime, successful, exceptionType));
 				}catch(Exception se){
 					// ignore
 					se.printStackTrace();
