@@ -35,16 +35,25 @@ public class RateTestUtility {
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
 			) throws Exception{
-		doRateTest(null, Executors.newFixedThreadPool(numThreads), numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
+		ExecutorService threadPool = Executors.newFixedThreadPool(numThreads);
+		doRateTest(null, threadPool, numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
 				testPeriod, testPeriodUnit, testFunction);
+		threadPool.shutdown();
+		threadPool.awaitTermination(1, TimeUnit.MINUTES);
+		threadPool.shutdownNow();
 	}
 	
 	public static double doRateTest(String title, int numThreads, 
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
 			) throws Exception{
-		return doRateTest(title, Executors.newFixedThreadPool(numThreads), numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
+		ExecutorService threadPool = Executors.newFixedThreadPool(numThreads);
+		double result = doRateTest(title, threadPool, numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
 				testPeriod, testPeriodUnit, testFunction);
+		threadPool.shutdown();
+		threadPool.awaitTermination(1, TimeUnit.MINUTES);
+		threadPool.shutdownNow();
+		return result;
 	}
 		
 	public static double doRateTest(String title, ExecutorService threadPool, int numThreads, 
