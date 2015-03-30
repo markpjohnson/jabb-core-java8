@@ -41,6 +41,10 @@ public class ChronoTimePeriod implements Comparable<ChronoTimePeriod>, Serializa
 		this.unit = unit;
 	}
 	
+	public ChronoTimePeriod(ChronoTimePeriod other){
+		this(other.amount, other.unit);
+	}
+	
 	@Override
 	public boolean equals(Object o){
 		if (o == this){
