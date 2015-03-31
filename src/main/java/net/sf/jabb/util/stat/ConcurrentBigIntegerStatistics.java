@@ -8,6 +8,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.LongAdder;
 
+import org.apache.commons.lang3.builder.EqualsBuilder;
+
 /**
  * Thread-safe statistics holder for high precision use cases.
  * @author James Hu
@@ -37,6 +39,23 @@ public class ConcurrentBigIntegerStatistics implements NumberStatistics<BigInteg
 		longMinMax = new ConcurrentLongMinMaxHolder();
 	}
 	
+	@Override
+	public boolean equals(Object other){
+		if (other == this){
+			return true;
+		}
+		if (other == null || !(other instanceof NumberStatistics<?>)){
+			return false;
+		}
+		NumberStatistics<?> that = (NumberStatistics<?>) other;
+		return new EqualsBuilder()
+			.append(this.count, that.getCount())
+			.append(this.sum, that.getSum())
+			.append(this.getMin(), that.getMin())
+			.append(this.getMin(), that.getMax())
+			.isEquals();
+	}
+
 	@Override
 	public void evaluate(BigInteger x){
 		count.increment();
