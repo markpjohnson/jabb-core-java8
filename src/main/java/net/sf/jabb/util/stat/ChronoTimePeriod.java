@@ -15,6 +15,8 @@ limitations under the License.
 */
 package net.sf.jabb.util.stat;
 
+import java.io.Serializable;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 
@@ -23,7 +25,9 @@ import org.apache.commons.lang3.builder.EqualsBuilder;
  * @author James Hu
  *
  */
-public class ChronoTimePeriod implements Comparable<ChronoTimePeriod>{
+public class ChronoTimePeriod implements Comparable<ChronoTimePeriod>, Serializable{
+	private static final long serialVersionUID = 3894027090839792451L;
+
 	protected long amount;
 	protected ChronoTimePeriodUnit unit;
 	
@@ -35,6 +39,10 @@ public class ChronoTimePeriod implements Comparable<ChronoTimePeriod>{
 	public ChronoTimePeriod(long quantity, ChronoTimePeriodUnit unit){
 		this.amount = quantity;
 		this.unit = unit;
+	}
+	
+	public ChronoTimePeriod(ChronoTimePeriod other){
+		this(other.amount, other.unit);
 	}
 	
 	@Override
