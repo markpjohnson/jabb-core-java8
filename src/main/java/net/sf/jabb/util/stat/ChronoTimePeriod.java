@@ -30,6 +30,7 @@ public class ChronoTimePeriod implements Comparable<ChronoTimePeriod>, Serializa
 
 	protected long amount;
 	protected ChronoTimePeriodUnit unit;
+	protected String shortString;			// as a cache
 	
 	public ChronoTimePeriod(ChronoTimePeriodUnit unit){
 		this(1L, unit);
@@ -175,11 +176,14 @@ public class ChronoTimePeriod implements Comparable<ChronoTimePeriod>, Serializa
 	
 	@Override
 	public String toString(){
-		return String.format("%d %s", amount, unit.toString());
+		return String.valueOf(amount) + " " + unit.toShortCode();
 	}
 	
 	public String toShortString(){
-		return String.format("%d%c", amount, unit.toShortCode());
+		if (shortString == null){
+			shortString = String.valueOf(amount) + unit.toShortCode();
+		}
+		return shortString;
 	}
 	
 	public long getAmount() {
