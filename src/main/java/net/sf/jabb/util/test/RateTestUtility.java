@@ -6,9 +6,12 @@ package net.sf.jabb.util.test;
 import java.text.DecimalFormat;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
@@ -35,7 +38,8 @@ public class RateTestUtility {
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
 			) throws Exception{
-		ExecutorService threadPool = Executors.newFixedThreadPool(numThreads);
+		ThreadPoolExecutor threadPool = new ThreadPoolExecutor(numThreads, numThreads, 1L, TimeUnit.MINUTES, new LinkedBlockingQueue<Runnable>());
+		threadPool.allowCoreThreadTimeOut(true);
 		doRateTest(null, threadPool, numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
 				testPeriod, testPeriodUnit, testFunction);
 		threadPool.shutdown();
@@ -47,7 +51,8 @@ public class RateTestUtility {
 			int warmUpPeriod, TimeUnit warmUpPeriodUnit, LongConsumer warmUpConsumer,
 			int testPeriod, TimeUnit testPeriodUnit, LongUnaryOperator testFunction
 			) throws Exception{
-		ExecutorService threadPool = Executors.newFixedThreadPool(numThreads);
+		ThreadPoolExecutor threadPool = new ThreadPoolExecutor(numThreads, numThreads, 1L, TimeUnit.MINUTES, new LinkedBlockingQueue<Runnable>());
+		threadPool.allowCoreThreadTimeOut(true);
 		double result = doRateTest(title, threadPool, numThreads, warmUpPeriod, warmUpPeriodUnit, warmUpConsumer,
 				testPeriod, testPeriodUnit, testFunction);
 		threadPool.shutdown();
