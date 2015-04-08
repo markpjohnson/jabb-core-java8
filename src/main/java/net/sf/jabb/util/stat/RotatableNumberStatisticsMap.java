@@ -128,14 +128,12 @@ public class RotatableNumberStatisticsMap<K, N extends Number, S extends NumberS
 	 * @return	the merged statistics for the key
 	 */
 	public NumberStatistics<BigInteger> getOverallStatistics(K key, Predicate<S> filter) {
-		NumberStatistics<BigInteger> result = new ConcurrentBigIntegerStatistics();
+		NumberStatistics<BigInteger> result = new ConcurrentBigIntegerStatistics(1);
 		for (RotatedMap previousOrCurrent: all){
 			Map<K, S> map = previousOrCurrent.map;
-			if (map.containsKey(key)){
-				S statistics = map.get(key);
-				if (filter == null || filter.test(statistics)){
-					result.merge(statistics);
-				}
+			S statistics = map.get(key);
+			if (statistics != null && (filter == null || filter.test(statistics))){
+				result.merge(statistics);
 			}
 		}
 		return result;
