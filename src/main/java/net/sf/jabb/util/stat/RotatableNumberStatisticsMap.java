@@ -125,7 +125,7 @@ public class RotatableNumberStatisticsMap<K, N extends Number, S extends NumberS
 	 * Get the overall statistics which are the merged statistics of all the maps.
 	 * @param key	the key
 	 * @param filter  a filter to return false when a statistics object should be ignored. It can be null which means no filter needs to be applied
-	 * @return	the merge statistics for the key
+	 * @return	the merged statistics for the key
 	 */
 	public NumberStatistics<BigInteger> getOverallStatistics(K key, Predicate<S> filter) {
 		NumberStatistics<BigInteger> result = new ConcurrentBigIntegerStatistics();
