@@ -3,7 +3,7 @@
  */
 package net.sf.jabb.util.stat;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.math.BigInteger;
 import java.util.HashMap;
@@ -14,17 +14,21 @@ import net.sf.jabb.util.col.AtomicComputeIfAbsentMap;
 import net.sf.jabb.util.col.ComputeIfAbsentConcurrentHashMap;
 import net.sf.jabb.util.stat.RotatableNumberStatisticsMap.RotatedMap;
 
-import org.junit.Test;import org.mapdb.DBMaker;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
+import org.mapdb.DBMaker;
 
 
 /**
  * @author James Hu
  *
  */
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class RotatableNumberStatisticsMapTest {
 
 	@Test
-	public void testCreation() {
+	public void test1Creation() {
 		RotatableNumberStatisticsMap<String, BigInteger, ConcurrentBigIntegerStatistics> bigMap = new RotatableNumberStatisticsMap<>(()->{
 			return new ComputeIfAbsentConcurrentHashMap<>(k->{return new ConcurrentBigIntegerStatistics();});
 		});
@@ -33,6 +37,8 @@ public class RotatableNumberStatisticsMapTest {
 		bigMap.evaluate("string1", BigInteger.TEN);
 		bigMap.evaluate("string2", 2);
 		assertEquals(2, bigMap.current.map.size());
+		
+		@SuppressWarnings("rawtypes")
 		RotatedMap previousCurrent = bigMap.current;
 		
 		bigMap.rotate();
@@ -42,7 +48,7 @@ public class RotatableNumberStatisticsMapTest {
 		assertEquals(2, bigMap.current.map.size());
 		assertEquals(previousCurrent, bigMap.all.peek());
 		
-		NumberStatistics<BigInteger> statisticsBig = bigMap.getOverallStatistics("string2", null);
+		NumberStatistics<BigInteger> statisticsBig = bigMap.getStatistics("string2", null);
 		assertEquals(2, statisticsBig.getCount());
 		assertEquals(BigInteger.valueOf(4), statisticsBig.getSum());
 	
@@ -56,20 +62,20 @@ public class RotatableNumberStatisticsMapTest {
 		longMap.evaluate("string2", 2);
 		longMap.evaluate("string3", 3);
 		
-		NumberStatistics<BigInteger> statisticsLong = longMap.getOverallStatistics("string2", null);
+		NumberStatistics<BigInteger> statisticsLong = longMap.getStatistics("string2", null);
 		assertEquals(2, statisticsLong.getCount());
 		assertEquals(BigInteger.valueOf(4), statisticsLong.getSum());
 		
 		assertEquals(2, longMap.all.size());
-		longMap.purgeIfRotatedBefore(System.currentTimeMillis()+1);
+		longMap.purge(null, System.currentTimeMillis()+1);
 		assertEquals(1, longMap.all.size());
 		longMap.rotate();
-		longMap.purgeIfRotatedBefore(System.currentTimeMillis()+1);
+		longMap.purge(null, System.currentTimeMillis()+1);
 		assertEquals(1, longMap.all.size());
 	}
 	
 	@Test
-	public void testSwapAndPurge() throws InterruptedException{
+	public void test2SwapAndPurge() throws InterruptedException{
 		RotatableNumberStatisticsMap<String, BigInteger, CustomStatistics> bigMap = new RotatableNumberStatisticsMap<>(()->{
 			return new ComputeIfAbsentConcurrentHashMap<>(k->{return new CustomStatistics();});
 		});
@@ -85,29 +91,29 @@ public class RotatableNumberStatisticsMapTest {
 		}
 		assertEquals(121, bigMap.all.size());
 		
-		bigMap.swapIfRotatedBefore(original->{
+		bigMap.swap(original->{
 			Map<String, CustomStatistics> newMap = DBMaker.newTempHashMap();
 			newMap.putAll(original);
 			return newMap;
-		}, start + 1000L*30+100);
+		}, 1, start + 1000L*30+100);
 		assertEquals(121, bigMap.all.size());
 		
-		NumberStatistics<BigInteger> stat = bigMap.getOverallStatistics("string1", null);
+		NumberStatistics<BigInteger> stat = bigMap.getStatistics("string1", null);
 		assertEquals(240L, stat.getCount());
 		
-		stat = bigMap.getOverallStatistics("string1", s-> !s.shouldIgnore);
+		stat = bigMap.getStatistics("string1", s-> !s.shouldIgnore);
 		assertEquals(240L, stat.getCount());
 		
-		List<Map<String, CustomStatistics>> list = bigMap.listIfRotatedBefore(start + 1000L*40+100);
+		List<Map<String, CustomStatistics>> list = bigMap.getRotatedMaps(1, start + 1000L*40+100);
 		assertEquals(80, list.size());		// 2/3 of 120
 		
 		list.stream().forEach(m ->{
 			m.values().forEach(s-> s.shouldIgnore = true);
 		});
-		stat = bigMap.getOverallStatistics("string1", s-> !s.shouldIgnore);
+		stat = bigMap.getStatistics("string1", s-> !s.shouldIgnore);
 		assertEquals(80L, stat.getCount());		// 1/3 of 240
 		
-		bigMap.purgeIfRotatedBefore(start + 1000L*20+100);
+		bigMap.purge(null, start + 1000L*20+100);
 		assertEquals(81, bigMap.all.size());
 	}
 
