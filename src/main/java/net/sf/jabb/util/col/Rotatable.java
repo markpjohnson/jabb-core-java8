@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 
 /**
@@ -62,6 +63,14 @@ public class Rotatable<T> {
 	 */
 	public T getCurrent() {
 		return current.obj;
+	}
+	
+	/**
+	 * Get the rotated and the current
+	 * @return	all
+	 */
+	public List<T> getAll(){
+		return all.stream().map(wrapper->wrapper.obj).collect(Collectors.toList());
 	}
 	
 	/**
