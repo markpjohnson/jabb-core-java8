@@ -19,7 +19,6 @@ package net.sf.jabb.util.stat;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -39,19 +38,6 @@ public class ConcurrentLongStatistics implements NumberStatistics<Long>, Seriali
 		count = new LongAdder();
 		sum = new LongAdder();
 		minMax = new ConcurrentLongMinMaxHolder();
-	}
-	
-	@Override
-	public void merge(NumberStatistics<? extends Number> other){
-		if (other != null){
-			long otherCount = other.getCount();
-			if (otherCount  > 0){
-				count.add(otherCount);
-				sum.add(other.getSum().longValue());
-				minMax.evaluate(other.getMin().longValue());
-				minMax.evaluate(other.getMax().longValue());
-			}
-		}
 	}
 	
 	@Override
@@ -132,4 +118,25 @@ public class ConcurrentLongStatistics implements NumberStatistics<Long>, Seriali
 		return "(" + count.sum() + ", " + sum.sum() + ", " + getMin() + "/" + getMax() + ")";
 	}
 
+	@Override
+	public void merge(long count, Long sum, Long min, Long max) {
+		this.count.add(count);
+		if (sum != null){
+			this.sum.add(sum);
+		}
+		if (min != null){
+			this.minMax.evaluate(min);
+		}
+		if (max != null){
+			this.minMax.evaluate(max);
+		}
+	}
+
+	@Override
+	public void merge(NumberStatistics<? extends Number> other){
+		if (other != null){
+			merge(other.getCount(), other.getSum().longValue(), other.getMin().longValue(), other.getMax().longValue());
+		}
+	}
+	
 }
