@@ -131,29 +131,6 @@ public class ConcurrentBigIntegerStatistics implements NumberStatistics<BigInteg
 		}
 	}
 	
-	public void merge(ConcurrentBigIntegerStatistics another){
-		count.add(another.count.sum());
-		sum.add(another.getSum());
-		bigIntegerMinMax.merge(another.bigIntegerMinMax);
-		longMinMax.merge(another.longMinMax);
-	}
-
-	@Override
-	public void merge(NumberStatistics<? extends Number> another) {
-		if (another instanceof ConcurrentBigIntegerStatistics){
-			merge((ConcurrentBigIntegerStatistics)another);
-		}else{
-			Number anotherCount = another.getCount();
-			if (anotherCount != null && anotherCount.intValue() > 0){
-				count.add(another.getCount());
-				sum.add(another.getSum().longValue());
-				longMinMax.evaluate(another.getMin().longValue());
-				longMinMax.evaluate(another.getMax().longValue());
-			}
-		}
-		
-	}
-
 	@Override
 	public Double getAvg() {
 		BigDecimal avg = getAvg(30);
@@ -175,5 +152,42 @@ public class ConcurrentBigIntegerStatistics implements NumberStatistics<BigInteg
 	public String toString(){
 		return "(" + count.sum() + ", " + sum.sum() + ", " + getMin() + "/" + getMax() + ")";
 	}
+
+	@Override
+	public void merge(long count, BigInteger sum, BigInteger min, BigInteger max) {
+		this.count.add(count);
+		if (sum != null){
+			this.sum.add(sum);
+		}
+		if (min != null){
+			this.bigIntegerMinMax.evaluate(min);
+		}
+		if (max != null){
+			this.bigIntegerMinMax.evaluate(max);
+		}
+	}
+	
+	public void merge(ConcurrentBigIntegerStatistics another){
+		if (another != null){
+			merge(another.getCount(), another.getSum(), another.getMin(), another.getMax());
+		}
+	}
+
+	@Override
+	public void merge(NumberStatistics<? extends Number> another) {
+		if (another instanceof ConcurrentBigIntegerStatistics){
+			merge((ConcurrentBigIntegerStatistics)another);
+		}else{
+			long anotherCount = another.getCount();
+			if (anotherCount > 0){
+				count.add(another.getCount());
+				sum.add(another.getSum().longValue());
+				longMinMax.evaluate(another.getMin().longValue());
+				longMinMax.evaluate(another.getMax().longValue());
+			}
+		}
+		
+	}
+
 
 }
