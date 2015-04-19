@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public class BigIntegerAdder extends Number{
 	private static final long serialVersionUID = -9214671662034042785L;
-	protected static final int DEFAULT_NUM_VALUES = 5;
 	protected static final BigInteger MINUS_ONE = BigInteger.ONE.negate();
 	
 	protected AtomicBigInteger[] values;
@@ -31,16 +30,23 @@ public class BigIntegerAdder extends Number{
 	transient protected int j = 0;
 	//transient protected int valueLength;
 	
+	/**
+	 * Constructor. The concurrencyFactor will be set to the same as number of available CPU cores.
+	 */
 	public BigIntegerAdder(){
-		this(DEFAULT_NUM_VALUES, BigInteger.ZERO);
+		this(Runtime.getRuntime().availableProcessors(), BigInteger.ZERO);
 	}
 	
 	public BigIntegerAdder(int concurrencyFactor){
 		this(concurrencyFactor, BigInteger.ZERO);
 	}
 
+	/**
+	 * Constructor. The concurrencyFactor will be set to the same as number of available CPU cores.
+	 * @param initialValue	the initial value
+	 */
 	public BigIntegerAdder(BigInteger initialValue){
-		this(DEFAULT_NUM_VALUES, initialValue);
+		this(Runtime.getRuntime().availableProcessors(), initialValue);
 	}
 
 	public BigIntegerAdder(int concurrencyFactor, BigInteger initialValue){
