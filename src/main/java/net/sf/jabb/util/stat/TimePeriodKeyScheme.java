@@ -14,7 +14,8 @@ import java.util.Date;
 import java.util.TimeZone;
 
 /**
- * The scheme for generating and parsing keys that identify time periods
+ * The scheme for generating and parsing keys that identify time periods.
+ * Keys are relative to time zone.
  * @author James Hu
  *
  */
@@ -61,17 +62,19 @@ public interface TimePeriodKeyScheme {
 	String nextKey(String key, ZoneId zone);
 
 	/**
-	 * Get the end time (exclusive) of the time period represented by the key
+	 * Get the end time (exclusive) of the time period represented by the key.
+	 * The key always marks the start time but in order to calculate the end time, time zone information is needed.
 	 * @param key	the time period key
-	 * @param zone	the time zone
+	 * @param zone	the time zone in which the end time will be calculated
 	 * @return	the end time (exclusive) of the time period
 	 */
 	ZonedDateTime getEndTime(String key, ZoneId zone);
 
 	/**
-	 * Get the start time (exclusive) of the time period represented by the key
+	 * Get the start time (inclusive) of the time period represented by the key.
+	 * The key always marks the start time so there is no time zone information needed as argument.
 	 * @param key	the time period key
-	 * @return	the start time (inclusive) of the time period
+	 * @return	the start time (inclusive) of the time period. It should be interpreted as in the same time zone in which the key is generated.
 	 */
 	LocalDateTime getStartTime(String key);
 
