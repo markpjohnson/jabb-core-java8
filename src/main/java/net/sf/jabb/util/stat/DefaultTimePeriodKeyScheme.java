@@ -3,6 +3,7 @@
  */
 package net.sf.jabb.util.stat;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -18,8 +19,9 @@ import java.util.stream.Collectors;
  * @author James Hu
  *
  */
-public class DefaultTimePeriodKeyScheme implements HierarchicalTimePeriodKeyScheme{
-	
+public class DefaultTimePeriodKeyScheme implements HierarchicalTimePeriodKeyScheme, Serializable{
+	private static final long serialVersionUID = -3654502940787144075L;
+
 	protected int step;
 	protected ChronoUnit unit;
 	protected DateTimeFormatter formatter;
