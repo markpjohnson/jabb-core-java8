@@ -3,7 +3,10 @@
  */
 package net.sf.jabb.util.stat;
 
+import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalField;
+import java.time.temporal.WeekFields;
 import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
 
@@ -15,14 +18,14 @@ import java.util.concurrent.TimeUnit;
  *
  */
 public enum ChronoTimePeriodUnit {
-    MILLISECONDS(ChronoUnit.MILLIS, TimeUnit.MILLISECONDS, Calendar.MILLISECOND, 1L, 'I', TimePeriodUnit.MILLISECONDS), 
-    SECONDS(ChronoUnit.SECONDS, TimeUnit.SECONDS, Calendar.SECOND, 1000L, 'S', TimePeriodUnit.SECONDS), 
-    MINUTES(ChronoUnit.MINUTES, TimeUnit.MINUTES, Calendar.MINUTE, 1000L * 60, 'N', TimePeriodUnit.MINUTES), 
-	HOURS(ChronoUnit.HOURS, TimeUnit.HOURS, Calendar.HOUR_OF_DAY, 1000L * 3600, 'H', TimePeriodUnit.HOURS), 
-	DAYS(ChronoUnit.DAYS, TimeUnit.DAYS, Calendar.DAY_OF_MONTH, 1000L * 3600 * 24, 'D', TimePeriodUnit.DAYS),  // 1 means 1st day of a month
-	WEEKS(ChronoUnit.WEEKS, null, Calendar.DAY_OF_WEEK, 1000L * 3600 * 24 * 7, 'W', TimePeriodUnit.WEEKS),
-	MONTHS(ChronoUnit.MONTHS, null, Calendar.MONTH, 2630000000L, 'M', TimePeriodUnit.MONTHS),  // 0 means January
-	YEARS(ChronoUnit.YEARS, null, Calendar.YEAR, 31556900000L, 'Y', TimePeriodUnit.YEARS);
+    MILLISECONDS(ChronoUnit.MILLIS, TimeUnit.MILLISECONDS, Calendar.MILLISECOND, 1L, 'I', TimePeriodUnit.MILLISECONDS, ChronoField.MILLI_OF_SECOND), 
+    SECONDS(ChronoUnit.SECONDS, TimeUnit.SECONDS, Calendar.SECOND, 1000L, 'S', TimePeriodUnit.SECONDS, ChronoField.SECOND_OF_MINUTE), 
+    MINUTES(ChronoUnit.MINUTES, TimeUnit.MINUTES, Calendar.MINUTE, 1000L * 60, 'N', TimePeriodUnit.MINUTES, ChronoField.MINUTE_OF_HOUR), 
+	HOURS(ChronoUnit.HOURS, TimeUnit.HOURS, Calendar.HOUR_OF_DAY, 1000L * 3600, 'H', TimePeriodUnit.HOURS, ChronoField.HOUR_OF_DAY), 
+	DAYS(ChronoUnit.DAYS, TimeUnit.DAYS, Calendar.DAY_OF_MONTH, 1000L * 3600 * 24, 'D', TimePeriodUnit.DAYS, ChronoField.DAY_OF_MONTH),  // 1 means 1st day of a month
+	WEEKS(ChronoUnit.WEEKS, null, Calendar.WEEK_OF_YEAR, 1000L * 3600 * 24 * 7, 'W', TimePeriodUnit.WEEKS, WeekFields.ISO.weekOfYear()),
+	MONTHS(ChronoUnit.MONTHS, null, Calendar.MONTH, 2630000000L, 'M', TimePeriodUnit.MONTHS, ChronoField.MONTH_OF_YEAR),  // 0 means January
+	YEARS(ChronoUnit.YEARS, null, Calendar.YEAR, 31556900000L, 'Y', TimePeriodUnit.YEARS, ChronoField.YEAR);
 
     private ChronoUnit chronoUnit;
     private TimeUnit timeUnit;
@@ -30,14 +33,16 @@ public enum ChronoTimePeriodUnit {
     private long milliseconds;
     private char code;
     private TimePeriodUnit timePeriodUnit;
+    private TemporalField temporalField;
 
-    ChronoTimePeriodUnit(ChronoUnit chronoUnit, TimeUnit timeUnit, int calendarField, long milliseconds, char code, TimePeriodUnit timePeriodUnit){
+    ChronoTimePeriodUnit(ChronoUnit chronoUnit, TimeUnit timeUnit, int calendarField, long milliseconds, char code, TimePeriodUnit timePeriodUnit, TemporalField temporalField){
     	this.chronoUnit = chronoUnit;
     	this.timeUnit = timeUnit;
     	this.calendarField = calendarField;
     	this.milliseconds = milliseconds;
     	this.code = code;
     	this.timePeriodUnit = timePeriodUnit;
+    	this.temporalField = temporalField;
     }
 
     /**
@@ -204,6 +209,10 @@ public enum ChronoTimePeriodUnit {
     	return timePeriodUnit;
     }
     
+	public TemporalField toTemporalField() {
+		return temporalField;
+	}
+
 	public boolean isDivisorOf(ChronoTimePeriodUnit that){
 		if (this == that){
 			return true;
