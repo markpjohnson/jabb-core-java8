@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -27,6 +28,13 @@ public class DefaultTimePeriodKeyScheme implements HierarchicalTimePeriodKeySche
 	protected DefaultTimePeriodKeyScheme lowerLevelScheme;
 	protected List<HierarchicalTimePeriodKeyScheme> upperLevelSchemes = new ArrayList<>(2);
 
+	public DefaultTimePeriodKeyScheme(int step, ChronoUnit unit, DateTimeFormatter formatter, DateTimeFormatter parser, Locale locale){
+		this.step = step;
+		this.unit = unit;
+		this.formatter = formatter.withLocale(locale);
+		this.parser = parser.withLocale(locale);
+	}
+	
 	public DefaultTimePeriodKeyScheme(int step, ChronoUnit unit, DateTimeFormatter formatter, DateTimeFormatter parser){
 		this.step = step;
 		this.unit = unit;
@@ -36,6 +44,12 @@ public class DefaultTimePeriodKeyScheme implements HierarchicalTimePeriodKeySche
 	
 	public DefaultTimePeriodKeyScheme(DefaultTimePeriodKeyScheme lowerLevelScheme, int step, ChronoUnit unit, DateTimeFormatter formatter, DateTimeFormatter parser){
 		this(step, unit, formatter, parser);
+		this.lowerLevelScheme = lowerLevelScheme;
+		lowerLevelScheme.upperLevelSchemes.add(this);
+	}
+	
+	public DefaultTimePeriodKeyScheme(DefaultTimePeriodKeyScheme lowerLevelScheme, int step, ChronoUnit unit, DateTimeFormatter formatter, DateTimeFormatter parser, Locale locale){
+		this(step, unit, formatter, parser, locale);
 		this.lowerLevelScheme = lowerLevelScheme;
 		lowerLevelScheme.upperLevelSchemes.add(this);
 	}
