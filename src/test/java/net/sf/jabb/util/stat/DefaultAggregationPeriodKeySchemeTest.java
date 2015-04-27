@@ -70,9 +70,9 @@ public class DefaultAggregationPeriodKeySchemeTest {
 		
 		assertEquals(APC_1HOUR + "2015031217", hapks.generateKey(APC_1HOUR, ldt));
 		assertEquals(APC_1HOUR + "2015031223", hapks.generateKey(APC_1HOUR, zdt.withZoneSameInstant(UTC)));
-		assertEquals(APC_1HOUR + "2015031221", hapks.nextKey(APC_1HOUR + "2015031220", UTC));
-		assertEquals(APC_1HOUR + "2015031219", hapks.previousKey(APC_1HOUR + "2015031220", UTC));
-		assertEquals(APC_1HOUR + "2015030923", hapks.previousKey(APC_1HOUR + "2015031000", UTC));
+		assertEquals(APC_1HOUR + "2015031221", hapks.nextKey(APC_1HOUR + "2015031220"));
+		assertEquals(APC_1HOUR + "2015031219", hapks.previousKey(APC_1HOUR + "2015031220"));
+		assertEquals(APC_1HOUR + "2015030923", hapks.previousKey(APC_1HOUR + "2015031000"));
 
 		assertEquals(APC_1HOUR + "2015031220", hapks.generateKey(APC_1HOUR, zdt.withZoneSameInstant(GMT3)));
 
@@ -81,7 +81,7 @@ public class DefaultAggregationPeriodKeySchemeTest {
 	}
 	
 	protected void print(AggregationPeriodKeyScheme scheme, String key){
-		System.out.println(key + " -> " + scheme.getStartTime(key) + ", " + scheme.getStartTime(key) + " => " + scheme.nextKey(key, UTC));
+		System.out.println(key + " -> " + scheme.getStartTime(key) + ", " + scheme.getStartTime(key) + " => " + scheme.nextKey(key));
 	}
 	
 	@Test
@@ -122,8 +122,8 @@ public class DefaultAggregationPeriodKeySchemeTest {
 		assertEquals(APC_1WEEK_BASED_YEAR + "2009", hapks.generateKey(APC_1WEEK_BASED_YEAR, LocalDateTime.parse("2008-12-29T10:00")));
 		assertEquals(APC_1WEEK_BASED_YEAR + "2009", hapks.generateKey(APC_1WEEK_BASED_YEAR, LocalDateTime.parse("2009-01-04T10:00")));
 		
-		assertEquals(APC_1WEEK_BASED_YEAR_WEEK + "200901", hapks.nextKey(APC_1WEEK_BASED_YEAR_WEEK + "200852", ZoneId.systemDefault()));
-		assertEquals(APC_1WEEK_BASED_YEAR_WEEK + "200852", hapks.previousKey(APC_1WEEK_BASED_YEAR_WEEK + "200901", ZoneId.systemDefault()));
+		assertEquals(APC_1WEEK_BASED_YEAR_WEEK + "200901", hapks.nextKey(APC_1WEEK_BASED_YEAR_WEEK + "200852"));
+		assertEquals(APC_1WEEK_BASED_YEAR_WEEK + "200852", hapks.previousKey(APC_1WEEK_BASED_YEAR_WEEK + "200901"));
 		
 		
 		assertEquals(APC_1WEEK_ISO + "200852", hapks.generateKey(APC_1WEEK_ISO, LocalDateTime.parse("2008-12-28T10:00")));
@@ -156,8 +156,8 @@ public class DefaultAggregationPeriodKeySchemeTest {
 	}
 	
 	protected void testRoundTrip(String key){
-		assertEquals(key, hapks.nextKey(hapks.previousKey(key, ZoneId.systemDefault()), ZoneId.systemDefault()));
-		assertEquals(key, hapks.previousKey(hapks.nextKey(key, ZoneId.systemDefault()), ZoneId.systemDefault()));
+		assertEquals(key, hapks.nextKey(hapks.previousKey(key)));
+		assertEquals(key, hapks.previousKey(hapks.nextKey(key)));
 	}
 
 }
