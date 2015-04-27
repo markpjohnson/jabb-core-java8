@@ -112,7 +112,7 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 		int i;
 		
 		// find the first non-digit which should be the start of the AggregationPeriodUnit code
-		for (i = 0; i < key.length(); i ++){
+		for (i = 6; i < key.length(); i ++){
 			if (!Character.isDigit(key.charAt(i))){
 				// find the next first digit which marks the end of the AggregationPeriodUnit code
 				for (;i < key.length(); i ++){
@@ -175,13 +175,13 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 	}
 
 	@Override
-	public ZonedDateTime getEndTime(String key, ZoneId zone) {
+	public ZonedDateTime getEndTime(String key) {
 		AggregationPeriod ap = retrieveAggregationPeriod(key);
-		return getEndTime(ap, key, zone);
+		return getEndTime(ap, key);
 	}
 	
-	static protected ZonedDateTime getEndTime(AggregationPeriod ap, String key, ZoneId zone) {
-		ZonedDateTime thisStart = ZonedDateTime.of(getStartTime(ap, key), zone);
+	static protected ZonedDateTime getEndTime(AggregationPeriod ap, String key) {
+		ZonedDateTime thisStart = ZonedDateTime.of(getStartTime(ap, key), ap.zone);
 		ZonedDateTime nextStart = thisStart.plus(ap.amount, ap.unit.getTemporalUnit());
 		return nextStart;
 	}
@@ -205,12 +205,12 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 	}
 
 	@Override
-	public String previousKey(String key, ZoneId zone){
+	public String previousKey(String key){
 		AggregationPeriod ap = retrieveAggregationPeriod(key);
-		return previousKey(ap, key, zone);
+		return previousKey(ap, key);
 	}
 	
-	static protected String previousKey(AggregationPeriod ap, String key, ZoneId zone){
+	static protected String previousKey(AggregationPeriod ap, String key){
 		String apCode;
 		int year;
 		int week;
@@ -228,26 +228,26 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 				apCode = ap.getCodeName();
 				week = Integer.parseInt(key.substring(apCode.length() + 4, key.length()));
 				if (week <= 1){
-					return findNextKey(ap, key, -1, ChronoUnit.DAYS, zone);
+					return findNextKey(ap, key, -1, ChronoUnit.DAYS, ap.zone);
 				}
 				// else fall down
 			case WEEK_BASED_YEAR_WEEK:
 				// fall down
 			default:
 				// it is safe to simply jump to the start of previous period
-				ZonedDateTime thisStart = ZonedDateTime.of(getStartTime(ap, key), zone);
+				ZonedDateTime thisStart = ZonedDateTime.of(getStartTime(ap, key), ap.zone);
 				ZonedDateTime previousStart = thisStart.plus(-ap.amount, ap.unit.getTemporalUnit());
 				return staticGenerateKey(ap, previousStart.toLocalDateTime());
 		}
 	}
 	
 	@Override
-	public String nextKey(String key, ZoneId zone) {
+	public String nextKey(String key) {
 		AggregationPeriod ap = retrieveAggregationPeriod(key);
-		return nextKey(ap, key, zone);
+		return nextKey(ap, key);
 	}
 	
-	static protected String nextKey(AggregationPeriod ap, String key, ZoneId zone) {
+	static protected String nextKey(AggregationPeriod ap, String key) {
 		String apCode;
 		int year;
 		int week;
@@ -265,14 +265,14 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 				apCode = ap.getCodeName();
 				week = Integer.parseInt(key.substring(apCode.length() + 4, key.length()));
 				if (week >= 51){
-					return findNextKey(ap, key, 1, ChronoUnit.DAYS, zone);
+					return findNextKey(ap, key, 1, ChronoUnit.DAYS, ap.zone);
 				}
 				// else fall down
 			case WEEK_BASED_YEAR_WEEK:
 				// fall down
 			default:
 				// it is safe to simply jump to the start of previous period
-				ZonedDateTime thisStart = ZonedDateTime.of(getStartTime(ap, key), zone);
+				ZonedDateTime thisStart = ZonedDateTime.of(getStartTime(ap, key), ap.zone);
 				ZonedDateTime nextStart = thisStart.plus(ap.amount, ap.unit.getTemporalUnit());
 				return staticGenerateKey(ap, nextStart.toLocalDateTime());
 		}
@@ -357,13 +357,13 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 			}
 
 			@Override
-			public ZonedDateTime getEndTime(String key, ZoneId zone) {
-				return DefaultAggregationPeriodKeyScheme.getEndTime(ap, key, zone);
+			public ZonedDateTime getEndTime(String key) {
+				return DefaultAggregationPeriodKeyScheme.getEndTime(ap, key);
 			}
 
 			@Override
-			public String previousKey(String key, ZoneId zone) {
-				return DefaultAggregationPeriodKeyScheme.previousKey(ap, key, zone);
+			public String previousKey(String key) {
+				return DefaultAggregationPeriodKeyScheme.previousKey(ap, key);
 			}
 
 			@Override
