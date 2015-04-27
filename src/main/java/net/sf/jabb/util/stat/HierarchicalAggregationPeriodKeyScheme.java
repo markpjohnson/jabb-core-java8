@@ -43,28 +43,25 @@ public interface HierarchicalAggregationPeriodKeyScheme{
 
 	/**
 	 * Get the end time (exclusive) of the time period represented by the key.
-	 * The key always marks the start time but in order to calculate the end time, time zone information is needed.
+	 * The key always marks the start time but in order to calculate the end time, time zone information is used to calculate the end time.
 	 * @param key	the time period key
-	 * @param zone	the time zone in which the end time will be calculated
 	 * @return	the end time (exclusive) of the time period
 	 */
-	ZonedDateTime getEndTime(String key, ZoneId zone);
+	ZonedDateTime getEndTime(String key);
 
 	/**
 	 * Generate the key representing the previous time period of a specified key
 	 * @param key	the key for which the key for previous time period will be generated
-	 * @param zone	the time zone
 	 * @return	the key identifying the previous time period
 	 */
-	String previousKey(String key, ZoneId zone);
+	String previousKey(String key);
 
 	/**
 	 * Generate the key representing the next time period of a specified key
 	 * @param key	the key for which the key for next time period will be generated
-	 * @param zone	the time zone
 	 * @return the key identifying the next time period
 	 */
-	String nextKey(String key, ZoneId zone);
+	String nextKey(String key);
 
 	/**
 	 * Generate the key representing the time period that the specified date time falls into
