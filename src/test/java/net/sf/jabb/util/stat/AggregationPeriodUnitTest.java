@@ -43,4 +43,19 @@ public class AggregationPeriodUnitTest {
 		assertTrue(AggregationPeriodUnit.YEAR_MONTH_DAY_HOUR.canSupportAggregation(5, AggregationPeriodUnit.YEAR_MONTH_DAY, 5));
 	}
 
+	@Test
+	public void testParsing(){
+		assertEquals(AggregationPeriodUnit.YEAR, AggregationPeriodUnit.parse("year"));
+		assertEquals(AggregationPeriodUnit.YEAR, AggregationPeriodUnit.parse("years"));
+		assertEquals(AggregationPeriodUnit.YEAR, AggregationPeriodUnit.parse("y"));
+
+		assertEquals(AggregationPeriodUnit.WEEK_BASED_YEAR, AggregationPeriodUnit.parse("WEEK_BASED_YEAR"));
+		assertEquals(AggregationPeriodUnit.WEEK_BASED_YEAR, AggregationPeriodUnit.parse("WeekBasedYear"));
+		assertEquals(AggregationPeriodUnit.WEEK_BASED_YEAR, AggregationPeriodUnit.parse("Z"));
+
+		assertEquals(AggregationPeriodUnit.YEAR_MONTH_DAY_HOUR_MINUTE, AggregationPeriodUnit.parse("YEAR_MONTH_DAY_HOUR_MINUTE"));
+		assertEquals(AggregationPeriodUnit.YEAR_MONTH_DAY_HOUR_MINUTE, AggregationPeriodUnit.parse("minutes"));
+		assertEquals(AggregationPeriodUnit.YEAR_MONTH_DAY_HOUR_MINUTE, AggregationPeriodUnit.parse("minute"));
+		assertEquals(AggregationPeriodUnit.YEAR_MONTH_DAY_HOUR_MINUTE, AggregationPeriodUnit.parse("n"));
+	}
 }

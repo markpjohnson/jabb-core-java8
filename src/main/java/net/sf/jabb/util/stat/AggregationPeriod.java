@@ -74,19 +74,13 @@ public class AggregationPeriod implements Serializable, Comparable<AggregationPe
 		String trimed = amountAndUnit.trim();
 		String allExceptLast = trimed.substring(0, trimed.length() - 1);
 		if (StringUtils.isNumericSpace(allExceptLast)){ // short format
-			int amount = Integer.parseInt(allExceptLast);
-			AggregationPeriodUnit unit = AggregationPeriodUnit.valueOf(Character.toUpperCase(trimed.charAt(trimed.length() - 1)));
+			int amount = Integer.parseInt(allExceptLast.trim());
+			AggregationPeriodUnit unit = AggregationPeriodUnit.parse(trimed.charAt(trimed.length() - 1));
 			return new AggregationPeriod(amount, unit, zone);
 		}else{
 			String[] durationAndUnit = StringUtils.split(trimed);
 			int amount = Integer.valueOf(durationAndUnit[0]);
-			
-			String unitString = durationAndUnit[1].toUpperCase();
-			if(unitString.charAt(unitString.length() - 1) != 'S') {
-				unitString = unitString + "S";
-			}
-			AggregationPeriodUnit unit = AggregationPeriodUnit.valueOf(unitString);
-
+			AggregationPeriodUnit unit = AggregationPeriodUnit.parse(durationAndUnit[1]);
 			return new AggregationPeriod(amount, unit, zone);
 		}
 	}
@@ -103,19 +97,13 @@ public class AggregationPeriod implements Serializable, Comparable<AggregationPe
 		String allExceptLast = trimed.substring(0, trimed.length() - 1);
 		if (StringUtils.isNumericSpace(allExceptLast)){ // short format without time zone
 			int amount = Integer.parseInt(allExceptLast.trim());
-			AggregationPeriodUnit unit = AggregationPeriodUnit.valueOf(Character.toUpperCase(trimed.charAt(trimed.length() - 1)));
+			AggregationPeriodUnit unit = AggregationPeriodUnit.parse(trimed.charAt(trimed.length() - 1));
 			return new AggregationPeriod(amount, unit, TimeZoneUtility.UTC);
 		}else{
 			String[] splited = StringUtils.split(trimed);
 			if (splited.length == 2 && StringUtils.isNumeric(splited[0])){	// long format without time zone
 				int amount = Integer.valueOf(splited[0]);
-				
-				String unitString = splited[1].toUpperCase();
-				if(unitString.charAt(unitString.length() - 1) != 'S') {
-					unitString = unitString + "S";
-				}
-				AggregationPeriodUnit unit = AggregationPeriodUnit.valueOf(unitString);
-
+				AggregationPeriodUnit unit = AggregationPeriodUnit.parse(splited[1]);
 				return new AggregationPeriod(amount, unit, TimeZoneUtility.UTC);
 			}else if (splited.length == 3){
 				ZoneId zone = TimeZoneUtility.toZoneId(splited[0]);
