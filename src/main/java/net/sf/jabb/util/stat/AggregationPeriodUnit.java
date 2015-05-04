@@ -10,6 +10,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
+
 
 /**
  * Unit of aggregation periods for statistics purposes
@@ -17,58 +19,98 @@ import java.util.Set;
  *
  */
 public enum AggregationPeriodUnit {
-	WEEK_BASED_YEAR('Z', ChronoUnit.YEARS), 
-		WEEK_BASED_YEAR_WEEK('E', ChronoUnit.WEEKS, false, WEEK_BASED_YEAR),
-	YEAR('Y', ChronoUnit.YEARS), 
-		YEAR_WEEK_ISO('W', ChronoUnit.WEEKS, false, YEAR),
-		YEAR_WEEK_SUNDAY_START('U', ChronoUnit.WEEKS, false, YEAR),
-		YEAR_MONTH('M', ChronoUnit.MONTHS, false, YEAR, 1, 2, 3, 4, 6, 12), 
-			YEAR_MONTH_DAY('D', ChronoUnit.DAYS, true, YEAR_MONTH, YEAR_WEEK_ISO, YEAR_WEEK_SUNDAY_START, WEEK_BASED_YEAR_WEEK), 
-				YEAR_MONTH_DAY_HOUR('H', ChronoUnit.HOURS, true, YEAR_MONTH_DAY, 1, 2, 3, 4, 6, 8, 12, 24), 
-					YEAR_MONTH_DAY_HOUR_MINUTE('N', ChronoUnit.MINUTES, true, YEAR_MONTH_DAY_HOUR, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60);
+	WEEK_BASED_YEAR('Z', "WEEKBASEDYEAR", ChronoUnit.YEARS), 
+		WEEK_BASED_YEAR_WEEK('E', "WEEKBASEDYEARWEEK", ChronoUnit.WEEKS, false, WEEK_BASED_YEAR),
+	YEAR('Y', "YEAR", ChronoUnit.YEARS), 
+		YEAR_WEEK_ISO('W', "WEEK", ChronoUnit.WEEKS, false, YEAR),
+		YEAR_WEEK_SUNDAY_START('U', "WEEKSUNDAYSTART", ChronoUnit.WEEKS, false, YEAR),
+		YEAR_MONTH('M', "MONTH", ChronoUnit.MONTHS, false, YEAR, 1, 2, 3, 4, 6, 12), 
+			YEAR_MONTH_DAY('D', "DAY", ChronoUnit.DAYS, true, YEAR_MONTH, YEAR_WEEK_ISO, YEAR_WEEK_SUNDAY_START, WEEK_BASED_YEAR_WEEK), 
+				YEAR_MONTH_DAY_HOUR('H', "HOUR", ChronoUnit.HOURS, true, YEAR_MONTH_DAY, 1, 2, 3, 4, 6, 8, 12, 24), 
+					YEAR_MONTH_DAY_HOUR_MINUTE('N', "MINUTE", ChronoUnit.MINUTES, true, YEAR_MONTH_DAY_HOUR, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60);
 
 	private Map<AggregationPeriodUnit, int[]> compatibleUpperLevels;
 	private boolean compatibilityInheritable;
 	private char code;
+	private String shortName;
 	private TemporalUnit temporalUnit;
 	
-	static private Map<Character, AggregationPeriodUnit> codeMapping;
+	static final private Map<Character, AggregationPeriodUnit> codeMapping;
+	static private Map<String, AggregationPeriodUnit> shortNameMapping;
 	
 	static{
-		codeMapping = new HashMap<Character, AggregationPeriodUnit>();
+		Map<Character, AggregationPeriodUnit> tmpCodeMapping = new HashMap<Character, AggregationPeriodUnit>();
+		Map<String, AggregationPeriodUnit> tmpShortNameMapping = new HashMap<String, AggregationPeriodUnit>();
 		for (AggregationPeriodUnit u: AggregationPeriodUnit.values()){
-			codeMapping.put(u.code, u);
+			tmpCodeMapping.put(u.code, u);
+			tmpShortNameMapping.put(u.shortName, u);
 		}
+		codeMapping = ImmutableMap.copyOf(tmpCodeMapping);
+		shortNameMapping = ImmutableMap.copyOf(tmpShortNameMapping);
 	}
 	
 	/**
-	 * Returns the enum constant with the specified code name.
-	 * @param code	the single character code name
-	 * @return			the enum constant, or null if not found
+	 * return the enum constant that the input character represents
+	 * @param code		the single character code representing the enum constant
+	 * @return		the enum constant, or null if not found
 	 */
-	static public AggregationPeriodUnit valueOf(char code){
-		return codeMapping.get(code);
+	static public AggregationPeriodUnit parse(char code){
+		return codeMapping.get(Character.toUpperCase(code));
 	}
+
+	
+	/**
+	 * return the enum constant that the input string represents
+	 * @param string		the string to be parsed, it can be a single character string which is the code, or the same as the enum name, or a short format of the name
+	 * @return		the enum constant, or null if not found
+	 * @throws  NullPointerException - if the input is null
+	 */
+	static public AggregationPeriodUnit parse(String string){
+		String trimmed = string.trim().toUpperCase();
+		if (trimmed.length() == 1){
+			return codeMapping.get(trimmed.charAt(0));
+		}
+		
+		if (trimmed.charAt(trimmed.length() - 1) == 'S'){
+			trimmed = trimmed.substring(0, trimmed.length() - 1);
+		}
+		AggregationPeriodUnit result;
+		result = shortNameMapping.get(trimmed);
+		if (result != null){
+			return result;
+		}
+		
+		try{
+			return valueOf(trimmed);
+		}catch(IllegalArgumentException e){
+			return null;
+		}
+	}
+
 	
 	/**
 	 * Constructor for the up most levels
 	 * @param code the single character code to represent this unit
+	 * @param shortName the short name to represent this unit
 	 * @param temporalUnit  the temporal unit
 	 */
-	AggregationPeriodUnit(char code, TemporalUnit temporalUnit){
+	AggregationPeriodUnit(char code, String shortName, TemporalUnit temporalUnit){
 		this.code = code;
+		this.shortName = shortName;
 		this.temporalUnit = temporalUnit;
 	}
 	
 	/**
 	 * Constructor for those with only one compatible upper level
 	 * @param code the single character code to represent this unit
+	 * @param shortName the short name to represent this unit
 	 * @param temporalUnit  the temporal unit
 	 * @param compatibleUpperLevel	the compatible upper level
 	 * @param compatiblePeriods		the compatible number of periods
 	 */
-	AggregationPeriodUnit(char code, TemporalUnit temporalUnit, boolean compatibilityInheritable, AggregationPeriodUnit compatibleUpperLevel, int... compatiblePeriods){
+	AggregationPeriodUnit(char code, String shortName, TemporalUnit temporalUnit, boolean compatibilityInheritable, AggregationPeriodUnit compatibleUpperLevel, int... compatiblePeriods){
 		this.code = code;
+		this.shortName = shortName;
 		this.temporalUnit = temporalUnit;
 		this.compatibilityInheritable = compatibilityInheritable;
 		compatibleUpperLevels = new HashMap<>();
@@ -78,21 +120,24 @@ public enum AggregationPeriodUnit {
 	/**
 	 * Constructor for those with only one compatible upper level and only one compatible number of periods which is 1
 	 * @param code the single character code to represent this unit
+	 * @param shortName the short name to represent this unit
 	 * @param temporalUnit  the temporal unit
 	 * @param compatibleUpperLevel		the compatible upper level
 	 */
-	AggregationPeriodUnit(char code, TemporalUnit temporalUnit, boolean compatibilityInheritable, AggregationPeriodUnit compatibleUpperLevel){
-		this(code, temporalUnit, compatibilityInheritable, compatibleUpperLevel, 1);
+	AggregationPeriodUnit(char code, String shortName, TemporalUnit temporalUnit, boolean compatibilityInheritable, AggregationPeriodUnit compatibleUpperLevel){
+		this(code, shortName, temporalUnit, compatibilityInheritable, compatibleUpperLevel, 1);
 	}
 	
 	/**
 	 * Constructor for those with multiple compatible upper level and all the compatible number of periods are 1
 	 * @param code the single character code to represent this unit
+	 * @param shortName the short name to represent this unit
 	 * @param temporalUnit  the temporal unit
 	 * @param compatibleUpperLevels		the compatible upper levels
 	 */
-	AggregationPeriodUnit(char code, TemporalUnit temporalUnit, boolean compatibilityInheritable, AggregationPeriodUnit... compatibleUpperLevels){
+	AggregationPeriodUnit(char code, String shortName, TemporalUnit temporalUnit, boolean compatibilityInheritable, AggregationPeriodUnit... compatibleUpperLevels){
 		this.code = code;
+		this.shortName = shortName;
 		this.temporalUnit = temporalUnit;
 		this.compatibilityInheritable = compatibilityInheritable;
 		this.compatibleUpperLevels = new HashMap<>();
