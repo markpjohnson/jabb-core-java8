@@ -182,7 +182,7 @@ public class AggregationPeriodHierarchy {
 	/**
 	 * Get the upper level aggregation periods of an aggregation period in the hierarchy
 	 * @param code	the code name of the aggregation period for which the upper level aggregation periods need to be returned
-	 * @return the upper level aggregation periods, it will not be null be may be empty.
+	 * @return the upper level aggregation periods, it will not be null but may be empty.
 	 */
 	public SortedSet<AggregationPeriod> getUpperLevelAggregationPeriods(String code){
 		AggregationPeriodNode node = codeMapping.get(code);
