@@ -128,6 +128,6 @@ public interface TransactionalProgressTracker {
 	 * @param progressId	ID of the progress
 	 * @return				The last succeeded transaction, or null if there is none.
 	 */
-	ProgressingTransaction getLastSucceededTransaction(String progressId);
+	ProgressTransaction getLastSucceededTransaction(String progressId);
 	
 }

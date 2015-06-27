@@ -5,14 +5,14 @@ package net.sf.jabb.transprogtracker;
 
 import net.sf.jabb.util.state.StateMachine;
 import net.sf.jabb.util.state.StateMachineWrapper;
-import static net.sf.jabb.transprogtracker.ProgressingTransactionState.*;
+import static net.sf.jabb.transprogtracker.ProgressTransactionState.*;
 
 /**
  * A simple state machine for ProcessingTransaction.
  * @author James Hu
  *
  */
-public class TransactionStateMachine extends StateMachineWrapper<ProgressingTransactionState, Integer>{
+public class ProgressTransactionStateMachine extends StateMachineWrapper<ProgressTransactionState, Integer>{
 	private static final long serialVersionUID = -1307079273650491590L;
 
 	//static public final Integer START = 4;
@@ -21,17 +21,17 @@ public class TransactionStateMachine extends StateMachineWrapper<ProgressingTran
 	static public final Integer TIME_OUT = 7;
 	static public final Integer RETRY = 8;
 	
-	public TransactionStateMachine(){
+	public ProgressTransactionStateMachine(){
 		super();
 	}
 	
-	public TransactionStateMachine(ProgressingTransactionState initialState){
+	public ProgressTransactionStateMachine(ProgressTransactionState initialState){
 		super();
 		setState(initialState);
 	}
 	
 	@Override
-	protected void setup(StateMachine<ProgressingTransactionState, Integer> stateMachine) {
+	protected void setup(StateMachine<ProgressTransactionState, Integer> stateMachine) {
 		stateMachine
 			.addState(IN_PROGRESS)
 			.addState(ABORTED)

@@ -11,7 +11,7 @@ import java.time.Instant;
  * @author James Hu
  *
  */
-public interface ProgressingTransaction {
+public interface ProgressTransaction {
 
 	/**
 	 * Get the start position of the transaction
@@ -47,7 +47,7 @@ public interface ProgressingTransaction {
 	 * Get the state of the transaction
 	 * @return	the state
 	 */
-	ProgressingTransactionState getState();
+	ProgressTransactionState getState();
 	
 	/**
 	 * Get the details of the transaction
