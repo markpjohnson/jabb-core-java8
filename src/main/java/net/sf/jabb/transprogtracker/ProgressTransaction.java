@@ -12,6 +12,18 @@ import java.time.Instant;
  *
  */
 public interface ProgressTransaction {
+	
+	/**
+	 * Get the ID of this transaction
+	 * @return	ID of the transaction
+	 */
+	String getTransactionId();
+	
+	/**
+	 * Get the ID of the processor that owns the transaction
+	 * @return	ID of the owner processor
+	 */
+	String getProcessorId();
 
 	/**
 	 * Get the start position of the transaction

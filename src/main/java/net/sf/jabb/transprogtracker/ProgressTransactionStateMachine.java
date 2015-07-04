@@ -3,9 +3,12 @@
  */
 package net.sf.jabb.transprogtracker;
 
-import net.sf.jabb.util.state.StateMachine;
+import static net.sf.jabb.transprogtracker.ProgressTransactionState.ABORTED;
+import static net.sf.jabb.transprogtracker.ProgressTransactionState.FINISHED;
+import static net.sf.jabb.transprogtracker.ProgressTransactionState.IN_PROGRESS;
+import static net.sf.jabb.transprogtracker.ProgressTransactionState.TIMED_OUT;
+import net.sf.jabb.util.state.StateMachineDefinition;
 import net.sf.jabb.util.state.StateMachineWrapper;
-import static net.sf.jabb.transprogtracker.ProgressTransactionState.*;
 
 /**
  * A simple state machine for ProcessingTransaction.
@@ -26,27 +29,26 @@ public class ProgressTransactionStateMachine extends StateMachineWrapper<Progres
 	}
 	
 	public ProgressTransactionStateMachine(ProgressTransactionState initialState){
-		super();
+		this();
 		setState(initialState);
 	}
 	
 	@Override
-	protected void setup(StateMachine<ProgressTransactionState, Integer> stateMachine) {
-		stateMachine
-			.addState(IN_PROGRESS)
-			.addState(ABORTED)
-			.addState(FINISHED)
-			.addState(TIMED_OUT)
-		
-			.addTransition(ABORT, IN_PROGRESS, ABORTED)
-			.addTransition(FINISH, IN_PROGRESS, FINISHED)
-			.addTransition(TIME_OUT, IN_PROGRESS, TIMED_OUT)
-		
-			.addTransition(RETRY, ABORTED, IN_PROGRESS)
-			.addTransition(RETRY, TIMED_OUT, IN_PROGRESS)
-			.start(IN_PROGRESS);
-	}
+	protected void define(StateMachineDefinition<ProgressTransactionState, Integer> definition) {
+		definition
+		.addState(IN_PROGRESS)
+		.addState(ABORTED)
+		.addState(FINISHED)
+		.addState(TIMED_OUT)
 	
+		.addTransition(ABORT, IN_PROGRESS, ABORTED)
+		.addTransition(FINISH, IN_PROGRESS, FINISHED)
+		.addTransition(TIME_OUT, IN_PROGRESS, TIMED_OUT)
+	
+		.addTransition(RETRY, ABORTED, IN_PROGRESS)
+		.addTransition(RETRY, TIMED_OUT, IN_PROGRESS);
+	}
+
 	public boolean abort(){
 		return transit(ABORT);
 	}
@@ -78,5 +80,6 @@ public class ProgressTransactionStateMachine extends StateMachineWrapper<Progres
 	public boolean isTimedOut(){
 		return getState().equals(TIMED_OUT);
 	}
+
 	
 }
