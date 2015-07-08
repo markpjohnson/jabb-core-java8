@@ -7,7 +7,6 @@ import java.io.Serializable;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import net.sf.jabb.transprogtracker.BasicProgressTransaction;
 import net.sf.jabb.transprogtracker.LastTransactionIsNotSuccessfulException;
@@ -17,7 +16,6 @@ import net.sf.jabb.transprogtracker.ProgressTransaction;
 import net.sf.jabb.transprogtracker.ProgressTransactionState;
 import net.sf.jabb.transprogtracker.ProgressTransactionStateMachine;
 import net.sf.jabb.transprogtracker.TransactionalProgressTracker;
-import net.sf.jabb.util.bean.DoubleValueBean;
 import net.sf.jabb.util.col.PutIfAbsentMap;
 
 /**
@@ -94,7 +92,20 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 	 */
 	@Override
 	public String getProcessor(String progressId) {
-		return progresses.get(progressId).getLeasedByProcessor();
+		ProgressInfo progress = progresses.get(progressId);
+		synchronized(progress.getLock()){
+			String processorId = progress.getLeasedByProcessor();
+			if (processorId == null){
+				return null;
+			}else{
+				Instant expirationTime = progress.getLeaseExpirationTime();
+				if (expirationTime != null && expirationTime.isAfter(Instant.now())){
+					return processorId;
+				}else{
+					return null;
+				}
+			}
+		}
 	}
 
 	/* (non-Javadoc)
@@ -125,11 +136,8 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 		}
 	}
 
-	/* (non-Javadoc)
-	 * @see net.sf.jabb.transprogtracker.TransactionalProgressTracker#finishTransaction(java.lang.String, java.lang.String, java.lang.String)
-	 */
 	@Override
-	public void finishTransaction(String progressId, String processorId, String transactionId) throws NotOwningTransactionException {
+	public void finishTransaction(String progressId, String processorId, String transactionId, String endPosition) throws NotOwningTransactionException {
 		ProgressInfo progress = progresses.get(progressId);
 		synchronized(progress.getLock()){
 			BasicProgressTransaction currentTransaction = (BasicProgressTransaction) progress.getCurrentTransaction();
@@ -138,6 +146,9 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 					ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(currentTransaction.getState());
 					if (stateMachine.finish()){
 						currentTransaction.setState(stateMachine.getState());
+						if (endPosition != null){
+							currentTransaction.setEndPosition(endPosition);
+						}
 						progress.setLastSucceededTransaction(currentTransaction);
 						progress.setCurrentTransaction(null);
 					}
@@ -148,11 +159,8 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 		}
 	}
 
-	/* (non-Javadoc)
-	 * @see net.sf.jabb.transprogtracker.TransactionalProgressTracker#abortTransaction(java.lang.String, java.lang.String, java.lang.String)
-	 */
 	@Override
-	public void abortTransaction(String progressId, String processorId, String transactionId) throws NotOwningTransactionException {
+	public void abortTransaction(String progressId, String processorId, String transactionId, String endPosition) throws NotOwningTransactionException {
 		ProgressInfo progress = progresses.get(progressId);
 		synchronized(progress.getLock()){
 			BasicProgressTransaction currentTransaction = (BasicProgressTransaction) progress.getCurrentTransaction();
@@ -161,6 +169,9 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 					ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(currentTransaction.getState());
 					if (stateMachine.abort()){
 						currentTransaction.setState(stateMachine.getState());
+						if (endPosition != null){
+							currentTransaction.setEndPosition(endPosition);
+						}
 					}
 				}else{
 					throw new NotOwningTransactionException();
@@ -213,7 +224,22 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 		ProgressInfo progress = progresses.get(progressId);
 		ProgressTransaction currentTransaction = progress.getCurrentTransaction();
 		ProgressTransaction lastTransaction = progress.getLastSucceededTransaction();
-		return false;
+		
+		if (lastTransaction != null){
+			Instant lastFinishTime = lastTransaction.getFinishTime();
+			if (lastFinishTime != null && !beforeWhen.isAfter(lastFinishTime)){	// happened before the finish time of last finished transaction
+				return true;
+			}else if (transactionId.equals(lastTransaction.getTransactionId())){	// the same transaction as last succeeded
+				return true;
+			}
+		}
+		
+		// no last succeeded transaction or not able to determine by checking last succeeded transaction
+		if (currentTransaction != null && transactionId.equals(currentTransaction.getTransactionId())){
+			return ProgressTransactionState.FINISHED.equals(currentTransaction.getState());  // just in case the current one just succeeded
+		}else{
+			return true;	// id does not match either last succeeded or current, so the transaction must have been succeeded 
+		}
 	}
 
 	/* (non-Javadoc)
