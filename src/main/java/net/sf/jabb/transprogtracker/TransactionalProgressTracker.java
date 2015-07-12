@@ -358,7 +358,25 @@ public interface TransactionalProgressTracker {
 	 */
 	ProgressTransaction retryLastUnsuccessfulTransaction(String progressId, String processorId, Instant timeout) 
 			throws NotOwningTransactionException, InfrastructureErrorException, NotOwningLeaseException, TransactionTimeoutAfterLeaseExpirationException, IllegalTransactionStateException;
+
+	/**
+	 * Retry last unsuccessful transaction
+	 * @param progressId			ID of the progress
+	 * @param processorId			ID of the processor which must currently own the transaction
+	 * @param timeoutDuration	The duration after that the transaction should time out
+	 * @return details of the transaction, or null if no transaction need to be retried
+	 * @throws NotOwningTransactionException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws NotOwningLeaseException 
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
+	 */
+	default ProgressTransaction retryLastUnsuccessfulTransaction(String progressId, String processorId, Duration timeoutDuration)
+		throws NotOwningTransactionException, InfrastructureErrorException, NotOwningLeaseException, TransactionTimeoutAfterLeaseExpirationException, IllegalTransactionStateException{
+		return retryLastUnsuccessfulTransaction(progressId, processorId, Instant.now().plus(timeoutDuration));
+	}
 	
+
 	/**
 	 * Update the time out of a transaction
 	 * @param progressId			ID of the progress
@@ -404,11 +422,23 @@ public interface TransactionalProgressTracker {
 	boolean isTransactionSuccessful(String progressId, String transactionId, Instant beforeWhen) throws InfrastructureErrorException;
 	
 	/**
+	 * Check if a transaction has succeeded
+	 * @param progressId			ID of the progress
+	 * @param transactionId			ID of the transaction
+	 * @return	true if the transaction has succeeded in the past or does not exist. false if the transaction is in-progress, aborted, or just succeeded a extremely short while ago.
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 */
+	default boolean isTransactionSuccessful(String progressId, String transactionId) throws InfrastructureErrorException{
+		return isTransactionSuccessful(progressId, transactionId, Instant.now());
+	}
+
+	/**
 	 * Get the last succeeded transaction of a progress
 	 * @param progressId	ID of the progress
 	 * @return				The last succeeded transaction, or null if there is none.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
 	ProgressTransaction getLastSuccessfulTransaction(String progressId) throws InfrastructureErrorException;
-	
+
+
 }

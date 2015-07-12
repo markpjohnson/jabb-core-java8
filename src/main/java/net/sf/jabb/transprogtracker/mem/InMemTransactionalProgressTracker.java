@@ -287,23 +287,26 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 	@Override
 	public boolean isTransactionSuccessful(String progressId, String transactionId, Instant beforeWhen) {
 		ProgressInfo progress = progresses.get(progressId);
-		ProgressTransaction currentTransaction = progress.getCurrentTransaction();
-		ProgressTransaction lastTransaction = progress.getLastSucceededTransaction();
-		
-		if (lastTransaction != null){
-			Instant lastFinishTime = lastTransaction.getFinishTime();
-			if (lastFinishTime != null && !beforeWhen.isAfter(lastFinishTime)){	// happened before the finish time of last finished transaction
-				return true;
-			}else if (transactionId.equals(lastTransaction.getTransactionId())){	// the same transaction as last succeeded
-				return true;
+		synchronized(progress.getLock()){
+			ProgressTransaction currentTransaction = progress.getCurrentTransaction();
+			ProgressTransaction lastTransaction = progress.getLastSucceededTransaction();
+			
+			if (lastTransaction != null){
+				Instant lastFinishTime = lastTransaction.getFinishTime();
+				if (lastFinishTime != null && !beforeWhen.isAfter(lastFinishTime) 
+						&& (currentTransaction == null || !transactionId.equals(currentTransaction.getTransactionId()))){	// happened before the finish time of last finished transaction
+					return true;
+				}else if (transactionId.equals(lastTransaction.getTransactionId())){	// the same transaction as last succeeded
+					return true;
+				}
 			}
-		}
-		
-		// no last succeeded transaction or not able to determine by checking last succeeded transaction
-		if (currentTransaction != null && transactionId.equals(currentTransaction.getTransactionId())){
-			return ProgressTransactionState.FINISHED.equals(currentTransaction.getState());  // just in case the current one just succeeded
-		}else{
-			return true;	// id does not match either last succeeded or current, so the transaction must have been succeeded 
+			
+			// no last succeeded transaction or not able to determine by checking last succeeded transaction
+			if (currentTransaction != null && transactionId.equals(currentTransaction.getTransactionId())){
+				return ProgressTransactionState.FINISHED.equals(currentTransaction.getState());  // just in case the current one just succeeded
+			}else{
+				return true;	// id does not match either last succeeded or current, so the transaction must have been succeeded 
+			}
 		}
 	}
 
