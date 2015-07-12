@@ -64,13 +64,19 @@ public abstract class TransactionalProgressTrackerTest {
 		assertTrue("acquireLease(...) should succeed", tracker.acquireLease(progressId, processorId, Duration.ofMillis(600)));
 		assertEquals("should still own the lease", processorId, tracker.getProcessor(progressId));
 		
-		Thread.sleep(600);
+		Thread.sleep(610);
 		
 		assertEquals("should already have lost the lease", null, tracker.getProcessor(progressId));
 		
 		
 		assertFalse("renewLease(...) should fail after time out", tracker.renewLease(progressId, processorId, Duration.ofMinutes(3)));
-		assertTrue("releaseLease(...) should succeed after time out", tracker.releaseLeaseIfOwning(progressId, processorId));
+		assertFalse("releaseLeaseIfOwning(...) should return false after time out", tracker.releaseLeaseIfOwning(progressId, processorId));
+		
+		try {
+			tracker.releaseLease(progressId, processorId);
+			fail("releaseLease(...) should throw NotOwningLeaseException");
+		} catch (NotOwningLeaseException e) {
+		}
 	}
 	
 	protected void testConcurrentLease(BiFunction<String, AtomicInteger, Boolean> body) throws InterruptedException{
@@ -191,17 +197,22 @@ public abstract class TransactionalProgressTrackerTest {
 	}
 
 	@Test
-	public void test11TransactionTimedOut() throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, NotOwningTransactionException, InterruptedException, InfrastructureErrorException, IllegalTransactionStateException, NotCurrentTransactionException, TransactionTimeoutAfterLeaseExpirationException{
+	public void test11TransactionTimedOut() throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, NotOwningTransactionException, InterruptedException, InfrastructureErrorException, NotCurrentTransactionException, TransactionTimeoutAfterLeaseExpirationException, IllegalTransactionStateException{
 		assertTrue("acquireLease(...) should succeed", tracker.acquireLease(progressId, processorId, Duration.ofMinutes(1)));
 		
 		String transactionId = tracker.startTransaction(progressId, processorId, "001", "010", Duration.ofSeconds(1), null);
 		Instant duringTransaction = Instant.now();
 		Thread.sleep(1500L);
 		
-		tracker.finishTransaction(progressId, processorId, transactionId);
-		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, duringTransaction));
+		try{
+			tracker.finishTransaction(progressId, processorId, transactionId);
+			fail("finishTransaction(...) should fail after time out");
+		}catch(IllegalTransactionStateException e){
+			
+		}
+		assertFalse(tracker.isTransactionSuccessful(progressId, transactionId, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
-		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, Instant.now().plusSeconds(36000)));
+		assertFalse(tracker.isTransactionSuccessful(progressId, transactionId, Instant.now().plusSeconds(36000)));
 		
 		assertTrue("releaseLease(...) should succeed", tracker.releaseLeaseIfOwning(progressId, processorId));
 	}

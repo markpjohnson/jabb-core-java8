@@ -78,7 +78,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 			throw new NotOwningLeaseException();
 		}
 		Instant expiration = progress.getLeaseExpirationTime();
-		if(expiration.isAfter(Instant.now())){		// the lease has expired
+		if(expiration == null || expiration.isBefore(Instant.now())){		// the lease has expired
 			throw new NotOwningLeaseException();
 		}
 	}
@@ -196,7 +196,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 						progress.setLastSucceededTransaction(currentTransaction);
 						progress.setCurrentTransaction(null);
 					}else{
-						throw new IllegalStateException("Cannot finish transaction " + transactionId + " from state " + currentTransaction.getState());
+						throw new IllegalTransactionStateException("Cannot finish transaction " + transactionId + " from state " + currentTransaction.getState());
 					}
 				}else{ // it is not owned by the processor
 					throw new NotOwningTransactionException();
@@ -225,7 +225,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 						}
 						currentTransaction.setFinishTime(Instant.now());
 					}else{
-						throw new IllegalStateException("Cannot abort transaction " + transactionId + " from state " + currentTransaction.getState());
+						throw new IllegalTransactionStateException("Cannot abort transaction " + transactionId + " from state " + currentTransaction.getState());
 					}
 				}else{ // it is not owned by the processor
 					throw new NotOwningTransactionException();
@@ -255,7 +255,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 					currentTransaction.setTimeout(transactionTimeout);
 					return currentTransaction;
 				}else{
-					throw new IllegalStateException("Cannot retry transaction " + currentTransaction.getTransactionId() + " from state " + currentTransaction.getState());
+					throw new IllegalTransactionStateException("Cannot retry transaction " + currentTransaction.getTransactionId() + " from state " + currentTransaction.getState());
 				}
 			}
 		}
