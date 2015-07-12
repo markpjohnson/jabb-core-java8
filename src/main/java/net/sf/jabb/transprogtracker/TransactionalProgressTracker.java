@@ -8,6 +8,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
+import net.sf.jabb.transprogtracker.ex.IllegalTransactionStateException;
+import net.sf.jabb.transprogtracker.ex.InfrastructureErrorException;
+import net.sf.jabb.transprogtracker.ex.LastTransactionIsNotSuccessfulException;
+import net.sf.jabb.transprogtracker.ex.NotCurrentTransactionException;
+import net.sf.jabb.transprogtracker.ex.NotOwningLeaseException;
+import net.sf.jabb.transprogtracker.ex.NotOwningTransactionException;
+import net.sf.jabb.transprogtracker.ex.TransactionTimeoutAfterLeaseExpirationException;
+
 /**
  * Tracker of transactional processing progress.
  * For any progress, at any time there is only one transactional processing in progress.
@@ -27,8 +35,9 @@ public interface TransactionalProgressTracker {
 	 * @param processorId	ID of the processor
 	 * @param leaseExpirationTimed	the expiration time of the lease
 	 * @return	true if a lease successfully acquired, false otherwise.
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	boolean acquireLease(String progressId, String processorId, Instant leaseExpirationTimed);
+	boolean acquireLease(String progressId, String processorId, Instant leaseExpirationTimed) throws InfrastructureErrorException;
 
 	/**
 	 * Acquire a lease on a progress. At any time only one processor can have the lease of the progress.
@@ -38,8 +47,9 @@ public interface TransactionalProgressTracker {
 	 * @param processorId	ID of the processor
 	 * @param leasePeriod	period of the lease
 	 * @return	true if a lease successfully acquired, false otherwise.
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	default boolean acquireLease(String progressId, String processorId, Duration leasePeriod){
+	default boolean acquireLease(String progressId, String processorId, Duration leasePeriod) throws InfrastructureErrorException{
 		return acquireLease(progressId, processorId, Instant.now().plus(leasePeriod));
 	}
 	
@@ -49,9 +59,10 @@ public interface TransactionalProgressTracker {
 	 * @param progressId		ID of the progress
 	 * @param processorId	ID of the processor
 	 * @param leaseExpirationTimed	the new expiration time of the lease
-	 * @return true if successfully renewed, false otherwise
+	 * @return true if the lease is still valid and has been successfully renewed, false otherwise
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	boolean renewLease(String progressId, String processorId, Instant leaseExpirationTimed);
+	boolean renewLease(String progressId, String processorId, Instant leaseExpirationTimed) throws InfrastructureErrorException;
 	
 	/**
 	 * Renew the lease already acquired. The process must already hold a valid lease. 
@@ -59,27 +70,45 @@ public interface TransactionalProgressTracker {
 	 * @param progressId		ID of the progress
 	 * @param processorId	ID of the processor
 	 * @param leasePeriod	period of the lease from now
-	 * @return true if successfully renewed, false otherwise
+	 * @return true if the lease is still valid and has been successfully renewed, false otherwise
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	default boolean renewLease(String progressId, String processorId, Duration leasePeriod){
+	default boolean renewLease(String progressId, String processorId, Duration leasePeriod) throws InfrastructureErrorException{
 		return renewLease(progressId, processorId, Instant.now().plus(leasePeriod));
 	}
 	
 	/**
-	 * Release the lease. Releasing an already expired lease will succeed.
-	 * Releasing a lease while the processor does not currently hold will also succeed.
+	 * Release the lease. 
 	 * @param progressId		ID of the progress
 	 * @param processorId	ID of the processor
-	 * @return true if successfully released, false otherwise
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws NotOwningLeaseException if the processor does not currently own a valid lease
 	 */
-	boolean releaseLease(String progressId, String processorId);
+	void releaseLease(String progressId, String processorId) throws InfrastructureErrorException, NotOwningLeaseException;
 	
+	/**
+	 * Release the lease.
+	 * @param progressId		ID of the progress
+	 * @param processorId	ID of the processor
+	 * @return true if there was a valid lease owned by the processor and it has been successfully released, false if the processor does not own a lease
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 */
+	default boolean releaseLeaseIfOwning(String progressId, String processorId) throws InfrastructureErrorException{
+		try {
+			releaseLease(progressId, processorId);
+			return true;
+		} catch (NotOwningLeaseException e) {
+			return false;
+		}
+	}
+
 	/**
 	 * Get the ID of the processor that currently holding the lease of the progress
 	 * @param progressId		ID of the progress
 	 * @return		ID of the processor, or null if the subject is not currently on lease
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	String getProcessor(String progressId);
+	String getProcessor(String progressId) throws InfrastructureErrorException;
 	
 
 	/**
@@ -92,10 +121,15 @@ public interface TransactionalProgressTracker {
 	 * @param transaction		details of the transaction, can be null if there is no need for that
 	 * @param transactionId		The ID of this transaction, can be null if an ID generated by the system should be used
 	 * @return		The ID of this transaction
-	 * @throws LastTransactionIsNotSuccessfulException 
-	 * @throws NotOwningLeaseException 
+	 * @throws LastTransactionIsNotSuccessfulException if a new transaction cannot be started because the last transaction needs to be retried first
+	 * @throws NotOwningLeaseException if the processor does not currently own a valid lease
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws IllegalTransactionStateException 
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
 	 */
-	String startTransaction(String progressId, String processorId, String startPosition, String endPosition, Instant timeout, Serializable transaction, String transactionId) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException;
+	String startTransaction(String progressId, String processorId, String startPosition, String endPosition, 
+			Instant timeout, Serializable transaction, String transactionId) 
+					throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, InfrastructureErrorException, IllegalTransactionStateException, TransactionTimeoutAfterLeaseExpirationException;
 	
 	/**
 	 * Start a transaction
@@ -109,8 +143,13 @@ public interface TransactionalProgressTracker {
 	 * @return		The ID of this transaction
 	 * @throws LastTransactionIsNotSuccessfulException 
 	 * @throws NotOwningLeaseException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
 	 */
-	default String startTransaction(String progressId, String processorId, String startPosition, String endPosition, Duration timeoutDuration, Serializable transaction, String transactionId) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException{
+	default String startTransaction(String progressId, String processorId, String startPosition, String endPosition, 
+			Duration timeoutDuration, Serializable transaction, String transactionId) 
+					throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, InfrastructureErrorException, IllegalTransactionStateException, TransactionTimeoutAfterLeaseExpirationException{
 		return startTransaction(progressId, processorId, startPosition, endPosition, Instant.now().plus(timeoutDuration), transaction, transactionId);
 	}
 
@@ -125,8 +164,13 @@ public interface TransactionalProgressTracker {
 	 * @return		The ID of this transaction
 	 * @throws LastTransactionIsNotSuccessfulException 
 	 * @throws NotOwningLeaseException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
 	 */
-	default String startTransaction(String progressId, String processorId, String startPosition, String endPosition, Instant timeout, Serializable transaction) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException{
+	default String startTransaction(String progressId, String processorId, String startPosition, String endPosition, 
+			Instant timeout, Serializable transaction) 
+					throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, InfrastructureErrorException, IllegalTransactionStateException, TransactionTimeoutAfterLeaseExpirationException{
 		return startTransaction(progressId, processorId, startPosition, endPosition, timeout, transaction, UUID.randomUUID().toString());
 	}
 	
@@ -141,8 +185,13 @@ public interface TransactionalProgressTracker {
 	 * @return		The ID of this transaction
 	 * @throws LastTransactionIsNotSuccessfulException 
 	 * @throws NotOwningLeaseException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
 	 */
-	default String startTransaction(String progressId, String processorId, String startPosition, String endPosition, Duration timeoutDuration, Serializable transaction) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException{
+	default String startTransaction(String progressId, String processorId, String startPosition, String endPosition, 
+			Duration timeoutDuration, Serializable transaction) 
+					throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, InfrastructureErrorException, IllegalTransactionStateException, TransactionTimeoutAfterLeaseExpirationException{
 		return startTransaction(progressId, processorId, startPosition, endPosition, Instant.now().plus(timeoutDuration), transaction, UUID.randomUUID().toString());
 	}
 
@@ -158,8 +207,13 @@ public interface TransactionalProgressTracker {
 	 * @return		The ID of this transaction
 	 * @throws LastTransactionIsNotSuccessfulException
 	 * @throws NotOwningLeaseException
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
 	 */
-	default String startTransaction(String progressId, String processorId, String startPosition, Instant timeout, Serializable transaction, String transactionId) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException{
+	default String startTransaction(String progressId, String processorId, String startPosition, Instant timeout, 
+			Serializable transaction, String transactionId) 
+					throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, InfrastructureErrorException, IllegalTransactionStateException, TransactionTimeoutAfterLeaseExpirationException{
 		return startTransaction(progressId, processorId, startPosition, null, timeout, transaction, transactionId);
 	}
 
@@ -174,8 +228,13 @@ public interface TransactionalProgressTracker {
 	 * @return		The ID of this transaction
 	 * @throws LastTransactionIsNotSuccessfulException
 	 * @throws NotOwningLeaseException
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
 	 */
-	default String startTransaction(String progressId, String processorId, String startPosition, Duration timeoutDuration, Serializable transaction, String transactionId) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException{
+	default String startTransaction(String progressId, String processorId, String startPosition, Duration timeoutDuration, 
+			Serializable transaction, String transactionId) 
+					throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, InfrastructureErrorException, IllegalTransactionStateException, TransactionTimeoutAfterLeaseExpirationException{
 		return startTransaction(progressId, processorId, startPosition, null, Instant.now().plus(timeoutDuration), transaction, transactionId);
 	}
 
@@ -189,8 +248,13 @@ public interface TransactionalProgressTracker {
 	 * @return		The ID of this transaction
 	 * @throws LastTransactionIsNotSuccessfulException
 	 * @throws NotOwningLeaseException
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
 	 */
-	default String startTransaction(String progressId, String processorId, String startPosition, Instant timeout, Serializable transaction) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException{
+	default String startTransaction(String progressId, String processorId, String startPosition, Instant timeout, 
+			Serializable transaction) 
+					throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, InfrastructureErrorException, IllegalTransactionStateException, TransactionTimeoutAfterLeaseExpirationException{
 		return startTransaction(progressId, processorId, startPosition, null, timeout, transaction, UUID.randomUUID().toString());
 	}
 	
@@ -204,8 +268,13 @@ public interface TransactionalProgressTracker {
 	 * @return		The ID of this transaction
 	 * @throws LastTransactionIsNotSuccessfulException
 	 * @throws NotOwningLeaseException
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
 	 */
-	default String startTransaction(String progressId, String processorId, String startPosition, Duration timeoutDuration, Serializable transaction) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException{
+	default String startTransaction(String progressId, String processorId, String startPosition, Duration timeoutDuration, 
+			Serializable transaction) 
+					throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, InfrastructureErrorException, IllegalTransactionStateException, TransactionTimeoutAfterLeaseExpirationException{
 		return startTransaction(progressId, processorId, startPosition, null, Instant.now().plus(timeoutDuration), transaction, UUID.randomUUID().toString());
 	}
 	
@@ -217,9 +286,14 @@ public interface TransactionalProgressTracker {
 	 * @param transactionId			ID of the transaction
 	 * @param endPosition			the actual end position of the succeeded transaction, for example the sequence number in input data stream. 
 	 * 								It can be null if the end position does not need to be updated
-	 * @throws NotOwningTransactionException 
+	 * @throws NotOwningTransactionException if either the transaction is not the current transaction or is not owned by the processor
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws IllegalTransactionStateException 
+	 * @throws NotCurrentTransactionException 
+	 * @throws NotOwningLeaseException 
 	 */
-	void finishTransaction(String progressId, String processorId, String transactionId, String endPosition) throws NotOwningTransactionException;
+	void finishTransaction(String progressId, String processorId, String transactionId, String endPosition) 
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NotCurrentTransactionException, NotOwningLeaseException;
 	
 	/**
 	 * Finish a succeeded transaction without changing the end position of the transaction.
@@ -227,8 +301,13 @@ public interface TransactionalProgressTracker {
 	 * @param processorId			ID of the processor which must currently own the transaction
 	 * @param transactionId			ID of the transaction
 	 * @throws NotOwningTransactionException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws IllegalTransactionStateException 
+	 * @throws NotCurrentTransactionException 
+	 * @throws NotOwningLeaseException 
 	 */
-	default void finishTransaction(String progressId, String processorId, String transactionId) throws NotOwningTransactionException{
+	default void finishTransaction(String progressId, String processorId, String transactionId) 
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NotCurrentTransactionException, NotOwningLeaseException{
 		finishTransaction(progressId, processorId, transactionId, null);
 	}
 
@@ -241,8 +320,13 @@ public interface TransactionalProgressTracker {
 	 * @param endPosition			the actual end position of the succeeded transaction, for example the sequence number in input data stream. 
 	 * 								It can be null if the end position does not need to be updated
 	 * @throws NotOwningTransactionException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws IllegalTransactionStateException 
+	 * @throws NotCurrentTransactionException 
+	 * @throws NotOwningLeaseException 
 	 */
-	void abortTransaction(String progressId, String processorId, String transactionId, String endPosition) throws NotOwningTransactionException;
+	void abortTransaction(String progressId, String processorId, String transactionId, String endPosition) 
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NotCurrentTransactionException, NotOwningLeaseException;
 	
 	/**
 	 * Abort a transaction without changing the endPosition of the transaction.
@@ -250,19 +334,30 @@ public interface TransactionalProgressTracker {
 	 * @param processorId			ID of the processor which must currently own the transaction
 	 * @param transactionId			ID of the transaction
 	 * @throws NotOwningTransactionException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws IllegalTransactionStateException 
+	 * @throws NotCurrentTransactionException 
+	 * @throws NotOwningLeaseException 
 	 */
-	default void abortTransaction(String progressId, String processorId, String transactionId) throws NotOwningTransactionException{
+	default void abortTransaction(String progressId, String processorId, String transactionId) 
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NotCurrentTransactionException, NotOwningLeaseException{
 		abortTransaction(progressId, processorId, transactionId, null);
 	}
 	
 	/**
-	 * Retry a transaction
+	 * Retry last unsuccessful transaction
 	 * @param progressId			ID of the progress
 	 * @param processorId			ID of the processor which must currently own the transaction
-	 * @param transactionId			ID of the transaction
+	 * @param timeout			The time that the transaction should time out
+	 * @return details of the transaction, or null if no transaction need to be retried
 	 * @throws NotOwningTransactionException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws NotOwningLeaseException 
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
+	 * @throws IllegalTransactionStateException 
 	 */
-	void retryTransaction(String progressId, String processorId, String transactionId) throws NotOwningTransactionException;
+	ProgressTransaction retryLastUnsuccessfulTransaction(String progressId, String processorId, Instant timeout) 
+			throws NotOwningTransactionException, InfrastructureErrorException, NotOwningLeaseException, TransactionTimeoutAfterLeaseExpirationException, IllegalTransactionStateException;
 	
 	/**
 	 * Update the time out of a transaction
@@ -271,8 +366,14 @@ public interface TransactionalProgressTracker {
 	 * @param transactionId			ID of the transaction
 	 * @param timeout				The new time that the transaction should time out
 	 * @throws NotOwningTransactionException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws NotOwningLeaseException 
+	 * @throws IllegalTransactionStateException 
+	 * @throws NotCurrentTransactionException 
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
 	 */
-	void renewTransactionTimeout(String progressId, String processorId, String transactionId, Instant timeout) throws NotOwningTransactionException;
+	void renewTransactionTimeout(String progressId, String processorId, String transactionId, Instant timeout) 
+			throws NotOwningTransactionException, InfrastructureErrorException, NotOwningLeaseException, IllegalTransactionStateException, NotCurrentTransactionException, TransactionTimeoutAfterLeaseExpirationException;
 	
 	/**
 	 * Update the time out of a transaction
@@ -281,8 +382,14 @@ public interface TransactionalProgressTracker {
 	 * @param transactionId			ID of the transaction
 	 * @param timeout				The period from now after which the transaction should time out
 	 * @throws NotOwningTransactionException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws NotOwningLeaseException 
+	 * @throws IllegalTransactionStateException 
+	 * @throws NotCurrentTransactionException 
+	 * @throws TransactionTimeoutAfterLeaseExpirationException 
 	 */
-	default void renewTransactionTimeout(String progressId, String processorId, String transactionId, Duration timeout) throws NotOwningTransactionException{
+	default void renewTransactionTimeout(String progressId, String processorId, String transactionId, Duration timeout) 
+			throws NotOwningTransactionException, InfrastructureErrorException, NotOwningLeaseException, IllegalTransactionStateException, NotCurrentTransactionException, TransactionTimeoutAfterLeaseExpirationException{
 		renewTransactionTimeout(progressId, processorId, transactionId, Instant.now().plus(timeout));
 	}
 	
@@ -292,14 +399,16 @@ public interface TransactionalProgressTracker {
 	 * @param transactionId			ID of the transaction
 	 * @param beforeWhen			The time before which we want to know whether the transaction had succeeded or not 
 	 * @return	true if the transaction had succeeded in the past or does not exist. false if the transaction is in-progress, aborted, or just succeeded a extremely short while ago.
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	boolean isTransactionSuccessful(String progressId, String transactionId, Instant beforeWhen);
+	boolean isTransactionSuccessful(String progressId, String transactionId, Instant beforeWhen) throws InfrastructureErrorException;
 	
 	/**
 	 * Get the last succeeded transaction of a progress
 	 * @param progressId	ID of the progress
 	 * @return				The last succeeded transaction, or null if there is none.
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	ProgressTransaction getLastSuccessfulTransaction(String progressId);
+	ProgressTransaction getLastSuccessfulTransaction(String progressId) throws InfrastructureErrorException;
 	
 }

@@ -1,7 +1,8 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker;
+package net.sf.jabb.transprogtracker.ex;
+
 
 /**
  * The exception happens in the situation that the subject does not currently own the lease on an object.
