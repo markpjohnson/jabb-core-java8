@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.taskqueues.mem;
+package net.sf.jabb.txprogress;
 
 import static org.junit.Assert.*;
 
@@ -16,15 +16,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
-import net.sf.jabb.transprogtracker.ProgressTransaction;
-import net.sf.jabb.transprogtracker.TransactionalProgressTracker;
-import net.sf.jabb.transprogtracker.ex.IllegalTransactionStateException;
-import net.sf.jabb.transprogtracker.ex.InfrastructureErrorException;
-import net.sf.jabb.transprogtracker.ex.LastTransactionIsNotSuccessfulException;
-import net.sf.jabb.transprogtracker.ex.NotCurrentTransactionException;
-import net.sf.jabb.transprogtracker.ex.NotOwningLeaseException;
-import net.sf.jabb.transprogtracker.ex.NotOwningTransactionException;
-import net.sf.jabb.transprogtracker.ex.TransactionTimeoutAfterLeaseExpirationException;
+import net.sf.jabb.txprogress.ProgressTransaction;
+import net.sf.jabb.txprogress.TransactionalProgress;
+import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
+import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
+import net.sf.jabb.txprogress.ex.LastTransactionIsNotSuccessfulException;
+import net.sf.jabb.txprogress.ex.NotCurrentTransactionException;
+import net.sf.jabb.txprogress.ex.NotOwningLeaseException;
+import net.sf.jabb.txprogress.ex.NotOwningTransactionException;
+import net.sf.jabb.txprogress.ex.TransactionTimeoutAfterLeaseExpirationException;
 
 import org.jgroups.util.UUID;
 import org.junit.FixMethodOrder;
@@ -40,18 +40,18 @@ import com.google.common.util.concurrent.Uninterruptibles;
  *
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public abstract class TransactionalProgressTrackerTest {
+public abstract class TransactionalProgressTest {
 	protected final int NUM_CONCURRENT_THREADS = 20;
 	
-	protected TransactionalProgressTracker tracker;
+	protected TransactionalProgress tracker;
 	protected String progressId = "Test progress Id 1";
 	protected String processorId = "Test processor 1";
 	
-	protected TransactionalProgressTrackerTest(){
+	protected TransactionalProgressTest(){
 		tracker = createTracker();
 	}
 
-	abstract protected TransactionalProgressTracker createTracker();
+	abstract protected TransactionalProgress createTracker();
 	
 	@Test
 	public void test01NormalLease() throws InfrastructureErrorException{
@@ -193,6 +193,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, Instant.now().plusSeconds(36000)));
+		assertEquals(transactionId, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 		
 		assertTrue("releaseLease(...) should succeed", tracker.releaseLeaseIfOwning(progressId, processorId));
 	}
@@ -210,6 +211,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertFalse(tracker.isTransactionSuccessful(progressId, transactionId, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
 		assertFalse(tracker.isTransactionSuccessful(progressId, transactionId, Instant.now().plusSeconds(36000)));
+		assertNull(tracker.getLastSuccessfulTransaction(progressId));
 		
 		// retry
 		ProgressTransaction transaction = tracker.retryLastUnsuccessfulTransaction(progressId, processorId, Duration.ofSeconds(1));
@@ -223,6 +225,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, Instant.now().plusSeconds(36000)));
+		assertEquals(transactionId, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 
 		
 		
@@ -248,6 +251,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertFalse(tracker.isTransactionSuccessful(progressId, transactionId, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
 		assertFalse(tracker.isTransactionSuccessful(progressId, transactionId, Instant.now().plusSeconds(36000)));
+		assertNull(tracker.getLastSuccessfulTransaction(progressId));
 		
 		// retry
 		ProgressTransaction transaction = tracker.retryLastUnsuccessfulTransaction(progressId, processorId, Duration.ofSeconds(1));
@@ -261,11 +265,32 @@ public abstract class TransactionalProgressTrackerTest {
 		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, Instant.now().plusSeconds(36000)));
+		assertEquals(transactionId, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 
 		
 		
 		assertTrue("releaseLease(...) should succeed", tracker.releaseLeaseIfOwning(progressId, processorId));
 	}
+
+	@Test
+	public void test11TransactionRenew() throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, NotOwningTransactionException, InterruptedException, InfrastructureErrorException, NotCurrentTransactionException, TransactionTimeoutAfterLeaseExpirationException, IllegalTransactionStateException{
+		assertTrue("acquireLease(...) should succeed", tracker.acquireLease(progressId, processorId, Duration.ofMinutes(1)));
+		
+		// time out
+		String transactionId = tracker.startTransaction(progressId, processorId, "001", "010", Duration.ofMillis(500), null);
+		tracker.renewTransactionTimeout(progressId, processorId, transactionId, Duration.ofSeconds(1));
+		Instant duringTransaction = Instant.now();
+		Thread.sleep(600L);
+		
+		tracker.finishTransaction(progressId, processorId, transactionId);
+		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, duringTransaction));
+		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
+		assertTrue(tracker.isTransactionSuccessful(progressId, transactionId, Instant.now().plusSeconds(36000)));
+		assertEquals(transactionId, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
+
+		assertTrue("releaseLease(...) should succeed", tracker.releaseLeaseIfOwning(progressId, processorId));
+	}
+
 
 	@Test
 	public void test12MultipleTransactions() throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, NotOwningTransactionException, InterruptedException, InfrastructureErrorException, NotCurrentTransactionException, TransactionTimeoutAfterLeaseExpirationException, IllegalTransactionStateException{
@@ -276,6 +301,14 @@ public abstract class TransactionalProgressTrackerTest {
 		String id3 = "transactionId3";
 		String id4 = "transactionId4";
 		
+		// too long
+		try{
+			tracker.startTransaction(progressId, processorId, "001", "010", Duration.ofMinutes(2), null, id1);
+			fail("should not be able to start a transaction longer than lease period");
+		}catch(TransactionTimeoutAfterLeaseExpirationException e){
+		}
+		assertNull(tracker.getLastSuccessfulTransaction(progressId));
+		
 		// succeeded
 		tracker.startTransaction(progressId, processorId, "001", "010", Duration.ofSeconds(1), null, id1);
 		Instant duringTransaction = Instant.now();
@@ -284,6 +317,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertTrue(tracker.isTransactionSuccessful(progressId, id1, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, id1, Instant.now().plusSeconds(36000)));
+		assertEquals(id1, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 
 		// failed
 		tracker.startTransaction(progressId, processorId, "011", "020", Duration.ofSeconds(1), null, id2);
@@ -298,6 +332,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertTrue(tracker.isTransactionSuccessful(progressId, id1, Instant.now().minusSeconds(36000)));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, id1, Instant.now().plusSeconds(36000)));
+		assertEquals(id1, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 
 		
 		// start new should fail
@@ -306,6 +341,7 @@ public abstract class TransactionalProgressTrackerTest {
 			fail("starting a new transaction while the last one is not successful should fail");
 		}catch(LastTransactionIsNotSuccessfulException e){
 		}
+		assertEquals(id1, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 		
 		// retry failed
 		ProgressTransaction transaction = tracker.retryLastUnsuccessfulTransaction(progressId, processorId, Duration.ofSeconds(1));
@@ -320,6 +356,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertTrue(tracker.isTransactionSuccessful(progressId, id2, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist", duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, id2, Instant.now().plusSeconds(36000)));
+		assertEquals(id2, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 
 		assertTrue(tracker.isTransactionSuccessful(progressId, id1));
 		assertTrue(tracker.isTransactionSuccessful(progressId, id1, Instant.now().minusSeconds(36000)));
@@ -333,6 +370,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertTrue(tracker.isTransactionSuccessful(progressId, id3, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist"));
 		assertTrue(tracker.isTransactionSuccessful(progressId, id3, Instant.now().plusSeconds(36000)));
+		assertEquals(id3, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 
 		assertTrue(tracker.isTransactionSuccessful(progressId, id2));
 		assertTrue(tracker.isTransactionSuccessful(progressId, id2, Instant.now().minusSeconds(36000)));
@@ -349,6 +387,7 @@ public abstract class TransactionalProgressTrackerTest {
 		assertFalse(tracker.isTransactionSuccessful(progressId, id4, duringTransaction));
 		assertTrue(tracker.isTransactionSuccessful(progressId, "non-exist"));
 		assertFalse(tracker.isTransactionSuccessful(progressId, id4, Instant.now().plusSeconds(36000)));
+		assertEquals(id3, tracker.getLastSuccessfulTransaction(progressId).getTransactionId());
 		
 		assertTrue(tracker.isTransactionSuccessful(progressId, id3));
 		assertTrue(tracker.isTransactionSuccessful(progressId, id3, Instant.now().minusSeconds(36000)));

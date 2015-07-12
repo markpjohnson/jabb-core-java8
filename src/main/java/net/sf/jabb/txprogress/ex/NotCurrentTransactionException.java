@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker.ex;
+package net.sf.jabb.txprogress.ex;
 
 
 /**

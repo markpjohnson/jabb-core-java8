@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker;
+package net.sf.jabb.txprogress;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -61,24 +61,45 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		this.state = ProgressTransactionState.IN_PROGRESS;
 	}
 	
-	public void finish(){
+	public boolean finish(){
 		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
 		if (stateMachine.finish()){
 			this.finishTime = Instant.now();
 			this.state = stateMachine.getState();
-		}else{
-			throw new IllegalStateException("Can't finish in the state: " + this.state);
+			return true;
 		}
+		return false;
 	}
 	
-	public void abort(){
+	public boolean abort(){
 		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
 		if (stateMachine.abort()){
 			this.finishTime = Instant.now();
 			this.state = stateMachine.getState();
-		}else{
-			throw new IllegalStateException("Can't abort in the state: " + this.state);
+			return true;
 		}
+		return false;
+	}
+	
+	public boolean retry(){
+		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
+		if (stateMachine.retry()){
+			this.startTime = Instant.now();
+			this.finishTime = null;
+			this.state = stateMachine.getState();
+			return true;
+		}
+		return false;
+	}
+	
+	public boolean timeout(){
+		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
+		if (stateMachine.timeout()){
+			this.finishTime = Instant.now();
+			this.state = stateMachine.getState();
+			return true;
+		}
+		return false;
 	}
 	
 	@Override

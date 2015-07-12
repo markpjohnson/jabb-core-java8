@@ -1,11 +1,11 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker.mem;
+package net.sf.jabb.txprogress.mem;
 
 import java.time.Instant;
 
-import net.sf.jabb.transprogtracker.ProgressTransaction;
+import net.sf.jabb.txprogress.ProgressTransaction;
 
 /**
  * Data structure to hold information about a progress

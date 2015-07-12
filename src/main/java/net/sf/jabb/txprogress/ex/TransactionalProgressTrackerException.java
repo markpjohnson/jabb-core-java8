@@ -1,23 +1,22 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker.ex;
-
+package net.sf.jabb.txprogress.ex;
 
 /**
- * The exception happens in the situation that the subject does not currently own the lease on an object.
+ * The ancestor of all the exception types generated in TransactionalProgressTracker.
  * @author James Hu
  *
  */
-public class NotOwningLeaseException extends TransactionalProgressTrackerException {
-	private static final long serialVersionUID = 5035635625111860900L;
+public class TransactionalProgressTrackerException extends Exception {
+	private static final long serialVersionUID = 2599608512784761265L;
 
     /**
      * Constructs a new exception with {@code null} as its detail message.
      * The cause is not initialized, and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
-    public NotOwningLeaseException() {
+    public TransactionalProgressTrackerException() {
         super();
     }
 
@@ -29,7 +28,7 @@ public class NotOwningLeaseException extends TransactionalProgressTrackerExcepti
      * @param   message   the detail message. The detail message is saved for
      *          later retrieval by the {@link #getMessage()} method.
      */
-    public NotOwningLeaseException(String message) {
+    public TransactionalProgressTrackerException(String message) {
         super(message);
     }
 
@@ -46,7 +45,7 @@ public class NotOwningLeaseException extends TransactionalProgressTrackerExcepti
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public NotOwningLeaseException(String message, Throwable cause) {
+    public TransactionalProgressTrackerException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -63,7 +62,7 @@ public class NotOwningLeaseException extends TransactionalProgressTrackerExcepti
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public NotOwningLeaseException(Throwable cause) {
+    public TransactionalProgressTrackerException(Throwable cause) {
         super(cause);
     }
 
@@ -80,7 +79,7 @@ public class NotOwningLeaseException extends TransactionalProgressTrackerExcepti
      * @param writableStackTrace whether or not the stack trace should
      *                           be writable
      */
-    protected NotOwningLeaseException(String message, Throwable cause,
+    protected TransactionalProgressTrackerException(String message, Throwable cause,
                         boolean enableSuppression,
                         boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);

@@ -1,23 +1,23 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker.ex;
+package net.sf.jabb.txprogress.ex;
 
 
 /**
- * The exception happens in the situation that the last transaction is not successful while there is an attempt to start a new transaction.
+ * The exception thrown in the situation that it is illegal to transit the state of a transaction from one to another 
  * @author James Hu
  *
  */
-public class LastTransactionIsNotSuccessfulException extends TransactionalProgressTrackerException {
-	private static final long serialVersionUID = -8042274934290166042L;
+public class IllegalTransactionStateException extends TransactionalProgressTrackerException {
+	private static final long serialVersionUID = -5609051174330714129L;
 
-    /**
+	/**
      * Constructs a new exception with {@code null} as its detail message.
      * The cause is not initialized, and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
-    public LastTransactionIsNotSuccessfulException() {
+    public IllegalTransactionStateException() {
         super();
     }
 
@@ -29,7 +29,7 @@ public class LastTransactionIsNotSuccessfulException extends TransactionalProgre
      * @param   message   the detail message. The detail message is saved for
      *          later retrieval by the {@link #getMessage()} method.
      */
-    public LastTransactionIsNotSuccessfulException(String message) {
+    public IllegalTransactionStateException(String message) {
         super(message);
     }
 
@@ -46,7 +46,7 @@ public class LastTransactionIsNotSuccessfulException extends TransactionalProgre
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public LastTransactionIsNotSuccessfulException(String message, Throwable cause) {
+    public IllegalTransactionStateException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -63,7 +63,7 @@ public class LastTransactionIsNotSuccessfulException extends TransactionalProgre
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public LastTransactionIsNotSuccessfulException(Throwable cause) {
+    public IllegalTransactionStateException(Throwable cause) {
         super(cause);
     }
 
@@ -80,9 +80,10 @@ public class LastTransactionIsNotSuccessfulException extends TransactionalProgre
      * @param writableStackTrace whether or not the stack trace should
      *                           be writable
      */
-    protected LastTransactionIsNotSuccessfulException(String message, Throwable cause,
+    protected IllegalTransactionStateException(String message, Throwable cause,
                         boolean enableSuppression,
                         boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }
+
 }

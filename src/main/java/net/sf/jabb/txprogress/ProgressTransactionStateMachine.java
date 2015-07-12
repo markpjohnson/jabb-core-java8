@@ -1,12 +1,12 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker;
+package net.sf.jabb.txprogress;
 
-import static net.sf.jabb.transprogtracker.ProgressTransactionState.ABORTED;
-import static net.sf.jabb.transprogtracker.ProgressTransactionState.FINISHED;
-import static net.sf.jabb.transprogtracker.ProgressTransactionState.IN_PROGRESS;
-import static net.sf.jabb.transprogtracker.ProgressTransactionState.TIMED_OUT;
+import static net.sf.jabb.txprogress.ProgressTransactionState.ABORTED;
+import static net.sf.jabb.txprogress.ProgressTransactionState.FINISHED;
+import static net.sf.jabb.txprogress.ProgressTransactionState.IN_PROGRESS;
+import static net.sf.jabb.txprogress.ProgressTransactionState.TIMED_OUT;
 import net.sf.jabb.util.state.StateMachineDefinition;
 import net.sf.jabb.util.state.StateMachineWrapper;
 

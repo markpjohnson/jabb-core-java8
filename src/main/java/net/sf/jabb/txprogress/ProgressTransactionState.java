@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker;
+package net.sf.jabb.txprogress;
 
 /**
  * @author James Hu

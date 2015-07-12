@@ -1,24 +1,24 @@
 /**
  * 
  */
-package net.sf.jabb.transprogtracker.mem;
+package net.sf.jabb.txprogress.mem;
 
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
-import net.sf.jabb.transprogtracker.BasicProgressTransaction;
-import net.sf.jabb.transprogtracker.ProgressTransaction;
-import net.sf.jabb.transprogtracker.ProgressTransactionState;
-import net.sf.jabb.transprogtracker.ProgressTransactionStateMachine;
-import net.sf.jabb.transprogtracker.TransactionalProgressTracker;
-import net.sf.jabb.transprogtracker.ex.IllegalTransactionStateException;
-import net.sf.jabb.transprogtracker.ex.LastTransactionIsNotSuccessfulException;
-import net.sf.jabb.transprogtracker.ex.NotCurrentTransactionException;
-import net.sf.jabb.transprogtracker.ex.NotOwningLeaseException;
-import net.sf.jabb.transprogtracker.ex.NotOwningTransactionException;
-import net.sf.jabb.transprogtracker.ex.TransactionTimeoutAfterLeaseExpirationException;
+import net.sf.jabb.txprogress.BasicProgressTransaction;
+import net.sf.jabb.txprogress.ProgressTransaction;
+import net.sf.jabb.txprogress.ProgressTransactionState;
+import net.sf.jabb.txprogress.ProgressTransactionStateMachine;
+import net.sf.jabb.txprogress.TransactionalProgress;
+import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
+import net.sf.jabb.txprogress.ex.LastTransactionIsNotSuccessfulException;
+import net.sf.jabb.txprogress.ex.NotCurrentTransactionException;
+import net.sf.jabb.txprogress.ex.NotOwningLeaseException;
+import net.sf.jabb.txprogress.ex.NotOwningTransactionException;
+import net.sf.jabb.txprogress.ex.TransactionTimeoutAfterLeaseExpirationException;
 import net.sf.jabb.util.col.PutIfAbsentMap;
 
 /**
@@ -27,11 +27,11 @@ import net.sf.jabb.util.col.PutIfAbsentMap;
  * @author James Hu
  *
  */
-public class InMemTransactionalProgressTracker implements TransactionalProgressTracker {
+public class InMemTransactionalProgress implements TransactionalProgress {
 	
 	protected Map<String, ProgressInfo> progresses;
 	
-	public InMemTransactionalProgressTracker(){
+	public InMemTransactionalProgress(){
 		progresses = new PutIfAbsentMap<String, ProgressInfo>(new HashMap<String, ProgressInfo>(), ProgressInfo.class);
 	}
 
@@ -132,7 +132,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 	 * @return	true if a new transaction can be started; false if current transaction must be retried
 	 * @throws IllegalTransactionStateException 
 	 */
-	protected boolean checkLastSuccessfulTransaction(ProgressInfo progress) throws IllegalTransactionStateException{
+	protected boolean checkLastSuccessfulTransaction(ProgressInfo progress){
 		synchronized(progress.getLock()){
 			BasicProgressTransaction currentTransaction = (BasicProgressTransaction) progress.getCurrentTransaction();
 			if (currentTransaction == null){
@@ -144,11 +144,11 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 					return true;
 				}else if (ProgressTransactionState.IN_PROGRESS.equals(currentTransaction.getState()) 
 						&& currentTransaction.getTimeout().isBefore(Instant.now())){	// timed out
-					ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(currentTransaction.getState());
-					if (stateMachine.timeout()){
-						currentTransaction.setState(stateMachine.getState());
+					if (currentTransaction.timeout()){
+						// done
 					}else{
-						throw new IllegalTransactionStateException("Cannot time out transaction " + currentTransaction.getTransactionId() + " from state " + currentTransaction.getState());
+						// this should never happen because we already checked current status must be IN_PROGRESS
+						throw new IllegalStateException("Cannot time out transaction " + currentTransaction.getTransactionId() + " from state " + currentTransaction.getState());
 					}
 					return false;
 				}else{
@@ -162,7 +162,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 	@Override
 	public String startTransaction(String progressId, String processorId, String startPosition,
 			String endPosition, Instant timeout, Serializable transaction,
-			String transactionId) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, TransactionTimeoutAfterLeaseExpirationException, IllegalTransactionStateException {
+			String transactionId) throws LastTransactionIsNotSuccessfulException, NotOwningLeaseException, TransactionTimeoutAfterLeaseExpirationException {
 		ProgressInfo progress = progresses.get(progressId);
 		synchronized(progress.getLock()){
 			validateLease(progress, processorId, timeout);
@@ -186,13 +186,10 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 			BasicProgressTransaction currentTransaction = (BasicProgressTransaction) progress.getCurrentTransaction();
 			if (currentTransaction != null && currentTransaction.getTransactionId().equals(transactionId)){
 				if (currentTransaction.getProcessorId().equals(processorId)){
-					ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(currentTransaction.getState());
-					if (stateMachine.finish()){
-						currentTransaction.setState(stateMachine.getState());
+					if (currentTransaction.finish()){
 						if (endPosition != null){
 							currentTransaction.setEndPosition(endPosition);
 						}
-						currentTransaction.setFinishTime(Instant.now());
 						progress.setLastSucceededTransaction(currentTransaction);
 						progress.setCurrentTransaction(null);
 					}else{
@@ -217,13 +214,10 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 			BasicProgressTransaction currentTransaction = (BasicProgressTransaction) progress.getCurrentTransaction();
 			if (currentTransaction != null && currentTransaction.getTransactionId().equals(transactionId)){
 				if (currentTransaction.getProcessorId().equals(processorId)){
-					ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(currentTransaction.getState());
-					if (stateMachine.abort()){
-						currentTransaction.setState(stateMachine.getState());
+					if (currentTransaction.abort()){
 						if (endPosition != null){
 							currentTransaction.setEndPosition(endPosition);
 						}
-						currentTransaction.setFinishTime(Instant.now());
 					}else{
 						throw new IllegalTransactionStateException("Cannot abort transaction " + transactionId + " from state " + currentTransaction.getState());
 					}
@@ -238,7 +232,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 
 	@Override
 	public ProgressTransaction retryLastUnsuccessfulTransaction(String progressId, String processorId, Instant transactionTimeout) 
-			throws NotOwningTransactionException, NotOwningLeaseException, TransactionTimeoutAfterLeaseExpirationException, IllegalTransactionStateException {
+			throws NotOwningTransactionException, NotOwningLeaseException, TransactionTimeoutAfterLeaseExpirationException {
 		ProgressInfo progress = progresses.get(progressId);
 		synchronized(progress.getLock()){
 			validateLease(progress, processorId, transactionTimeout);
@@ -246,16 +240,13 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 				return null;	// no transaction needs to be retried
 			}else{
 				BasicProgressTransaction currentTransaction = (BasicProgressTransaction) progress.getCurrentTransaction();
-				ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(currentTransaction.getState());
-				if (stateMachine.retry()){
-					currentTransaction.setState(stateMachine.getState());
-					currentTransaction.setStartTime(Instant.now());
-					currentTransaction.setFinishTime(null);
+				if (currentTransaction.retry()){
 					currentTransaction.setProcessorId(processorId);
 					currentTransaction.setTimeout(transactionTimeout);
 					return currentTransaction;
 				}else{
-					throw new IllegalTransactionStateException("Cannot retry transaction " + currentTransaction.getTransactionId() + " from state " + currentTransaction.getState());
+					// this should never happen because we already checked
+					throw new IllegalStateException("Cannot retry transaction " + currentTransaction.getTransactionId() + " from state " + currentTransaction.getState());
 				}
 			}
 		}
@@ -263,7 +254,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 
 	@Override
 	public void renewTransactionTimeout(String progressId, String processorId, String transactionId, Instant transactionTimeout) 
-			throws NotOwningTransactionException, NotOwningLeaseException, IllegalTransactionStateException, NotCurrentTransactionException, TransactionTimeoutAfterLeaseExpirationException {
+			throws NotOwningTransactionException, NotOwningLeaseException, NotCurrentTransactionException, TransactionTimeoutAfterLeaseExpirationException {
 		ProgressInfo progress = progresses.get(progressId);
 		synchronized(progress.getLock()){
 			validateLease(progress, processorId, transactionTimeout);
@@ -316,6 +307,7 @@ public class InMemTransactionalProgressTracker implements TransactionalProgressT
 	@Override
 	public ProgressTransaction getLastSuccessfulTransaction(String progressId) {
 		ProgressInfo progress = progresses.get(progressId);
+		checkLastSuccessfulTransaction(progress); // it handles time out and is synchronized inside
 		ProgressTransaction lastTransaction = progress.getLastSucceededTransaction();
 		return lastTransaction;
 	}
