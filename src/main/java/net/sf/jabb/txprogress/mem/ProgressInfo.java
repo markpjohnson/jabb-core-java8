@@ -4,6 +4,8 @@
 package net.sf.jabb.txprogress.mem;
 
 import java.time.Instant;
+import java.util.LinkedList;
+import java.util.List;
 
 import net.sf.jabb.txprogress.ProgressTransaction;
 
@@ -14,11 +16,7 @@ import net.sf.jabb.txprogress.ProgressTransaction;
  */
 public class ProgressInfo {
 	protected Object lock = new Object();
-	protected String leasedByProcessor;
-	protected Instant leaseStartTime;
-	protected Instant leaseExpirationTime;
-	protected ProgressTransaction lastSucceededTransaction;
-	protected ProgressTransaction currentTransaction;
+	protected List<ProgressTransaction> transactions = new LinkedList<>();
 	
 	/**
 	 * Update the lease. The start time of the lease will be Instant.now() or null if the leaseExpirationTimed argument is null 

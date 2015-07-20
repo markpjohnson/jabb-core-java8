@@ -9,7 +9,7 @@ package net.sf.jabb.txprogress.ex;
  * @author James Hu
  *
  */
-public class IllegalTransactionStateException extends TransactionalProgressTrackerException {
+public class IllegalTransactionStateException extends TransactionalProgressException {
 	private static final long serialVersionUID = -5609051174330714129L;
 
 	/**

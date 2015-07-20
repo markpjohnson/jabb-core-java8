@@ -23,6 +23,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	protected Instant finishTime;
 	protected ProgressTransactionState state;
 	protected Serializable transaction;
+	protected int attempts;
 	
 	public BasicProgressTransaction(){
 		this(null, null, null, null, null, null);
@@ -59,6 +60,25 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		this.startTime = startTime;
 		this.transaction = transaction;
 		this.state = ProgressTransactionState.IN_PROGRESS;
+	}
+	
+	/**
+	 * Create a value copy of another ProgressTransaction
+	 * @param that	an instance of ProgressTransaction
+	 * @return	a newly created BasicProgressTransaction with the same field values as the argument 
+	 */
+	public static BasicProgressTransaction copyOf(ProgressTransaction that){
+		BasicProgressTransaction copy = new BasicProgressTransaction();
+		copy.transactionId = that.getTransactionId();
+		copy.processorId = that.getProcessorId();
+		copy.startPosition = that.getStartPosition();
+		copy.endPosition = that.getEndPosition();
+		copy.timeout = that.getTimeout();
+		copy.transaction = that.getTransaction();
+		copy.state = that.getState();
+		copy.startTime = that.getStartTime();
+		copy.finishTime = that.getFinishTime();
+		return copy;
 	}
 	
 	public boolean finish(){
@@ -164,5 +184,12 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	}
 	public void setProcessorId(String processorId) {
 		this.processorId = processorId;
+	}
+	@Override
+	public int getAttempts() {
+		return attempts;
+	}
+	public void setAttempts(int attempts) {
+		this.attempts = attempts;
 	}
 }

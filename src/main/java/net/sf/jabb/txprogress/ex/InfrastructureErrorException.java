@@ -9,7 +9,7 @@ package net.sf.jabb.txprogress.ex;
  * @author James Hu
  *
  */
-public class InfrastructureErrorException extends TransactionalProgressTrackerException {
+public class InfrastructureErrorException extends TransactionalProgressException {
 	private static final long serialVersionUID = -7568820798616959336L;
 	
     /**

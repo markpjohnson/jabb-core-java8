@@ -6,6 +6,9 @@ package net.sf.jabb.txprogress.mem;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 import net.sf.jabb.txprogress.BasicProgressTransaction;
@@ -14,6 +17,7 @@ import net.sf.jabb.txprogress.ProgressTransactionState;
 import net.sf.jabb.txprogress.ProgressTransactionStateMachine;
 import net.sf.jabb.txprogress.TransactionalProgress;
 import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
+import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
 import net.sf.jabb.txprogress.ex.LastTransactionIsNotSuccessfulException;
 import net.sf.jabb.txprogress.ex.NotCurrentTransactionException;
 import net.sf.jabb.txprogress.ex.NotOwningLeaseException;
@@ -29,10 +33,10 @@ import net.sf.jabb.util.col.PutIfAbsentMap;
  */
 public class InMemTransactionalProgress implements TransactionalProgress {
 	
-	protected Map<String, ProgressInfo> progresses;
+	protected Map<String, LinkedList<ProgressTransaction>> progresses;
 	
 	public InMemTransactionalProgress(){
-		progresses = new PutIfAbsentMap<String, ProgressInfo>(new HashMap<String, ProgressInfo>(), ProgressInfo.class);
+		progresses = new PutIfAbsentMap<String, LinkedList<ProgressTransaction>>(new HashMap<String, LinkedList<ProgressTransaction>>(), k->new LinkedList<>());
 	}
 
 	@Override
@@ -310,6 +314,107 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 		checkLastSuccessfulTransaction(progress); // it handles time out and is synchronized inside
 		ProgressTransaction lastTransaction = progress.getLastSucceededTransaction();
 		return lastTransaction;
+	}
+	
+	/**
+	 * Remove succeeded from the head and leave only one
+	 * @param transactions	 the list of transactions
+	 */
+	protected void compact(LinkedList<ProgressTransaction> transactions){
+		Iterator<ProgressTransaction> iterator = transactions.iterator();
+		if (!iterator.hasNext()){
+			return;
+		}
+		
+		ProgressTransaction tx = iterator.next();
+		if (!ProgressTransactionState.FINISHED.equals(tx.getState())){
+			return;
+		}
+		
+		while(iterator.hasNext()){
+			tx = iterator.next();
+			if (ProgressTransactionState.FINISHED.equals(tx.getState())){
+				transactions.removeFirst();
+			}
+		}
+	}
+	
+	static class TransactionCounts{
+		int retryingCount;
+		int inProgressCount;
+		int failedCount;
+	}
+	
+	protected TransactionCounts getCounts(LinkedList<ProgressTransaction> transactions){
+		TransactionCounts counts = new TransactionCounts();
+		
+		for (ProgressTransaction tx: transactions){
+			switch(tx.getState()){
+				case IN_PROGRESS:
+					counts.inProgressCount ++;
+					if (tx.getAttempts() > 1){
+						counts.retryingCount ++;
+					}
+					break;
+				case FINISHED:
+					break;
+				default:	// failed
+					counts.failedCount ++;
+					break;
+			}
+		}
+		return counts;
+	}
+
+	@Override
+	public ProgressTransaction startTransaction(String progressId,
+			String processorId, int maxInProgressTransacions,
+			int maxRetryingTransactions) throws InfrastructureErrorException {
+		LinkedList<ProgressTransaction> transactions = progresses.get(progressId);
+		synchronized(transactions){
+			compact(transactions);
+			TransactionCounts counts = getCounts(transactions);
+			if (counts.inProgressCount >= maxInProgressTransacions){	// no more transaction allowed
+				return null;
+			}
+			if (counts.retryingCount < maxRetryingTransactions && counts.failedCount > 0){	// pick up a failed to retry
+				
+			}else{	// a new transaction
+				
+			}
+		}
+		return null;
+	}
+
+	@Override
+	public ProgressTransaction startTransaction(String progressId,
+			ProgressTransaction transaction, int maxInProgressTransacions,
+			int maxRetryingTransactions) throws InfrastructureErrorException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void finishTransaction(String progressId, String processorId,
+			String transactionId) throws NotOwningTransactionException,
+			InfrastructureErrorException, IllegalTransactionStateException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void abortTransaction(String progressId, String processorId,
+			String transactionId) throws NotOwningTransactionException,
+			InfrastructureErrorException, IllegalTransactionStateException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public List<ProgressTransaction> getRecentTransactions(String progressId)
+			throws InfrastructureErrorException {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }

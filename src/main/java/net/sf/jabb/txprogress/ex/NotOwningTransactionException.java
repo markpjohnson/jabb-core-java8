@@ -9,7 +9,7 @@ package net.sf.jabb.txprogress.ex;
  * @author James Hu
  *
  */
-public class NotOwningTransactionException extends TransactionalProgressTrackerException {
+public class NotOwningTransactionException extends TransactionalProgressException {
 	private static final long serialVersionUID = 1206353071544568207L;
 
 	/**
