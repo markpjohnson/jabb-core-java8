@@ -5,11 +5,16 @@ package net.sf.jabb.txprogress.mem;
 
 import java.io.Serializable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.apache.commons.lang3.StringUtils;
 
 import net.sf.jabb.txprogress.BasicProgressTransaction;
 import net.sf.jabb.txprogress.ProgressTransaction;
@@ -19,6 +24,7 @@ import net.sf.jabb.txprogress.TransactionalProgress;
 import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
 import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
 import net.sf.jabb.txprogress.ex.LastTransactionIsNotSuccessfulException;
+import net.sf.jabb.txprogress.ex.NoSuchTransactionException;
 import net.sf.jabb.txprogress.ex.NotCurrentTransactionException;
 import net.sf.jabb.txprogress.ex.NotOwningLeaseException;
 import net.sf.jabb.txprogress.ex.NotOwningTransactionException;
@@ -33,10 +39,10 @@ import net.sf.jabb.util.col.PutIfAbsentMap;
  */
 public class InMemTransactionalProgress implements TransactionalProgress {
 	
-	protected Map<String, LinkedList<ProgressTransaction>> progresses;
+	protected Map<String, LinkedList<BasicProgressTransaction>> progresses;
 	
 	public InMemTransactionalProgress(){
-		progresses = new PutIfAbsentMap<String, LinkedList<ProgressTransaction>>(new HashMap<String, LinkedList<ProgressTransaction>>(), k->new LinkedList<>());
+		progresses = new PutIfAbsentMap<String, LinkedList<BasicProgressTransaction>>(new HashMap<String, LinkedList<BasicProgressTransaction>>(), k->new LinkedList<>());
 	}
 
 	@Override
@@ -320,8 +326,8 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 	 * Remove succeeded from the head and leave only one
 	 * @param transactions	 the list of transactions
 	 */
-	protected void compact(LinkedList<ProgressTransaction> transactions){
-		Iterator<ProgressTransaction> iterator = transactions.iterator();
+	void compact(LinkedList<? extends ProgressTransaction> transactions){
+		Iterator<? extends ProgressTransaction> iterator = transactions.iterator();
 		if (!iterator.hasNext()){
 			return;
 		}
@@ -335,6 +341,8 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 			tx = iterator.next();
 			if (ProgressTransactionState.FINISHED.equals(tx.getState())){
 				transactions.removeFirst();
+			}else{
+				break;
 			}
 		}
 	}
@@ -345,12 +353,19 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 		int failedCount;
 	}
 	
-	protected TransactionCounts getCounts(LinkedList<ProgressTransaction> transactions){
+	TransactionCounts getCounts(LinkedList<BasicProgressTransaction> transactions){
 		TransactionCounts counts = new TransactionCounts();
 		
-		for (ProgressTransaction tx: transactions){
+		Instant now = Instant.now();
+		for (BasicProgressTransaction tx: transactions){
 			switch(tx.getState()){
 				case IN_PROGRESS:
+					if (tx.getTimeout().isAfter(now)){
+						if (tx.timeout()){
+							counts.failedCount ++;
+							break;
+						}
+					}
 					counts.inProgressCount ++;
 					if (tx.getAttempts() > 1){
 						counts.retryingCount ++;
@@ -365,56 +380,157 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 		}
 		return counts;
 	}
-
-	@Override
-	public ProgressTransaction startTransaction(String progressId,
-			String processorId, int maxInProgressTransacions,
-			int maxRetryingTransactions) throws InfrastructureErrorException {
-		LinkedList<ProgressTransaction> transactions = progresses.get(progressId);
-		synchronized(transactions){
-			compact(transactions);
-			TransactionCounts counts = getCounts(transactions);
-			if (counts.inProgressCount >= maxInProgressTransacions){	// no more transaction allowed
-				return null;
-			}
-			if (counts.retryingCount < maxRetryingTransactions && counts.failedCount > 0){	// pick up a failed to retry
-				
-			}else{	// a new transaction
-				
-			}
-		}
-		return null;
+	
+	TransactionCounts compactAndGetCounts(LinkedList<BasicProgressTransaction> transactions){
+		compact(transactions);
+		return getCounts(transactions);
 	}
 
 	@Override
 	public ProgressTransaction startTransaction(String progressId,
+			String processorId, Instant timeout, int maxInProgressTransacions,
+			int maxRetryingTransactions) throws InfrastructureErrorException {
+		LinkedList<BasicProgressTransaction> transactions = progresses.get(progressId);
+		synchronized(transactions){
+			TransactionCounts counts = compactAndGetCounts(transactions);
+			
+			if (counts.inProgressCount >= maxInProgressTransacions){	// no more transaction allowed
+				return null;
+			}
+			
+			if (counts.retryingCount < maxRetryingTransactions && counts.failedCount > 0){	// pick up a failed to retry
+				Optional<BasicProgressTransaction> firstFailed = transactions.stream().filter(tx->tx.isFailed()).findFirst();
+				if (firstFailed.isPresent()){
+					BasicProgressTransaction tx = firstFailed.get();
+					tx.setAttempts(tx.getAttempts() + 1);
+					tx.setFinishTime(null);
+					tx.setProcessorId(processorId);
+					tx.setStartTime(Instant.now());
+					tx.setTimeout(timeout);
+					if (!tx.retry()){
+						throw new IllegalStateException("Cann't retry transaction: " +  tx);
+					}
+					return BasicProgressTransaction.copyOf(tx);
+				}
+			}
+			
+			// propose a new one
+			BasicProgressTransaction last = transactions.getLast();
+			BasicProgressTransaction tx = new BasicProgressTransaction(last.getTransactionId(), processorId, last.getEndPosition(), timeout);
+			return tx;
+		}
+	}
+
+	@Override
+	public ProgressTransaction startTransaction(String progressId, String previousTransactionId,
 			ProgressTransaction transaction, int maxInProgressTransacions,
 			int maxRetryingTransactions) throws InfrastructureErrorException {
-		// TODO Auto-generated method stub
-		return null;
+		LinkedList<BasicProgressTransaction> transactions = progresses.get(progressId);
+		synchronized(transactions){
+			TransactionCounts counts = compactAndGetCounts(transactions);
+			
+			if (counts.inProgressCount >= maxInProgressTransacions){	// no more transaction allowed
+				return null;
+			}
+			
+			if (counts.retryingCount < maxRetryingTransactions && counts.failedCount > 0){	// pick up a failed to retry
+				Optional<BasicProgressTransaction> firstFailed = transactions.stream().filter(tx->tx.isFailed()).findFirst();
+				if (firstFailed.isPresent()){
+					BasicProgressTransaction tx = firstFailed.get();
+					tx.setAttempts(tx.getAttempts() + 1);
+					tx.setFinishTime(null);
+					tx.setProcessorId(transaction.getProcessorId());
+					tx.setStartTime(Instant.now());
+					tx.setTimeout(transaction.getTimeout());
+					if (!tx.retry()){
+						throw new IllegalStateException("Cann't retry transaction: " +  tx);
+					}
+					return BasicProgressTransaction.copyOf(tx);
+				}
+			}
+			
+			// try to requested new transaction
+			BasicProgressTransaction last = transactions.getLast();
+			if (last.getTransactionId().equals(previousTransactionId)){
+				// start the requested one
+				BasicProgressTransaction tx = BasicProgressTransaction.copyOf(transaction);
+				tx.setStartTime(Instant.now());
+				tx.setFinishTime(null);
+				tx.setState(ProgressTransactionState.IN_PROGRESS);
+				if (StringUtils.isBlank(tx.getTransactionId())){
+					tx.setTransactionId(UUID.randomUUID().toString());
+				}
+				transactions.addLast(tx);
+				return tx;
+			}else{	// propose an updated one
+				BasicProgressTransaction tx = new BasicProgressTransaction(last.getTransactionId(), transaction.getProcessorId(), last.getEndPosition(), transaction.getTimeout());
+				return tx;
+			}
+		}
 	}
 
 	@Override
 	public void finishTransaction(String progressId, String processorId,
 			String transactionId) throws NotOwningTransactionException,
-			InfrastructureErrorException, IllegalTransactionStateException {
-		// TODO Auto-generated method stub
-		
+			InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException {
+		LinkedList<BasicProgressTransaction> transactions = progresses.get(progressId);
+		synchronized(transactions){
+			TransactionCounts counts = compactAndGetCounts(transactions);
+
+			Optional<BasicProgressTransaction> matched = transactions.stream().filter(tx->tx.getTransactionId().equals(transactionId)).findFirst();
+			if (matched.isPresent()){
+				BasicProgressTransaction tx = matched.get();
+				if (tx.getProcessorId().equals(processorId)){
+					if (!tx.finish()){
+						throw new IllegalTransactionStateException("Transaction '" + transactionId + "' is currently in " + tx.getState() + " state and cannot be changed to FINISHED state");
+					}
+					compact(transactions);
+				}else{
+					throw new NotOwningTransactionException("Transaction '" + transactionId + "' is currently owned by processor '" + tx.getProcessorId() + "'");
+				}
+			}else{
+				throw new NoSuchTransactionException("Transaction '" + transactionId + "' cannot be found");
+			}
+		}
 	}
 
 	@Override
 	public void abortTransaction(String progressId, String processorId,
 			String transactionId) throws NotOwningTransactionException,
 			InfrastructureErrorException, IllegalTransactionStateException {
-		// TODO Auto-generated method stub
-		
+		LinkedList<BasicProgressTransaction> transactions = progresses.get(progressId);
+		synchronized(transactions){
+			TransactionCounts counts = compactAndGetCounts(transactions);
+
+			Optional<BasicProgressTransaction> matched = transactions.stream().filter(tx->tx.getTransactionId().equals(transactionId)).findFirst();
+			if (matched.isPresent()){
+				BasicProgressTransaction tx = matched.get();
+				if (tx.getProcessorId().equals(processorId)){
+					if (!tx.abort()){
+						throw new IllegalTransactionStateException("Transaction '" + transactionId + "' is currently in " + tx.getState() + " state and cannot be changed to ABORTED state");
+					}
+					compact(transactions);
+				}else{
+					throw new NotOwningTransactionException("Transaction '" + transactionId + "' is currently owned by processor '" + tx.getProcessorId() + "'");
+				}
+			}else{
+				throw new NoSuchTransactionException("Transaction '" + transactionId + "' cannot be found");
+			}
+		}
 	}
 
 	@Override
 	public List<ProgressTransaction> getRecentTransactions(String progressId)
 			throws InfrastructureErrorException {
-		// TODO Auto-generated method stub
-		return null;
+		LinkedList<BasicProgressTransaction> transactions = progresses.get(progressId);
+		synchronized(transactions){
+			TransactionCounts counts = compactAndGetCounts(transactions);
+			ArrayList<ProgressTransaction> copy = new ArrayList<>(transactions.size());
+			for (BasicProgressTransaction tx: transactions){
+				copy.add(BasicProgressTransaction.copyOf(tx));
+			}
+			return copy;
+		}
 	}
 
 }

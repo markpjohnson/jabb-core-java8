@@ -6,6 +6,9 @@ package net.sf.jabb.txprogress;
 import java.io.Serializable;
 import java.time.Instant;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 /**
  * A basic implementation of ProgressTransaction
  * @author James Hu
@@ -30,8 +33,21 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	}
 	
 	/**
+	 * Constructor to create a new in-progress transaction skeleton
+	 * @param transactionId		ID of the transaction
+	 * @param processorId		ID of the processor
+	 * @param startPosition		the start position in the progress
+	 * @param timeout			the time out time of this transaction
+	 */
+	public BasicProgressTransaction(String transactionId, String processorId, String startPosition, Instant timeout){
+		this(transactionId, processorId, startPosition, null, timeout, Instant.now(), null);
+	}
+
+	
+	/**
 	 * Constructor to create a new in-progress transaction
 	 * @param transactionId		ID of the transaction
+	 * @param processorId		ID of the processor
 	 * @param startPosition		the start position in the progress
 	 * @param endPosition		the end position in the progress
 	 * @param timeout			the time out time of this transaction
@@ -45,6 +61,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	/**
 	 * Constructor to create a new in-progress transaction
 	 * @param transactionId		ID of the transaction
+	 * @param processorId		ID of the processor
 	 * @param startPosition		the start position in the progress
 	 * @param endPosition		the end position in the progress
 	 * @param timeout			the time out time of this transaction
@@ -79,6 +96,11 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		copy.startTime = that.getStartTime();
 		copy.finishTime = that.getFinishTime();
 		return copy;
+	}
+	
+	@Override
+	public String toString(){
+		return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
 	}
 	
 	public boolean finish(){

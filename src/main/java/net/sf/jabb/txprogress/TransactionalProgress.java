@@ -9,6 +9,7 @@ import java.util.List;
 
 import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
 import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
+import net.sf.jabb.txprogress.ex.NoSuchTransactionException;
 import net.sf.jabb.txprogress.ex.NotOwningTransactionException;
 
 /**
@@ -70,17 +71,47 @@ public interface TransactionalProgress {
 	 * The returned object can be safely modified by the caller and reused for other purposes.
 	 * @param progressId	ID of the progress
 	 * @param processorId	ID of the processor which must currently own the transaction
+	 * @param timeout		The time that the transaction (if started) will time out
 	 * @param maxInProgressTransacions	maximum number of concurrent transaction
 	 * @param maxRetryingTransactions	maximum number of retrying transactions
 	 * @return Full information (transactionId is not null, startTime is not null) of a previously failed transaction just re-started, 
-	 * 			or a skeleton (transactionId is null, startTime is null, endPosition is null) of a new transaction with startPosition specified 
+	 * 			or a skeleton (transactionId is the ID of the last transaction, startTime is null, endPosition is null) of a new transaction with startPosition specified 
 	 * 			(the value will be the endPosition of the last transaction, can be null if this is the very first transaction),
 	 * 			or null if no more concurrent transaction is allowed.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	ProgressTransaction startTransaction(String progressId, String processorId, int maxInProgressTransacions, int maxRetryingTransactions)
+	ProgressTransaction startTransaction(String progressId, String processorId, Instant timeout, int maxInProgressTransacions, int maxRetryingTransactions)
 					throws InfrastructureErrorException;
 	
+	/**
+	 * Try to start a transaction by picking up a previously failed transaction to retry. 
+	 * <ul>
+	 * 	<li>If the number of currently in progress transactions is less than maxConcurrentTransacions, then
+	 * 		<ul>
+	 * 			<li>If the number of currently retrying previously failed transactions is less than maxRetryingTransactions, 
+	 * 				and there is at least one previously failed transaction needs retry, then start and return a previously failed transaction for retry</li>
+	 * 			<li>Otherwise return a new transaction skeleton, with the startPosition set to the endPosition of the last transaction disregarding the
+	 * 				state of the last transaction</li>
+	 * 		</ul>
+	 * 	<li>Otherwise return null.
+	 * </ul>
+	 * The returned object can be safely modified by the caller and reused for other purposes.
+	 * @param progressId	ID of the progress
+	 * @param processorId	ID of the processor which must currently own the transaction
+	 * @param timeoutDuration		The duration after which the transaction (if started) will time out
+	 * @param maxInProgressTransacions	maximum number of concurrent transaction
+	 * @param maxRetryingTransactions	maximum number of retrying transactions
+	 * @return Full information (transactionId is not null, startTime is not null) of a previously failed transaction just re-started, 
+	 * 			or a skeleton (transactionId is the ID of the last transaction, startTime is null, endPosition is null) of a new transaction with startPosition specified 
+	 * 			(the value will be the endPosition of the last transaction, can be null if this is the very first transaction),
+	 * 			or null if no more concurrent transaction is allowed.
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 */
+	default ProgressTransaction startTransaction(String progressId, String processorId, Duration timeoutDuration, int maxInProgressTransacions, int maxRetryingTransactions)
+			throws InfrastructureErrorException{
+		return startTransaction(progressId, processorId, Instant.now().plus(timeoutDuration), maxInProgressTransacions, maxRetryingTransactions);
+	}
+
 	/**
 	 * Try to start a new transaction.
 	 * <ul>
@@ -96,6 +127,7 @@ public interface TransactionalProgress {
 	 * </ul>
 	 * The returned object can be safely modified by the caller and reused for other purposes.
 	 * @param progressId			ID of the progress
+	 * @param previousTransactionId	ID of previous transaction that the requested one must follow
 	 * @param transaction		Details of this new transaction.
 	 * 							<br>Fields that cannot be null are:
 	 * 								processorId, startPosition, endPosition, timeout
@@ -108,7 +140,7 @@ public interface TransactionalProgress {
 	 * 			or null if no more concurrent transaction is allowed.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	ProgressTransaction startTransaction(String progressId, ProgressTransaction transaction, int maxInProgressTransacions, int maxRetryingTransactions) 
+	ProgressTransaction startTransaction(String progressId, String previousTransactionId, ProgressTransaction transaction, int maxInProgressTransacions, int maxRetryingTransactions) 
 					throws InfrastructureErrorException;
 	
 	/**
@@ -119,9 +151,10 @@ public interface TransactionalProgress {
 	 * @throws NotOwningTransactionException 
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 * @throws IllegalTransactionStateException 
+	 * @throws NoSuchTransactionException
 	 */
 	void finishTransaction(String progressId, String processorId, String transactionId) 
-			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException;
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException;
 
 	
 	/**
@@ -134,7 +167,7 @@ public interface TransactionalProgress {
 	 * @throws IllegalTransactionStateException 
 	 */
 	void abortTransaction(String progressId, String processorId, String transactionId) 
-			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException;
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException;
 	
 	/**
 	 * Update the time out of a transaction
@@ -144,9 +177,10 @@ public interface TransactionalProgress {
 	 * @param timeout				The new time that the transaction should time out
 	 * @throws NotOwningTransactionException 
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws NoSuchTransactionException
 	 */
 	void renewTransactionTimeout(String progressId, String processorId, String transactionId, Instant timeout) 
-			throws NotOwningTransactionException, InfrastructureErrorException;
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException;
 	
 	/**
 	 * Update the time out of a transaction
@@ -156,9 +190,11 @@ public interface TransactionalProgress {
 	 * @param timeout				The period from now after which the transaction should time out
 	 * @throws NotOwningTransactionException 
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws IllegalTransactionStateException 
+	 * @throws NoSuchTransactionException
 	 */
 	default void renewTransactionTimeout(String progressId, String processorId, String transactionId, Duration timeout) 
-			throws NotOwningTransactionException, InfrastructureErrorException{
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException{
 		renewTransactionTimeout(progressId, processorId, transactionId, Instant.now().plus(timeout));
 	}
 	

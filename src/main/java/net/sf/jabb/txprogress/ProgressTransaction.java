@@ -74,4 +74,18 @@ public interface ProgressTransaction {
 	 * 			3 if the transaction has been tried and retried three times, etc.
 	 */
 	int getAttempts();
+	
+	default boolean isInProgress(){
+		return ProgressTransactionState.IN_PROGRESS.equals(getState());
+	}
+	
+	default boolean isFinished(){
+		return ProgressTransactionState.FINISHED.equals(getState());
+	}
+	
+	default boolean isFailed(){
+		ProgressTransactionState state = getState();
+		return ProgressTransactionState.ABORTED.equals(state) || ProgressTransactionState.TIMED_OUT.equals(state);
+	}
+
 }
