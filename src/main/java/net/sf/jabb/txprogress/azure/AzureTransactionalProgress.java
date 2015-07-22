@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-import net.sf.jabb.txprogress.ProgressTransaction;
+import net.sf.jabb.txprogress.ReadOnlyProgressTransaction;
 import net.sf.jabb.txprogress.TransactionalProgress;
 import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
 import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
@@ -231,7 +231,7 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 	 * @see net.sf.jabb.txprogress.TransactionalProgress#retryLastUnsuccessfulTransaction(java.lang.String, java.lang.String, java.time.Instant)
 	 */
 	@Override
-	public ProgressTransaction retryLastUnsuccessfulTransaction(String progressId, String processorId, Instant timeout)
+	public ReadOnlyProgressTransaction retryLastUnsuccessfulTransaction(String progressId, String processorId, Instant timeout)
 			throws NotOwningTransactionException, InfrastructureErrorException, NotOwningLeaseException,
 			TransactionTimeoutAfterLeaseExpirationException {
 		// TODO Auto-generated method stub
@@ -262,7 +262,7 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 	 * @see net.sf.jabb.txprogress.TransactionalProgress#getLastSuccessfulTransaction(java.lang.String)
 	 */
 	@Override
-	public ProgressTransaction getLastSuccessfulTransaction(String progressId) throws InfrastructureErrorException {
+	public ReadOnlyProgressTransaction getLastSuccessfulTransaction(String progressId) throws InfrastructureErrorException {
 		// TODO Auto-generated method stub
 		return null;
 	}

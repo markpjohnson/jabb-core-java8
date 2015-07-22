@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import net.sf.jabb.txprogress.ex.DuplicatedTransactionIdException;
 import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
 import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
 import net.sf.jabb.txprogress.ex.NoSuchTransactionException;
@@ -139,9 +140,10 @@ public interface TransactionalProgress {
 	 * 			(the value will be the endPosition of the last transaction, can be null if this is the very first transaction),
 	 * 			or null if no more concurrent transaction is allowed.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws DuplicatedTransactionIdException if the transaction ID specified is duplicated
 	 */
-	ProgressTransaction startTransaction(String progressId, String previousTransactionId, ProgressTransaction transaction, int maxInProgressTransacions, int maxRetryingTransactions) 
-					throws InfrastructureErrorException;
+	ProgressTransaction startTransaction(String progressId, String previousTransactionId, ReadOnlyProgressTransaction transaction, int maxInProgressTransacions, int maxRetryingTransactions) 
+					throws InfrastructureErrorException, DuplicatedTransactionIdException;
 	
 	/**
 	 * Finish a succeeded transaction.
@@ -226,7 +228,7 @@ public interface TransactionalProgress {
 	 * 						Head of the list is the last succeeded transaction, tail of the list is the most recent transaction.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	List<ProgressTransaction> getRecentTransactions(String progressId) throws InfrastructureErrorException;
+	List<ReadOnlyProgressTransaction> getRecentTransactions(String progressId) throws InfrastructureErrorException;
 
 
 }

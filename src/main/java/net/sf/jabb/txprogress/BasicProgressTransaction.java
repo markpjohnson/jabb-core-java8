@@ -33,7 +33,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	}
 	
 	/**
-	 * Constructor to create a new in-progress transaction skeleton
+	 * Constructor to create a new transaction skeleton
 	 * @param transactionId		ID of the transaction
 	 * @param processorId		ID of the processor
 	 * @param startPosition		the start position in the progress
@@ -41,6 +41,9 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	 */
 	public BasicProgressTransaction(String transactionId, String processorId, String startPosition, Instant timeout){
 		this(transactionId, processorId, startPosition, null, timeout, Instant.now(), null);
+		this.startTime = null;
+		this.state = null;
+		this.attempts = 0;
 	}
 
 	
@@ -77,6 +80,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		this.startTime = startTime;
 		this.transaction = transaction;
 		this.state = ProgressTransactionState.IN_PROGRESS;
+		this.attempts = 1;
 	}
 	
 	/**
@@ -84,7 +88,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	 * @param that	an instance of ProgressTransaction
 	 * @return	a newly created BasicProgressTransaction with the same field values as the argument 
 	 */
-	public static BasicProgressTransaction copyOf(ProgressTransaction that){
+	public static BasicProgressTransaction copyOf(ReadOnlyProgressTransaction that){
 		BasicProgressTransaction copy = new BasicProgressTransaction();
 		copy.transactionId = that.getTransactionId();
 		copy.processorId = that.getProcessorId();
@@ -95,6 +99,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		copy.state = that.getState();
 		copy.startTime = that.getStartTime();
 		copy.finishTime = that.getFinishTime();
+		copy.attempts = that.getAttempts();
 		return copy;
 	}
 	
@@ -123,12 +128,15 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		return false;
 	}
 	
-	public boolean retry(){
+	public boolean retry(String processorId, Instant timeout){
 		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
 		if (stateMachine.retry()){
 			this.startTime = Instant.now();
 			this.finishTime = null;
 			this.state = stateMachine.getState();
+			this.attempts ++;
+			this.processorId = processorId;
+			this.timeout = timeout;
 			return true;
 		}
 		return false;
@@ -148,6 +156,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	public String getStartPosition() {
 		return startPosition;
 	}
+	@Override
 	public void setStartPosition(String startPosition) {
 		this.startPosition = startPosition;
 	}
@@ -155,6 +164,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	public String getEndPosition() {
 		return endPosition;
 	}
+	@Override
 	public void setEndPosition(String endPosition) {
 		this.endPosition = endPosition;
 	}
@@ -162,6 +172,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	public Instant getTimeout() {
 		return timeout;
 	}
+	@Override
 	public void setTimeout(Instant timeout) {
 		this.timeout = timeout;
 	}
@@ -190,6 +201,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	public Serializable getTransaction() {
 		return transaction;
 	}
+	@Override
 	public void setTransaction(Serializable transaction) {
 		this.transaction = transaction;
 	}
@@ -197,6 +209,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	public String getTransactionId() {
 		return transactionId;
 	}
+	@Override
 	public void setTransactionId(String transactionId) {
 		this.transactionId = transactionId;
 	}
@@ -204,6 +217,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	public String getProcessorId() {
 		return processorId;
 	}
+	@Override
 	public void setProcessorId(String processorId) {
 		this.processorId = processorId;
 	}

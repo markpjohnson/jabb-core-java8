@@ -5,19 +5,19 @@ package net.sf.jabb.txprogress.ex;
 
 
 /**
- * The exception happens in the situation that the last transaction is not successful while there is an attempt to start a new transaction.
+ * The exception happens in the situation that duplicated transaction IDs are found.
  * @author James Hu
  *
  */
-public class LastTransactionIsNotSuccessfulException extends TransactionalProgressException {
-	private static final long serialVersionUID = -8042274934290166042L;
+public class DuplicatedTransactionIdException extends TransactionalProgressException {
+	private static final long serialVersionUID = 735554272315512893L;
 
-    /**
+	/**
      * Constructs a new exception with {@code null} as its detail message.
      * The cause is not initialized, and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
-    public LastTransactionIsNotSuccessfulException() {
+    public DuplicatedTransactionIdException() {
         super();
     }
 
@@ -29,7 +29,7 @@ public class LastTransactionIsNotSuccessfulException extends TransactionalProgre
      * @param   message   the detail message. The detail message is saved for
      *          later retrieval by the {@link #getMessage()} method.
      */
-    public LastTransactionIsNotSuccessfulException(String message) {
+    public DuplicatedTransactionIdException(String message) {
         super(message);
     }
 
@@ -46,7 +46,7 @@ public class LastTransactionIsNotSuccessfulException extends TransactionalProgre
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public LastTransactionIsNotSuccessfulException(String message, Throwable cause) {
+    public DuplicatedTransactionIdException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -63,7 +63,7 @@ public class LastTransactionIsNotSuccessfulException extends TransactionalProgre
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public LastTransactionIsNotSuccessfulException(Throwable cause) {
+    public DuplicatedTransactionIdException(Throwable cause) {
         super(cause);
     }
 
@@ -80,7 +80,7 @@ public class LastTransactionIsNotSuccessfulException extends TransactionalProgre
      * @param writableStackTrace whether or not the stack trace should
      *                           be writable
      */
-    protected LastTransactionIsNotSuccessfulException(String message, Throwable cause,
+    protected DuplicatedTransactionIdException(String message, Throwable cause,
                         boolean enableSuppression,
                         boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
