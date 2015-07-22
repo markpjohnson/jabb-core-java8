@@ -38,15 +38,7 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 	protected Map<String, LinkedList<BasicProgressTransaction>> progresses;
 	
 	public InMemTransactionalProgress(){
-		initialize();
-	}
-
-	public void initialize(){
-		if (progresses == null){
-			progresses = new PutIfAbsentMap<String, LinkedList<BasicProgressTransaction>>(new HashMap<String, LinkedList<BasicProgressTransaction>>(), k->new LinkedList<>());
-		}else{
-			progresses.clear();
-		}
+		progresses = new PutIfAbsentMap<String, LinkedList<BasicProgressTransaction>>(new HashMap<String, LinkedList<BasicProgressTransaction>>(), k->new LinkedList<>());
 	}
 
 	/**
@@ -192,12 +184,12 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 				transactions.addLast(tx);
 				tx = BasicProgressTransaction.copyOf(tx);
 			}else{
-				if (transactions.size() > 0){
+				//if (transactions.size() > 0){
 					BasicProgressTransaction last = transactions.getLast();
 					tx = new BasicProgressTransaction(last.getTransactionId(), transaction.getProcessorId(), last.getEndPosition(), transaction.getTimeout());
-				}else{
-					tx = new BasicProgressTransaction(null, transaction.getProcessorId(), null, transaction.getTimeout());
-				}
+				//}else{
+				//	tx = new BasicProgressTransaction(null, transaction.getProcessorId(), null, transaction.getTimeout());
+				//}
 			}
 			return tx;
 		}
@@ -312,6 +304,16 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 				throw new NoSuchTransactionException("Transaction '" + transactionId + "' either does not exist or have succeeded and then been purged");
 			}
 		}
+	}
+
+	@Override
+	public void clear(String progressId) throws InfrastructureErrorException {
+		this.progresses.remove(progressId);
+	}
+
+	@Override
+	public void clearAll() throws InfrastructureErrorException {
+		this.progresses.clear();
 	}
 
 

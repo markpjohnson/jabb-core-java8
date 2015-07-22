@@ -14,6 +14,7 @@ import org.junit.runners.MethodSorters;
 import net.sf.jabb.txprogress.BasicProgressTransaction;
 import net.sf.jabb.txprogress.TransactionalProgress;
 import net.sf.jabb.txprogress.TransactionalProgressTest;
+import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
 import net.sf.jabb.txprogress.mem.InMemTransactionalProgress;
 import net.sf.jabb.txprogress.mem.InMemTransactionalProgress.TransactionCounts;
 
@@ -26,13 +27,8 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 		return tracker;
 	}
 	
-	@Before
-	public void beforeTest(){
-		((InMemTransactionalProgress)tracker).initialize();
-	}
-	
 	@Test
-	public void test0CompactEmpty(){
+	public void test00CompactEmpty(){
 		LinkedList<BasicProgressTransaction> transactions = new LinkedList<>();
 		InMemTransactionalProgress tracker = (InMemTransactionalProgress)createTracker();
 
@@ -46,7 +42,7 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 	}
 
 	@Test
-	public void test0CompactMore(){
+	public void test00CompactMore(){
 		LinkedList<BasicProgressTransaction> transactions = new LinkedList<>();
 		InMemTransactionalProgress tracker = (InMemTransactionalProgress)createTracker();
 
@@ -135,7 +131,7 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 	}
 	
 	@Test
-	public void test0CompactTimedOutAndRetry(){
+	public void test00CompactTimedOutAndRetry(){
 		LinkedList<BasicProgressTransaction> transactions = new LinkedList<>();
 		InMemTransactionalProgress tracker = (InMemTransactionalProgress)createTracker();
 		
@@ -171,4 +167,8 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 		
 	}
 
+	@Test
+	public void test00ClearAll() throws InfrastructureErrorException{
+		tracker.clearAll();
+	}
 }

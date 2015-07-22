@@ -230,5 +230,17 @@ public interface TransactionalProgress {
 	 */
 	List<ReadOnlyProgressTransaction> getRecentTransactions(String progressId) throws InfrastructureErrorException;
 
+	/**
+	 * Clear all the transactions of a progress. This method is not thread safe and should only be used for maintenance.
+	 * @param progressId	ID of the progress
+	 * @throws InfrastructureErrorException	if error in the underlying infrastructure happened
+	 */
+	void clear(String progressId) throws InfrastructureErrorException;
 
+	/**
+	 * Clear all the transactions of all progresses. This method is not thread safe and should only be used for maintenance.
+	 * @param progressId	ID of the progress
+	 * @throws InfrastructureErrorException	if error in the underlying infrastructure happened
+	 */
+	void clearAll() throws InfrastructureErrorException;
 }
