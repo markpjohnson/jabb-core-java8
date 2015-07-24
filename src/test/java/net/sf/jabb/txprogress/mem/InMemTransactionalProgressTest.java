@@ -2,11 +2,9 @@ package net.sf.jabb.txprogress.mem;
 
 import static org.junit.Assert.*;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedList;
 
-import org.junit.Before;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
