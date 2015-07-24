@@ -24,7 +24,6 @@ import net.sf.jabb.txprogress.ex.NoSuchTransactionException;
 import net.sf.jabb.txprogress.ex.NotOwningTransactionException;
 import net.sf.jabb.util.col.PutIfAbsentMap;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 
 /**
@@ -159,9 +158,10 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 					newTrans.setFinishTime(null);
 					newTrans.setState(ProgressTransactionState.IN_PROGRESS);
 					String transactionId = newTrans.getTransactionId();
-					if (StringUtils.isBlank(transactionId)){
+					if (transactionId == null){
 						newTrans.setTransactionId(UUID.randomUUID().toString());
 					}else{
+						Validate.notBlank(transactionId, "Transaction ID cannot be blank: %s", transactionId);
 						if (transactions.stream().anyMatch(t->t.getTransactionId().equals(transactionId))){
 							throw new DuplicatedTransactionIdException("Transaction ID '" + transactionId + "' is duplicated");
 						}
