@@ -53,9 +53,9 @@ public interface ProgressTransaction extends ReadOnlyProgressTransaction{
 	
 	/**
 	 * Set the details of the transaction
-	 * @param transaction	the details
+	 * @param detail	the detail
 	 */
-	void setTransaction(Serializable transaction);
+	void setDetail(Serializable detail);
 	
 
 }

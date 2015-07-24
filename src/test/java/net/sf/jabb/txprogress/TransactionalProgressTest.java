@@ -85,7 +85,7 @@ public abstract class TransactionalProgressTest {
 		
 		transaction.setStartPosition("001");
 		transaction.setEndPosition("010");
-		transaction.setTransaction(transactionDetail);
+		transaction.setDetail(transactionDetail);
 		
 		transaction = tracker.startTransaction(progressId, null, transaction, 5, 5); // in-progress
 		assertNotNull(transaction);
@@ -94,7 +94,7 @@ public abstract class TransactionalProgressTest {
 		assertNotNull(transaction.getTransactionId());
 		assertEquals("001", transaction.getStartPosition());
 		assertEquals("010", transaction.getEndPosition());
-		assertEquals(transactionDetail, transaction.getTransaction());
+		assertEquals(transactionDetail, transaction.getDetail());
 		assertNotNull(transaction.getTimeout());
 		assertEquals(processorId, transaction.getProcessorId());
 		assertEquals(1, transaction.getAttempts());
@@ -112,7 +112,7 @@ public abstract class TransactionalProgressTest {
 		
 		transaction.setStartPosition("011");
 		transaction.setEndPosition("020");
-		transaction.setTransaction(transactionDetail);
+		transaction.setDetail(transactionDetail);
 		transaction.setTimeout(Duration.ofSeconds(120));
 		
 		transaction = tracker.startTransaction(progressId, "alksdjflksdj", transaction, 5, 5);  // will get a skeleton
@@ -125,7 +125,7 @@ public abstract class TransactionalProgressTest {
 
 		transaction.setStartPosition("011");
 		transaction.setEndPosition("020");
-		transaction.setTransaction(transactionDetail);
+		transaction.setDetail(transactionDetail);
 		transaction.setTimeout(Duration.ofSeconds(120));
 
 		try{
@@ -179,7 +179,7 @@ public abstract class TransactionalProgressTest {
 		transaction.setTransactionId(lastId);
 		transaction.setStartPosition("001");
 		transaction.setEndPosition("010");
-		transaction.setTransaction(transactionDetail);
+		transaction.setDetail(transactionDetail);
 		transaction = tracker.startTransaction(progressId, null, transaction, 5, 5); // in-progress
 		assertNotNull(transaction);
 		assertTrue(transaction.hasStarted());
@@ -214,7 +214,7 @@ public abstract class TransactionalProgressTest {
 		transaction.setTransactionId(null);
 		transaction.setStartPosition("011");
 		transaction.setEndPosition("020");
-		transaction.setTransaction(transactionDetail);
+		transaction.setDetail(transactionDetail);
 		transaction = tracker.startTransaction(progressId, lastId, transaction, 5, 5); // in-progress
 		assertNotNull(transaction);
 		assertTrue(transaction.hasStarted());
@@ -302,7 +302,7 @@ public abstract class TransactionalProgressTest {
 				if (t0.isFinished()){
 					System.out.print(t0.getEndPosition() + ".");
 				}
-				if(transactions.stream().anyMatch(tx -> END_POSITION ==(Integer)tx.getTransaction())
+				if(transactions.stream().anyMatch(tx -> END_POSITION ==(Integer)tx.getDetail())
 					&& transactions.stream().allMatch(tx -> tx.isFinished()) ){
 				break;
 			}
@@ -363,7 +363,7 @@ public abstract class TransactionalProgressTest {
 						}
 						transaction.setStartPosition(String.valueOf(position));
 						transaction.setEndPosition(String.valueOf(position));
-						transaction.setTransaction(position);
+						transaction.setDetail(position);
 						transaction.setTimeout(TIMEOUT_DURATION);
 						transaction = tracker.startTransaction(progressId, previousId, transaction, MAX_IN_PROGRESS_TRANSACTIONS, MAX_RETRYING_TRANSACTIONS);
 					}
@@ -407,7 +407,7 @@ public abstract class TransactionalProgressTest {
 				
 				try {
 					tracker.finishTransaction(progressId, processorId, transaction.getTransactionId());
-					logMap.get(transaction.getTransaction()).incrementAndGet();
+					logMap.get(transaction.getDetail()).incrementAndGet();
 					attemptsFrequencyCounter.count(transaction.getAttempts(), 1);
 				} catch (NotOwningTransactionException | IllegalTransactionStateException | NoSuchTransactionException e) {
 					// ignore

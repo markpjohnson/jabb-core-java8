@@ -62,10 +62,10 @@ public interface ReadOnlyProgressTransaction {
 	ProgressTransactionState getState();
 	
 	/**
-	 * Get the details of the transaction
-	 * @return	the details
+	 * Get the detail of the transaction
+	 * @return	the detail
 	 */
-	Serializable getTransaction();
+	Serializable getDetail();
 	
 	/**
 	 * Get the number of attempts for the transaction

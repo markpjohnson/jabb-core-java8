@@ -25,7 +25,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	protected Instant startTime;
 	protected Instant finishTime;
 	protected ProgressTransactionState state;
-	protected Serializable transaction;
+	protected Serializable detail;
 	protected int attempts;
 	
 	public BasicProgressTransaction(){
@@ -78,7 +78,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		this.endPosition = endPosition;
 		this.timeout = timeout;
 		this.startTime = startTime;
-		this.transaction = transaction;
+		this.detail = transaction;
 		this.state = ProgressTransactionState.IN_PROGRESS;
 		this.attempts = 1;
 	}
@@ -95,7 +95,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		copy.startPosition = that.getStartPosition();
 		copy.endPosition = that.getEndPosition();
 		copy.timeout = that.getTimeout();
-		copy.transaction = that.getTransaction();
+		copy.detail = that.getDetail();
 		copy.state = that.getState();
 		copy.startTime = that.getStartTime();
 		copy.finishTime = that.getFinishTime();
@@ -198,12 +198,12 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		this.state = state;
 	}
 	@Override
-	public Serializable getTransaction() {
-		return transaction;
+	public Serializable getDetail() {
+		return detail;
 	}
 	@Override
-	public void setTransaction(Serializable transaction) {
-		this.transaction = transaction;
+	public void setDetail(Serializable detail) {
+		this.detail = detail;
 	}
 	@Override
 	public String getTransactionId() {
