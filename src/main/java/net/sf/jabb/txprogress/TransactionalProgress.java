@@ -5,7 +5,11 @@ package net.sf.jabb.txprogress;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
+
+import org.apache.commons.lang3.Validate;
 
 import net.sf.jabb.txprogress.ex.DuplicatedTransactionIdException;
 import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
@@ -110,6 +114,7 @@ public interface TransactionalProgress {
 	 */
 	default ProgressTransaction startTransaction(String progressId, String processorId, Duration timeoutDuration, int maxInProgressTransacions, int maxRetryingTransactions)
 			throws InfrastructureErrorException{
+		Validate.notNull(timeoutDuration, "Transaction time out duration cannot be null");
 		return startTransaction(progressId, processorId, Instant.now().plus(timeoutDuration), maxInProgressTransacions, maxRetryingTransactions);
 	}
 
@@ -189,15 +194,16 @@ public interface TransactionalProgress {
 	 * @param progressId			ID of the progress
 	 * @param processorId			ID of the processor which must currently own the transaction
 	 * @param transactionId			ID of the transaction
-	 * @param timeout				The period from now after which the transaction should time out
+	 * @param timeoutDuration				The period from now after which the transaction should time out
 	 * @throws NotOwningTransactionException 
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 * @throws IllegalTransactionStateException 
 	 * @throws NoSuchTransactionException
 	 */
-	default void renewTransactionTimeout(String progressId, String processorId, String transactionId, Duration timeout) 
+	default void renewTransactionTimeout(String progressId, String processorId, String transactionId, Duration timeoutDuration) 
 			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException{
-		renewTransactionTimeout(progressId, processorId, transactionId, Instant.now().plus(timeout));
+		Validate.notNull(timeoutDuration, "Transaction time out duration cannot be null");
+		renewTransactionTimeout(progressId, processorId, transactionId, Instant.now().plus(timeoutDuration));
 	}
 	
 	/**
@@ -228,7 +234,7 @@ public interface TransactionalProgress {
 	 * 						Head of the list is the last succeeded transaction, tail of the list is the most recent transaction.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	List<ReadOnlyProgressTransaction> getRecentTransactions(String progressId) throws InfrastructureErrorException;
+	List<? extends ReadOnlyProgressTransaction> getRecentTransactions(String progressId) throws InfrastructureErrorException;
 
 	/**
 	 * Clear all the transactions of a progress. This method is not thread safe and should only be used for maintenance.
@@ -243,4 +249,55 @@ public interface TransactionalProgress {
 	 * @throws InfrastructureErrorException	if error in the underlying infrastructure happened
 	 */
 	void clearAll() throws InfrastructureErrorException;
+	
+	/**
+	 * From the list of recent transactions, find out the end position of the last finished transaction before which all transactions had succeeded.
+	 * @param transactions	list of transactions returned by {@link #getRecentTransactions(String progressId)} method.
+	 * @return	the last finished position (all transactions before this position has succeeded), or null if there is no recent transaction
+	 */
+	static String getLastFinishedPosition(List<? extends ReadOnlyProgressTransaction> transactions){
+		if (transactions != null){
+			String position = null;
+			Iterator<? extends ReadOnlyProgressTransaction> iterator = transactions.iterator();
+			while(iterator.hasNext()){
+				ReadOnlyProgressTransaction tx = iterator.next();
+				if (tx.isFinished()){
+					position = tx.getEndPosition();
+				}else{
+					break;
+				}
+			}
+			return position;
+		}else{
+			return null;
+		}
+	}
+	
+	/**
+	 * From the list of recent transactions, find out the end position of the last started transaction
+	 * @param transactions	list of transactions returned by {@link #getRecentTransactions(String progressId)} method.
+	 * @return	the last position (before this position there might be failed or in progress transactions), or null if there is no recent transaction
+	 */
+	static String getLastPosition(List<? extends ReadOnlyProgressTransaction> transactions){
+		if (transactions != null && transactions.size() > 0){
+			ReadOnlyProgressTransaction tx = transactions.get(transactions.size() - 1);
+			return tx.getEndPosition();
+		}else{
+			return null;
+		}
+	}
+	
+	/**
+	 * From the list of recent transactions, get the number of transaction matching the specified filtering condition
+	 * @param transactions	list of transactions returned by {@link #getRecentTransactions(String progressId)} method.
+	 * @param predicate		the filtering condition
+	 * @return		number of transactions matching the condition specified
+	 */
+	static int getTransactionCount(List<? extends ReadOnlyProgressTransaction> transactions, Predicate<ReadOnlyProgressTransaction> predicate){
+		if (transactions == null || predicate == null){
+			return 0;
+		}else{
+			return (int) transactions.stream().filter(predicate).count();
+		}
+	}
 }

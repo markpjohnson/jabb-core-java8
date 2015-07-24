@@ -233,11 +233,16 @@ public abstract class TransactionalProgressTest {
 		
 		assertFalse(tracker.isTransactionSuccessful(progressId, lastId));
 		
-		List<ReadOnlyProgressTransaction> transactions = tracker.getRecentTransactions(progressId);
+		List<? extends ReadOnlyProgressTransaction> transactions = tracker.getRecentTransactions(progressId);
 		assertNotNull(transactions);
 		assertEquals(2, transactions.size());
 		assertEquals(lastId, transactions.get(1).getTransactionId());
 		assertTrue(transactions.get(1).isInProgress());
+		assertEquals("010", TransactionalProgress.getLastFinishedPosition(transactions));
+		assertEquals("020", TransactionalProgress.getLastPosition(transactions));
+		assertEquals(1, TransactionalProgress.getTransactionCount(transactions, tx->tx.isFinished()));
+		assertEquals(1, TransactionalProgress.getTransactionCount(transactions, tx->tx.isInProgress()));
+		assertEquals(0, TransactionalProgress.getTransactionCount(transactions, tx->tx.isFailed()));
 		
 		tracker.abortTransaction(progressId, processorId, lastId);
 		transactions = tracker.getRecentTransactions(progressId);
@@ -291,7 +296,7 @@ public abstract class TransactionalProgressTest {
 		runFlag.set(true);
 		while(true){
 			Thread.sleep(1000);
-			List<ReadOnlyProgressTransaction> transactions = tracker.getRecentTransactions(progressId);
+			List<? extends ReadOnlyProgressTransaction> transactions = tracker.getRecentTransactions(progressId);
 			if (transactions.size() > 0){
 				ReadOnlyProgressTransaction t0 = transactions.get(0);
 				if (t0.isFinished()){
@@ -304,6 +309,7 @@ public abstract class TransactionalProgressTest {
 			}
 		}
 		
+		assertEquals(String.valueOf(END_POSITION), TransactionalProgress.getLastFinishedPosition(tracker.getRecentTransactions(progressId)));
 		List<Integer> processed = logMap.keySet().stream().sorted().collect(Collectors.toList());
 		assertEquals("Each should have been processed", END_POSITION - START_POSITION + 1, processed.size());
 		for(int i = START_POSITION, j=0; i <= END_POSITION; i ++, j++){
@@ -386,7 +392,7 @@ public abstract class TransactionalProgressTest {
 			Uninterruptibles.sleepUninterruptibly(snapTime, TimeUnit.MILLISECONDS);
 
 			int dice = random.nextInt(100);
-			if (dice < 60){	// finish
+			if (dice < 70){	// finish
 				if (dice < 10){
 					try {
 						tracker.renewTransactionTimeout(progressId, processorId, transaction.getTransactionId(), TIMEOUT_DURATION);
