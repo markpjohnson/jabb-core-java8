@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress;
+package net.sf.jabb.seqtx;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -11,7 +11,7 @@ import java.time.Instant;
  * @author James Hu
  *
  */
-public interface ReadOnlyProgressTransaction {
+public interface ReadOnlySequentialTransaction {
 	
 	/**
 	 * Get the ID of this transaction
@@ -59,7 +59,7 @@ public interface ReadOnlyProgressTransaction {
 	 * Get the state of the transaction
 	 * @return	the state
 	 */
-	ProgressTransactionState getState();
+	SequentialTransactionState getState();
 	
 	/**
 	 * Get the detail of the transaction
@@ -76,16 +76,16 @@ public interface ReadOnlyProgressTransaction {
 	int getAttempts();
 	
 	default boolean isInProgress(){
-		return ProgressTransactionState.IN_PROGRESS.equals(getState());
+		return SequentialTransactionState.IN_PROGRESS.equals(getState());
 	}
 	
 	default boolean isFinished(){
-		return ProgressTransactionState.FINISHED.equals(getState());
+		return SequentialTransactionState.FINISHED.equals(getState());
 	}
 	
 	default boolean isFailed(){
-		ProgressTransactionState state = getState();
-		return ProgressTransactionState.ABORTED.equals(state) || ProgressTransactionState.TIMED_OUT.equals(state);
+		SequentialTransactionState state = getState();
+		return SequentialTransactionState.ABORTED.equals(state) || SequentialTransactionState.TIMED_OUT.equals(state);
 	}
 	
 	default boolean hasStarted(){

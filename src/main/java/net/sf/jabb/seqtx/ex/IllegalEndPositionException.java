@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress.ex;
+package net.sf.jabb.seqtx.ex;
 
 
 /**
@@ -10,7 +10,7 @@ package net.sf.jabb.txprogress.ex;
  * @author James Hu
  *
  */
-public class IllegalEndPositionException extends TransactionalProgressException {
+public class IllegalEndPositionException extends SequentialTransactionException {
 	private static final long serialVersionUID = 616754725828783475L;
 
 	/**

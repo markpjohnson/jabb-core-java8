@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress.azure;
+package net.sf.jabb.seqtx.azure;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -10,7 +10,7 @@ import java.util.Date;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.Validate;
 
-import net.sf.jabb.txprogress.ProgressTransactionState;
+import net.sf.jabb.seqtx.SequentialTransactionState;
 
 import com.microsoft.azure.storage.table.Ignore;
 import com.microsoft.azure.storage.table.StoreAs;
@@ -18,12 +18,12 @@ import com.microsoft.azure.storage.table.TableServiceEntity;
 
 /**
  * The entity stored in Azure table storage to represent a transaction.
- * <br>PartitionKey: progressId
+ * <br>PartitionKey: seriesId
  * <br>RowKey: transactionId
  * @author James Hu
  *
  */
-public class ProgressTransactionEntity extends TableServiceEntity {
+public class SequentialTransactionEntity extends TableServiceEntity {
 	static public final int MAX_BINARY_LENGTH = 64*1024;
 	
 	protected String processorId;
@@ -64,12 +64,12 @@ public class ProgressTransactionEntity extends TableServiceEntity {
 		return this.finishTime.toInstant();
 	}
 	@Ignore
-	public void setState(ProgressTransactionState state){
+	public void setState(SequentialTransactionState state){
 		this.state = state.name();
 	}
 	@Ignore
-	public ProgressTransactionState getState(){
-		return ProgressTransactionState.valueOf(this.state);
+	public SequentialTransactionState getState(){
+		return SequentialTransactionState.valueOf(this.state);
 	}
 	@Ignore
 	public void setDetail(Serializable detail){
@@ -85,12 +85,12 @@ public class ProgressTransactionEntity extends TableServiceEntity {
 	
 
 	@Ignore
-	public String getProgressId() {
+	public String getseriesId() {
 		return this.getPartitionKey();
 	}
 	@Ignore
-	public void setProgressId(String progressId) {
-		this.setPartitionKey(progressId);
+	public void setseriesId(String seriesId) {
+		this.setPartitionKey(seriesId);
 	}
 	@Ignore
 	public String getTransactionId() {

@@ -1,14 +1,14 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress.ex;
+package net.sf.jabb.seqtx.ex;
 
 /**
  * The ancestor of all the exception types generated in TransactionalProgressTracker.
  * @author James Hu
  *
  */
-public class TransactionalProgressException extends Exception {
+public class SequentialTransactionException extends Exception {
 	private static final long serialVersionUID = 2599608512784761265L;
 
     /**
@@ -16,7 +16,7 @@ public class TransactionalProgressException extends Exception {
      * The cause is not initialized, and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
-    public TransactionalProgressException() {
+    public SequentialTransactionException() {
         super();
     }
 
@@ -28,7 +28,7 @@ public class TransactionalProgressException extends Exception {
      * @param   message   the detail message. The detail message is saved for
      *          later retrieval by the {@link #getMessage()} method.
      */
-    public TransactionalProgressException(String message) {
+    public SequentialTransactionException(String message) {
         super(message);
     }
 
@@ -45,7 +45,7 @@ public class TransactionalProgressException extends Exception {
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public TransactionalProgressException(String message, Throwable cause) {
+    public SequentialTransactionException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -62,7 +62,7 @@ public class TransactionalProgressException extends Exception {
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public TransactionalProgressException(Throwable cause) {
+    public SequentialTransactionException(Throwable cause) {
         super(cause);
     }
 
@@ -79,7 +79,7 @@ public class TransactionalProgressException extends Exception {
      * @param writableStackTrace whether or not the stack trace should
      *                           be writable
      */
-    protected TransactionalProgressException(String message, Throwable cause,
+    protected SequentialTransactionException(String message, Throwable cause,
                         boolean enableSuppression,
                         boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);

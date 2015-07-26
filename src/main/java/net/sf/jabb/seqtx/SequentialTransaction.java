@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress;
+package net.sf.jabb.seqtx;
 
 import java.io.Serializable;
 import java.time.Duration;
@@ -12,7 +12,7 @@ import java.time.Instant;
  * @author James Hu
  *
  */
-public interface ProgressTransaction extends ReadOnlyProgressTransaction{
+public interface SequentialTransaction extends ReadOnlySequentialTransaction{
 	/**
 	 * Set the proposed ID of this transaction
 	 * @param proposedTransactionId	proposed ID of the transaction

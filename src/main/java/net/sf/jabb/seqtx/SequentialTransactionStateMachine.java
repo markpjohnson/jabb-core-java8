@@ -1,12 +1,12 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress;
+package net.sf.jabb.seqtx;
 
-import static net.sf.jabb.txprogress.ProgressTransactionState.ABORTED;
-import static net.sf.jabb.txprogress.ProgressTransactionState.FINISHED;
-import static net.sf.jabb.txprogress.ProgressTransactionState.IN_PROGRESS;
-import static net.sf.jabb.txprogress.ProgressTransactionState.TIMED_OUT;
+import static net.sf.jabb.seqtx.SequentialTransactionState.ABORTED;
+import static net.sf.jabb.seqtx.SequentialTransactionState.FINISHED;
+import static net.sf.jabb.seqtx.SequentialTransactionState.IN_PROGRESS;
+import static net.sf.jabb.seqtx.SequentialTransactionState.TIMED_OUT;
 import net.sf.jabb.util.state.StateMachineDefinition;
 import net.sf.jabb.util.state.StateMachineWrapper;
 
@@ -15,7 +15,7 @@ import net.sf.jabb.util.state.StateMachineWrapper;
  * @author James Hu
  *
  */
-public class ProgressTransactionStateMachine extends StateMachineWrapper<ProgressTransactionState, Integer>{
+public class SequentialTransactionStateMachine extends StateMachineWrapper<SequentialTransactionState, Integer>{
 	private static final long serialVersionUID = -1307079273650491590L;
 
 	//static public final Integer START = 4;
@@ -24,17 +24,17 @@ public class ProgressTransactionStateMachine extends StateMachineWrapper<Progres
 	static public final Integer TIME_OUT = 7;
 	static public final Integer RETRY = 8;
 	
-	public ProgressTransactionStateMachine(){
+	public SequentialTransactionStateMachine(){
 		super();
 	}
 	
-	public ProgressTransactionStateMachine(ProgressTransactionState initialState){
+	public SequentialTransactionStateMachine(SequentialTransactionState initialState){
 		this();
 		setState(initialState);
 	}
 	
 	@Override
-	protected void define(StateMachineDefinition<ProgressTransactionState, Integer> definition) {
+	protected void define(StateMachineDefinition<SequentialTransactionState, Integer> definition) {
 		definition
 		.addState(IN_PROGRESS)
 		.addState(ABORTED)

@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress.ex;
+package net.sf.jabb.seqtx.ex;
 
 
 /**
@@ -9,7 +9,7 @@ package net.sf.jabb.txprogress.ex;
  * @author James Hu
  *
  */
-public class NoSuchTransactionException extends TransactionalProgressException {
+public class NoSuchTransactionException extends SequentialTransactionException {
 	private static final long serialVersionUID = 7074067223399365022L;
 
 	/**

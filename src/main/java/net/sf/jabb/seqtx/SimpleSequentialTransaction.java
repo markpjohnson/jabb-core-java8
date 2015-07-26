@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress;
+package net.sf.jabb.seqtx;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -10,11 +10,11 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
 /**
- * A basic implementation of ProgressTransaction
+ * A basic implementation of SequentialTransaction
  * @author James Hu
  *
  */
-public class BasicProgressTransaction implements ProgressTransaction, Serializable{
+public class SimpleSequentialTransaction implements SequentialTransaction, Serializable{
 	private static final long serialVersionUID = 498286656597820653L;
 
 	protected String transactionId;
@@ -24,11 +24,11 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	protected Instant timeout;
 	protected Instant startTime;
 	protected Instant finishTime;
-	protected ProgressTransactionState state;
+	protected SequentialTransactionState state;
 	protected Serializable detail;
 	protected int attempts;
 	
-	public BasicProgressTransaction(){
+	public SimpleSequentialTransaction(){
 		this(null, null, null, null, null, null);
 	}
 	
@@ -39,7 +39,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	 * @param startPosition		the start position in the progress
 	 * @param timeout			the time out time of this transaction
 	 */
-	public BasicProgressTransaction(String transactionId, String processorId, String startPosition, Instant timeout){
+	public SimpleSequentialTransaction(String transactionId, String processorId, String startPosition, Instant timeout){
 		this(transactionId, processorId, startPosition, null, timeout, Instant.now(), null);
 		this.startTime = null;
 		this.state = null;
@@ -57,7 +57,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	 * @param startTime			start time of this transaction
 	 * @param transaction		details of this transaction
 	 */
-	public BasicProgressTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Serializable transaction){
+	public SimpleSequentialTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Serializable transaction){
 		this(transactionId, processorId, startPosition, endPosition, timeout, Instant.now(), transaction);
 	}
 	
@@ -71,7 +71,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	 * @param startTime			start time of this transaction
 	 * @param transaction		details of this transaction
 	 */
-	public BasicProgressTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Instant startTime, Serializable transaction){
+	public SimpleSequentialTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Instant startTime, Serializable transaction){
 		this.transactionId = transactionId;
 		this.processorId = processorId;
 		this.startPosition = startPosition;
@@ -79,17 +79,17 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		this.timeout = timeout;
 		this.startTime = startTime;
 		this.detail = transaction;
-		this.state = ProgressTransactionState.IN_PROGRESS;
+		this.state = SequentialTransactionState.IN_PROGRESS;
 		this.attempts = 1;
 	}
 	
 	/**
-	 * Create a value copy of another ProgressTransaction
-	 * @param that	an instance of ProgressTransaction
-	 * @return	a newly created BasicProgressTransaction with the same field values as the argument 
+	 * Create a value copy of another SequentialTransaction
+	 * @param that	an instance of SequentialTransaction
+	 * @return	a newly created SimpleSequentialTransaction with the same field values as the argument 
 	 */
-	public static BasicProgressTransaction copyOf(ReadOnlyProgressTransaction that){
-		BasicProgressTransaction copy = new BasicProgressTransaction();
+	public static SimpleSequentialTransaction copyOf(ReadOnlySequentialTransaction that){
+		SimpleSequentialTransaction copy = new SimpleSequentialTransaction();
 		copy.transactionId = that.getTransactionId();
 		copy.processorId = that.getProcessorId();
 		copy.startPosition = that.getStartPosition();
@@ -109,7 +109,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	}
 	
 	public boolean finish(){
-		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
+		SequentialTransactionStateMachine stateMachine = new SequentialTransactionStateMachine(this.state);
 		if (stateMachine.finish()){
 			this.finishTime = Instant.now();
 			this.state = stateMachine.getState();
@@ -119,7 +119,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	}
 	
 	public boolean abort(){
-		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
+		SequentialTransactionStateMachine stateMachine = new SequentialTransactionStateMachine(this.state);
 		if (stateMachine.abort()){
 			this.finishTime = Instant.now();
 			this.state = stateMachine.getState();
@@ -129,7 +129,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	}
 	
 	public boolean retry(String processorId, Instant timeout){
-		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
+		SequentialTransactionStateMachine stateMachine = new SequentialTransactionStateMachine(this.state);
 		if (stateMachine.retry()){
 			this.startTime = Instant.now();
 			this.finishTime = null;
@@ -143,7 +143,7 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 	}
 	
 	public boolean timeout(){
-		ProgressTransactionStateMachine stateMachine = new ProgressTransactionStateMachine(this.state);
+		SequentialTransactionStateMachine stateMachine = new SequentialTransactionStateMachine(this.state);
 		if (stateMachine.timeout()){
 			this.finishTime = Instant.now();
 			this.state = stateMachine.getState();
@@ -191,10 +191,10 @@ public class BasicProgressTransaction implements ProgressTransaction, Serializab
 		this.finishTime = finishTime;
 	}
 	@Override
-	public ProgressTransactionState getState() {
+	public SequentialTransactionState getState() {
 		return state;
 	}
-	public void setState(ProgressTransactionState state) {
+	public void setState(SequentialTransactionState state) {
 		this.state = state;
 	}
 	@Override

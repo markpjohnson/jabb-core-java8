@@ -1,4 +1,4 @@
-package net.sf.jabb.txprogress.mem;
+package net.sf.jabb.seqtx.mem;
 
 import static org.junit.Assert.*;
 
@@ -9,26 +9,26 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
-import net.sf.jabb.txprogress.BasicProgressTransaction;
-import net.sf.jabb.txprogress.TransactionalProgress;
-import net.sf.jabb.txprogress.TransactionalProgressTest;
-import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
-import net.sf.jabb.txprogress.mem.InMemTransactionalProgress;
-import net.sf.jabb.txprogress.mem.InMemTransactionalProgress.TransactionCounts;
+import net.sf.jabb.seqtx.SimpleSequentialTransaction;
+import net.sf.jabb.seqtx.SequentialTransactionsCoordinator;
+import net.sf.jabb.seqtx.SequentialTransactionsCoordinatorTest;
+import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
+import net.sf.jabb.seqtx.mem.InMemSequentialTransactionsCoordinator;
+import net.sf.jabb.seqtx.mem.InMemSequentialTransactionsCoordinator.TransactionCounts;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class InMemTransactionalProgressTest extends TransactionalProgressTest{
+public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransactionsCoordinatorTest{
 
 	@Override
-	protected TransactionalProgress createTracker() {
-		TransactionalProgress tracker = new InMemTransactionalProgress();
+	protected SequentialTransactionsCoordinator createTracker() {
+		SequentialTransactionsCoordinator tracker = new InMemSequentialTransactionsCoordinator();
 		return tracker;
 	}
 	
 	@Test
 	public void test00CompactEmpty(){
-		LinkedList<BasicProgressTransaction> transactions = new LinkedList<>();
-		InMemTransactionalProgress tracker = (InMemTransactionalProgress)createTracker();
+		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();
+		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createTracker();
 
 		tracker.compact(transactions);
 		assertEquals(0, transactions.size());
@@ -41,10 +41,10 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 
 	@Test
 	public void test00CompactMore(){
-		LinkedList<BasicProgressTransaction> transactions = new LinkedList<>();
-		InMemTransactionalProgress tracker = (InMemTransactionalProgress)createTracker();
+		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();
+		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createTracker();
 
-		BasicProgressTransaction t1 = new BasicProgressTransaction("transaction01", "processor01", "001", "010", Instant.now().plusSeconds(3600), null);
+		SimpleSequentialTransaction t1 = new SimpleSequentialTransaction("transaction01", "processor01", "001", "010", Instant.now().plusSeconds(3600), null);
 		transactions.add(t1);
 		TransactionCounts counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(1, transactions.size());	// t1
@@ -62,7 +62,7 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 		assertEquals(0, counts.retryingCount);
 
 		
-		BasicProgressTransaction t2 = new BasicProgressTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
+		SimpleSequentialTransaction t2 = new SimpleSequentialTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
 		transactions.add(t2);
 		tracker.compact(transactions);
 		assertEquals(2, transactions.size());	// t1, t2
@@ -91,8 +91,8 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 		assertEquals(1, transactions.size());
 		assertEquals(t1, transactions.getFirst());	// t1
 		
-		BasicProgressTransaction t3 = new BasicProgressTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
-		BasicProgressTransaction t4 = new BasicProgressTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
+		SimpleSequentialTransaction t3 = new SimpleSequentialTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
+		SimpleSequentialTransaction t4 = new SimpleSequentialTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
 		transactions.add(t2);
 		transactions.add(t3);
 		transactions.add(t4);	// t1, t2, t3, t4
@@ -130,10 +130,10 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 	
 	@Test
 	public void test00CompactTimedOutAndRetry(){
-		LinkedList<BasicProgressTransaction> transactions = new LinkedList<>();
-		InMemTransactionalProgress tracker = (InMemTransactionalProgress)createTracker();
+		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();
+		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createTracker();
 		
-		BasicProgressTransaction t1 = new BasicProgressTransaction("transaction01", "processor01", "001", "010", Instant.now().plusSeconds(-1), null);
+		SimpleSequentialTransaction t1 = new SimpleSequentialTransaction("transaction01", "processor01", "001", "010", Instant.now().plusSeconds(-1), null);
 		transactions.add(t1);
 		TransactionCounts counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(1, transactions.size());	// t1
@@ -148,7 +148,7 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 		assertEquals(1, counts.inProgressCount);
 		assertEquals(1, counts.retryingCount);
 		
-		BasicProgressTransaction t2 = new BasicProgressTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
+		SimpleSequentialTransaction t2 = new SimpleSequentialTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
 		transactions.add(t2);
 		counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(2, transactions.size());	// t1, t2
@@ -167,10 +167,10 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 	
 	@Test
 	public void test00CompactOpenTransactions(){
-		LinkedList<BasicProgressTransaction> transactions = new LinkedList<>();
-		InMemTransactionalProgress tracker = (InMemTransactionalProgress)createTracker();
+		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();
+		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createTracker();
 		
-		BasicProgressTransaction t1 = new BasicProgressTransaction("transaction01", "processor01", "001", null, Instant.now().plusSeconds(-1), null);
+		SimpleSequentialTransaction t1 = new SimpleSequentialTransaction("transaction01", "processor01", "001", null, Instant.now().plusSeconds(-1), null);
 		transactions.add(t1);
 		TransactionCounts counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(0, transactions.size());	// t1
@@ -178,7 +178,7 @@ public class InMemTransactionalProgressTest extends TransactionalProgressTest{
 		assertEquals(0, counts.inProgressCount);
 		assertEquals(0, counts.retryingCount);
 
-		BasicProgressTransaction t2 = new BasicProgressTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
+		SimpleSequentialTransaction t2 = new SimpleSequentialTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
 		transactions.add(t2);
 		transactions.add(t1);
 		counts = tracker.compactAndGetCounts(transactions);

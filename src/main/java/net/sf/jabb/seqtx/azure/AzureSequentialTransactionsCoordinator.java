@@ -1,21 +1,21 @@
 /**
  * 
  */
-package net.sf.jabb.txprogress.azure;
+package net.sf.jabb.seqtx.azure;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.function.Consumer;
 
-import net.sf.jabb.txprogress.BasicProgressTransaction;
-import net.sf.jabb.txprogress.ProgressTransaction;
-import net.sf.jabb.txprogress.ReadOnlyProgressTransaction;
-import net.sf.jabb.txprogress.TransactionalProgress;
-import net.sf.jabb.txprogress.ex.DuplicatedTransactionIdException;
-import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
-import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
-import net.sf.jabb.txprogress.ex.NoSuchTransactionException;
-import net.sf.jabb.txprogress.ex.NotOwningTransactionException;
+import net.sf.jabb.seqtx.SimpleSequentialTransaction;
+import net.sf.jabb.seqtx.SequentialTransaction;
+import net.sf.jabb.seqtx.ReadOnlySequentialTransaction;
+import net.sf.jabb.seqtx.SequentialTransactionsCoordinator;
+import net.sf.jabb.seqtx.ex.DuplicatedTransactionIdException;
+import net.sf.jabb.seqtx.ex.IllegalTransactionStateException;
+import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
+import net.sf.jabb.seqtx.ex.NoSuchTransactionException;
+import net.sf.jabb.seqtx.ex.NotOwningTransactionException;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.table.CloudTableClient;
@@ -26,19 +26,19 @@ import com.microsoft.azure.storage.table.TableRequestOptions;
  * @author James Hu
  *
  */
-public class AzureTransactionalProgress implements TransactionalProgress {
+public class AzureSequentialTransactionsCoordinator implements SequentialTransactionsCoordinator {
 
-	public static final String DEFAULT_TABLE_NAME = "TransactionalProgresses";
+	public static final String DEFAULT_TABLE_NAME = "SequentialTransactionsCoordinator";
 	protected String tableName = DEFAULT_TABLE_NAME;
 	protected CloudTableClient tableClient;
 	
-	protected volatile BasicProgressTransaction lastSucceededTransactionCached;
+	protected volatile SimpleSequentialTransaction lastSucceededTransactionCached;
 	
-	public AzureTransactionalProgress(){
+	public AzureSequentialTransactionsCoordinator(){
 		
 	}
 	
-	public AzureTransactionalProgress(CloudStorageAccount storageAccount, String tableName, Consumer<TableRequestOptions> defaultOptionsConfigurer){
+	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount, String tableName, Consumer<TableRequestOptions> defaultOptionsConfigurer){
 		this();
 		if (tableName != null){
 			this.tableName = tableName;
@@ -49,19 +49,19 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 		}
 	}
 	
-	public AzureTransactionalProgress(CloudStorageAccount storageAccount, String tableName){
+	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount, String tableName){
 		this(storageAccount, tableName, null);
 	}
 
-	public AzureTransactionalProgress(CloudStorageAccount storageAccount, Consumer<TableRequestOptions> defaultOptionsConfigurer){
+	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount, Consumer<TableRequestOptions> defaultOptionsConfigurer){
 		this(storageAccount, null, defaultOptionsConfigurer);
 	}
 
-	public AzureTransactionalProgress(CloudStorageAccount storageAccount){
+	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount){
 		this(storageAccount, null, null);
 	}
 	
-	public AzureTransactionalProgress(CloudTableClient tableClient, String tableName){
+	public AzureSequentialTransactionsCoordinator(CloudTableClient tableClient, String tableName){
 		this();
 		if (tableName != null){
 			this.tableName = tableName;
@@ -69,7 +69,7 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 		this.tableClient = tableClient;
 	}
 
-	public AzureTransactionalProgress(CloudTableClient tableClient){
+	public AzureSequentialTransactionsCoordinator(CloudTableClient tableClient){
 		this(tableClient, null);
 	}
 
@@ -83,9 +83,9 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 	}
 
 	@Override
-	public ProgressTransaction startTransaction(String progressId,
+	public SequentialTransaction startTransaction(String seriesId,
 			String previousTransactionId,
-			ReadOnlyProgressTransaction transaction,
+			ReadOnlySequentialTransaction transaction,
 			int maxInProgressTransacions, int maxRetryingTransactions)
 			throws InfrastructureErrorException,
 			DuplicatedTransactionIdException {
@@ -94,7 +94,7 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 	}
 
 	@Override
-	public void finishTransaction(String progressId, String processorId,
+	public void finishTransaction(String seriesId, String processorId,
 			String transactionId, String endPosition) throws NotOwningTransactionException,
 			InfrastructureErrorException, IllegalTransactionStateException,
 			NoSuchTransactionException {
@@ -103,7 +103,7 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 	}
 
 	@Override
-	public void abortTransaction(String progressId, String processorId,
+	public void abortTransaction(String seriesId, String processorId,
 			String transactionId) throws NotOwningTransactionException,
 			InfrastructureErrorException, IllegalTransactionStateException,
 			NoSuchTransactionException {
@@ -112,7 +112,7 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 	}
 
 	@Override
-	public void renewTransactionTimeout(String progressId, String processorId,
+	public void renewTransactionTimeout(String seriesId, String processorId,
 			String transactionId, Instant timeout)
 			throws NotOwningTransactionException, InfrastructureErrorException,
 			IllegalTransactionStateException, NoSuchTransactionException {
@@ -121,7 +121,7 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 	}
 
 	@Override
-	public boolean isTransactionSuccessful(String progressId,
+	public boolean isTransactionSuccessful(String seriesId,
 			String transactionId, Instant beforeWhen)
 			throws InfrastructureErrorException {
 		// TODO Auto-generated method stub
@@ -129,16 +129,16 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 	}
 
 	@Override
-	public List<? extends ReadOnlyProgressTransaction> getRecentTransactions(
-			String progressId) throws InfrastructureErrorException {
-		// get entities by progressId
+	public List<? extends ReadOnlySequentialTransaction> getRecentTransactions(
+			String seriesId) throws InfrastructureErrorException {
+		// get entities by seriesId
 		// compact the list
 		return null;
 	}
 
 	@Override
-	public void clear(String progressId) throws InfrastructureErrorException {
-		// delete entities by progressId
+	public void clear(String seriesId) throws InfrastructureErrorException {
+		// delete entities by seriesId
 		
 	}
 
