@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import net.sf.jabb.txprogress.ex.DuplicatedTransactionIdException;
+import net.sf.jabb.txprogress.ex.IllegalEndPositionException;
 import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
 import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
 import net.sf.jabb.txprogress.ex.NoSuchTransactionException;
@@ -242,7 +243,23 @@ public interface TransactionalProgress {
 					throws InfrastructureErrorException, DuplicatedTransactionIdException;
 	
 	/**
-	 * Finish a succeeded transaction.
+	 * Finish a succeeded transaction. The end position of the transaction can be updated if it is the last transaction.
+	 * @param progressId			ID of the progress
+	 * @param processorId			ID of the processor which must currently own the transaction
+	 * @param transactionId			ID of the transaction
+	 * @param endPosition			the updated end position, or null if there is no need to update it.
+	 * @throws NotOwningTransactionException 
+	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws IllegalTransactionStateException 
+	 * @throws NoSuchTransactionException
+	 * @throws IllegalEndPositionException 	if the updated end position creates gap between this and the next transaction, 
+	 * 										or if the end position is null.
+	 */
+	void finishTransaction(String progressId, String processorId, String transactionId, String endPosition) 
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException;
+
+	/**
+	 * Finish a succeeded transaction. The end position of the transaction will not be updated.
 	 * @param progressId			ID of the progress
 	 * @param processorId			ID of the processor which must currently own the transaction
 	 * @param transactionId			ID of the transaction
@@ -250,10 +267,12 @@ public interface TransactionalProgress {
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 * @throws IllegalTransactionStateException 
 	 * @throws NoSuchTransactionException
+	 * @throws IllegalEndPositionException 	if the end position is null
 	 */
-	void finishTransaction(String progressId, String processorId, String transactionId) 
-			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException;
-
+	default void finishTransaction(String progressId, String processorId, String transactionId)
+			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException{
+		finishTransaction(progressId, processorId, transactionId, null);
+	}
 	
 	/**
 	 * Abort a transaction.

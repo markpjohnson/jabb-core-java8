@@ -18,6 +18,7 @@ import net.sf.jabb.txprogress.ProgressTransactionState;
 import net.sf.jabb.txprogress.ReadOnlyProgressTransaction;
 import net.sf.jabb.txprogress.TransactionalProgress;
 import net.sf.jabb.txprogress.ex.DuplicatedTransactionIdException;
+import net.sf.jabb.txprogress.ex.IllegalEndPositionException;
 import net.sf.jabb.txprogress.ex.IllegalTransactionStateException;
 import net.sf.jabb.txprogress.ex.InfrastructureErrorException;
 import net.sf.jabb.txprogress.ex.NoSuchTransactionException;
@@ -41,10 +42,12 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 	}
 
 	/**
-	 * Remove succeeded from the head and leave only one, and transit those timed out to TIMED_OUT state
+	 * Remove succeeded from the head and leave only one, transit those timed out to TIMED_OUT state,
+	 * and remove the last transaction if it is a failed one with a null end position.
 	 * @param transactions	 the list of transactions
 	 */
 	void compact(LinkedList<? extends BasicProgressTransaction> transactions){
+		// remove finished historical transactions and leave only one of them
 		int finished = 0;
 		Iterator<? extends BasicProgressTransaction> iterator = transactions.iterator();
 		if (iterator.hasNext()){
@@ -63,12 +66,21 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 			transactions.removeFirst();
 		}
 		
+		// handle time out
 		Instant now = Instant.now();
 		for (BasicProgressTransaction tx: transactions){
 			if (tx.isInProgress() && tx.getTimeout().isBefore(now)){
 				if (!tx.timeout()){
 					throw new IllegalStateException("Transaction '" + tx.getTransactionId() + "' is currently in " + tx.getState() + " state and cannot be changed to TIMED_OUT state");
 				}
+			}
+		}
+		
+		// if the last transaction is failed and is open, remove it
+		if (transactions.size() > 0){
+			BasicProgressTransaction tx = transactions.getLast();
+			if (tx.isFailed() && tx.getEndPosition() == null){
+				transactions.removeLast();
 			}
 		}
 	}
@@ -115,8 +127,6 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 		Validate.notNull(transaction.getTimeout(), "Transaction time out cannot be null");
 		if (transaction.getStartPosition() == null){	// startPosition is not null when restarting a specific transaction
 			Validate.isTrue(null == transaction.getEndPosition(), "End position must be null when start position is null");
-		}else{
-			Validate.isTrue(null != transaction.getEndPosition(), "End position cannot be null when start position is not null");
 		}
 		Validate.isTrue(maxInProgressTransacions > 0, "Maximum number of in-progress transactions must be greater than zero: %d", maxInProgressTransacions);
 		Validate.isTrue(maxRetryingTransactions > 0, "Maximum number of retrying transactions must be greater than zero: %d", maxRetryingTransactions);
@@ -126,7 +136,9 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 		synchronized(transactions){
 			TransactionCounts counts = compactAndGetCounts(transactions);
 			
-			if (counts.inProgressCount >= maxInProgressTransacions){	// no more transaction allowed
+			if (counts.inProgressCount >= maxInProgressTransacions ||  // no more transaction allowed
+					counts.inProgressCount > 0 && transactions.getLast().getEndPosition() == null && transactions.getLast().isInProgress()  // the last one is in-progress and is open
+					){	
 				return null;
 			}
 			
@@ -181,8 +193,8 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 
 	@Override
 	public void finishTransaction(String progressId, String processorId,
-			String transactionId) throws NotOwningTransactionException,
-			InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException {
+			String transactionId, String endPosition) throws NotOwningTransactionException,
+			InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException {
 		Validate.notNull(progressId, "Progress ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.notNull(transactionId, "Transaction time out cannot be null");
@@ -195,10 +207,27 @@ public class InMemTransactionalProgress implements TransactionalProgress {
 			if (matched.isPresent()){
 				BasicProgressTransaction tx = matched.get();
 				if (tx.getProcessorId().equals(processorId)){
-					if (!tx.finish()){
+					String updatedEndPosition = tx.getEndPosition();
+					if (endPosition != null){
+						if (tx == transactions.getLast()){
+							updatedEndPosition = endPosition;
+						}else{
+							if (!endPosition.equals(tx.getEndPosition())){
+								// can't change the end position of a non-last transaction
+								throw new IllegalEndPositionException("Cannot change end position of transaction '" + transactionId + "' from '" + tx.getEndPosition() + "' to '" + endPosition + "' because it is not the last transaction");
+							}
+						}
+					}
+					if (updatedEndPosition == null){
+						// cannot finish an open transaction
+						throw new IllegalEndPositionException("Cannot finish transaction '" + transactionId + "' with a null end position");
+					}
+					if (tx.finish()){
+						tx.setEndPosition(updatedEndPosition);
+						compact(transactions);
+					}else{
 						throw new IllegalTransactionStateException("Transaction '" + transactionId + "' is currently in " + tx.getState() + " state and cannot be changed to FINISHED state");
 					}
-					compact(transactions);
 				}else{
 					throw new NotOwningTransactionException("Transaction '" + transactionId + "' is currently owned by processor '" + tx.getProcessorId() + "', not '" + processorId + "'");
 				}

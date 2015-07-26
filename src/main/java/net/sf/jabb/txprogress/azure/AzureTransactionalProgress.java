@@ -95,7 +95,7 @@ public class AzureTransactionalProgress implements TransactionalProgress {
 
 	@Override
 	public void finishTransaction(String progressId, String processorId,
-			String transactionId) throws NotOwningTransactionException,
+			String transactionId, String endPosition) throws NotOwningTransactionException,
 			InfrastructureErrorException, IllegalTransactionStateException,
 			NoSuchTransactionException {
 		// update a single transaction
