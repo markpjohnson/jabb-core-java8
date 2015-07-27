@@ -9,6 +9,7 @@ import java.util.Date;
 
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.Validate;
+import org.apache.commons.lang3.builder.CompareToBuilder;
 
 import net.sf.jabb.seqtx.SequentialTransactionState;
 
@@ -38,6 +39,7 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	
 	protected String previousTransactionId;
 	protected String nextTransactionId;
+	
 	
 	@Ignore
 	public void setTimeout(Instant timeout){
@@ -184,7 +186,7 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	}
 	@Ignore
 	public boolean isFirstTransaction(){
-		return previousTransactionId != null && previousTransactionId.length() == 0;
+		return previousTransactionId == null || previousTransactionId.length() == 0;
 	}
 	@Ignore
 	public void setLastTransaction(){
@@ -192,7 +194,6 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	}
 	@Ignore
 	public boolean isLastTransaction(){
-		return nextTransactionId != null && nextTransactionId.length() == 0;
+		return nextTransactionId == null || nextTransactionId.length() == 0;
 	}
-
 }

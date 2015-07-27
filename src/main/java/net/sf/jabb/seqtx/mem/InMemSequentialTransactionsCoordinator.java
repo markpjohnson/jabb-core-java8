@@ -28,7 +28,7 @@ import net.sf.jabb.util.col.PutIfAbsentMap;
 import org.apache.commons.lang3.Validate;
 
 /**
- * Transient transaction progress track with all data kept in memory.
+ * The implementation of SequentialTransactionsCoordinator that keeps all data in memory.
  * This implementation is intended for testing, PoC, and demo usage.
  * @author James Hu
  *

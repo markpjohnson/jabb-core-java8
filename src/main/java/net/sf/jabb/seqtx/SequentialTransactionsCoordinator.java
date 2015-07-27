@@ -61,7 +61,7 @@ import com.google.common.base.Throwables;
  * while(runFlag.get()){
  * 	SequentialTransaction transaction = null;
  * 	try{
- * 		transaction = tracker.startTransaction(seriesId, processorId, TIMEOUT_DURATION, MAX_IN_PROGRESS_TRANSACTIONS, MAX_RETRYING_TRANSACTIONS);
+ * 		transaction = tracker.startAnyFailedTransaction(seriesId, processorId, TIMEOUT_DURATION, MAX_IN_PROGRESS_TRANSACTIONS, MAX_RETRYING_TRANSACTIONS);
  * 		while (transaction != null && !transaction.hasStarted()){
  * 			String previousId = transaction.getTransactionId();
  * 			String previousEndPosition = transaction.getStartPosition();
@@ -121,7 +121,7 @@ public interface SequentialTransactionsCoordinator {
 	 * 			or null if no more concurrent transaction is allowed.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	default SequentialTransaction startTransaction(String seriesId, String processorId, Instant timeout, int maxInProgressTransacions, int maxRetryingTransactions)
+	default SequentialTransaction startAnyFailedTransaction(String seriesId, String processorId, Instant timeout, int maxInProgressTransacions, int maxRetryingTransactions)
 					throws InfrastructureErrorException{
 		SimpleSequentialTransaction transaction = new SimpleSequentialTransaction();
 		transaction.setProcessorId(processorId);
@@ -157,50 +157,11 @@ public interface SequentialTransactionsCoordinator {
 	 * 			or null if no more concurrent transaction is allowed.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	default SequentialTransaction startTransaction(String seriesId, String processorId, Duration timeoutDuration, int maxInProgressTransacions, int maxRetryingTransactions)
+	default SequentialTransaction startAnyFailedTransaction(String seriesId, String processorId, Duration timeoutDuration, int maxInProgressTransacions, int maxRetryingTransactions)
 					throws InfrastructureErrorException{
 		SimpleSequentialTransaction transaction = new SimpleSequentialTransaction();
 		transaction.setProcessorId(processorId);
 		transaction.setTimeout(timeoutDuration);
-		try {
-			return startTransaction(seriesId, null, transaction, maxInProgressTransacions, maxRetryingTransactions);
-		} catch (DuplicatedTransactionIdException e) {
-			throw Throwables.propagate(e);  // should never reach here
-		}
-	}
-
-	
-	/**
-	 * Try to pick up a previously failed transaction to retry. 
-	 * <ul>
-	 * 	<li>If the number of currently in progress transactions already reached maxConcurrentTransacions, then return null which means no transaction can be started now.</li>
-	 * 	<li>If the number of currently retrying previously failed transactions is less than maxRetryingTransactions, 
-	 * 				and there is at least one previously failed transaction needs retry, then that transaction will be started for retry.
-	 * 				Full detail of that transaction will be returned for the processor to work on.</li>
-	 *  <li>Otherwise, a new transaction will be proposed to the processor. Partial detail of the proposed transaction will be returned for
-	 *  			the processor to complete and then to request starting it in a following call to this method.</li>
-	 * </ul>
-	 * The returned object can be safely modified by the caller and reused for other purposes.
-	 * @param seriesId	ID of the transaction series
-	 * @param transaction		Details of the new transaction.
-	 * 							<br>Fields that cannot be null are:
-	 * 									processorId, timeout.
-	 * 							<br>Fields that must be null: 
-	 * 									startPosition, endPosition.
-	 * 							<br>Fields that will be ignored:
-	 * 									startTime, finishTime, state, attempts, transactionId, transaction.
-	 * @param maxInProgressTransacions	maximum number of concurrent transaction
-	 * @param maxRetryingTransactions	maximum number of retrying transactions
-	 * @return Full information (hasStarted() returns true, transactionId is not null, startTime is not null) of a transaction 
-	 * 			(can be the new transaction as specified by the argument, or a previously failed transaction) just started, 
-	 * 			or a skeleton (hasStarted() returns false, transactionId is the ID of the previous one or null if this is the very first one, 
-	 * 			startTime is null, startPosition is the endPosition of the previous one or null if this is the very first one, 
-	 * 			endPosition is null) of a proposed transaction,
-	 * 			or null if no more concurrent transaction is allowed.
-	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
-	 */
-	default SequentialTransaction startTransaction(String seriesId, ReadOnlySequentialTransaction transaction, int maxInProgressTransacions, int maxRetryingTransactions) 
-			throws InfrastructureErrorException{
 		try {
 			return startTransaction(seriesId, null, transaction, maxInProgressTransacions, maxRetryingTransactions);
 		} catch (DuplicatedTransactionIdException e) {
@@ -330,11 +291,11 @@ public interface SequentialTransactionsCoordinator {
 	 * Check if a transaction had succeeded before a specific time
 	 * @param seriesId			ID of the transaction series
 	 * @param transactionId			ID of the transaction
-	 * @param beforeWhen			The time before which we want to know whether the transaction had succeeded or not 
+	 * @param beforeOrAtMoment			The time before which we want to know whether the transaction had succeeded or not 
 	 * @return	true if the transaction had succeeded in the past or does not exist. false if the transaction is in-progress, aborted, or just succeeded a extremely short while ago.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
-	boolean isTransactionSuccessful(String seriesId, String transactionId, Instant beforeWhen) throws InfrastructureErrorException;
+	boolean isTransactionSuccessful(String seriesId, String transactionId, Instant beforeOrAtMoment) throws InfrastructureErrorException;
 	
 	/**
 	 * Check if a transaction has succeeded

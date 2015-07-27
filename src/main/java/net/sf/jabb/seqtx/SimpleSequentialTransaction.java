@@ -55,10 +55,10 @@ public class SimpleSequentialTransaction implements SequentialTransaction, Seria
 	 * @param endPosition		the end position in the progress
 	 * @param timeout			the time out time of this transaction
 	 * @param startTime			start time of this transaction
-	 * @param transaction		details of this transaction
+	 * @param detail			detail of this transaction
 	 */
-	public SimpleSequentialTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Serializable transaction){
-		this(transactionId, processorId, startPosition, endPosition, timeout, Instant.now(), transaction);
+	public SimpleSequentialTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Serializable detail){
+		this(transactionId, processorId, startPosition, endPosition, timeout, Instant.now(), detail);
 	}
 	
 	/**
@@ -69,16 +69,16 @@ public class SimpleSequentialTransaction implements SequentialTransaction, Seria
 	 * @param endPosition		the end position in the progress
 	 * @param timeout			the time out time of this transaction
 	 * @param startTime			start time of this transaction
-	 * @param transaction		details of this transaction
+	 * @param detail			detail of this transaction
 	 */
-	public SimpleSequentialTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Instant startTime, Serializable transaction){
+	public SimpleSequentialTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Instant startTime, Serializable detail){
 		this.transactionId = transactionId;
 		this.processorId = processorId;
 		this.startPosition = startPosition;
 		this.endPosition = endPosition;
 		this.timeout = timeout;
 		this.startTime = startTime;
-		this.detail = transaction;
+		this.detail = detail;
 		this.state = SequentialTransactionState.IN_PROGRESS;
 		this.attempts = 1;
 	}
