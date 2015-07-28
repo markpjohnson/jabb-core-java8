@@ -27,9 +27,13 @@ import com.microsoft.azure.storage.queue.CloudQueue;
 import com.microsoft.azure.storage.queue.CloudQueueClient;
 import com.microsoft.azure.storage.table.CloudTable;
 import com.microsoft.azure.storage.table.CloudTableClient;
+import com.microsoft.azure.storage.table.DynamicTableEntity;
+import com.microsoft.azure.storage.table.TableBatchOperation;
 import com.microsoft.azure.storage.table.TableEntity;
 import com.microsoft.azure.storage.table.TableOperation;
 import com.microsoft.azure.storage.table.TableQuery;
+import com.microsoft.azure.storage.table.TableQuery.Operators;
+import com.microsoft.azure.storage.table.TableQuery.QueryComparisons;
 
 /**
  * Utility functions for Azure Storage usage.
@@ -177,7 +181,7 @@ public class AzureStorageUtility {
 	}
 	
 	/**
-	 * Execute an operation and ignore 404 not found error message.
+	 * Execute an operation and ignore 404 not found error.
 	 * @param table			the table
 	 * @param operation		the operation
 	 * @return				true if the operation succeeded, false if 404 not found error happened. 
@@ -199,21 +203,76 @@ public class AzureStorageUtility {
 	}
 	
 	/**
-	 * Delete entities specified by a query
-	 * @param table		the table
-	 * @param query		the query specifies the entities to be deleted
+	 * Execute an operation and ignore 404 not found error.
+	 * @param table			the table
+	 * @param operation		the operation
+	 * @return				true if the operation succeeded, false if 404 not found error happened. 
+	 * 						Please note that due to the retry logic inside Azure Storage SDK, 
+	 * 						even if this method returns false it may be caused by a retry rather than the first attempt. 
 	 * @throws StorageException
 	 */
-	static public <T extends TableEntity> void deleteEntitiesIfExist(CloudTable table, Class<T> clazzType, String filter) throws StorageException{
-		TableQuery<T> query = TableQuery.from(clazzType)
+	static public boolean executeIfExist(CloudTable table, TableBatchOperation operation) throws StorageException{
+		try {
+			table.execute(operation);
+			return true;
+		} catch (StorageException e) {
+			if (e.getHttpStatusCode() == 404){ 
+				return false;
+			}else{
+				throw e;
+			}
+		}
+	}
+
+	
+	/**
+	 * Delete entities specified by a filtering condition. 404 not found error will be ignored.
+	 * @param table		the table
+	 * @param filter		the filter specifies the entities to be deleted
+	 * @throws StorageException
+	 */
+	static public void deleteEntitiesIfExist(CloudTable table, String filter) throws StorageException{
+		TableQuery<DynamicTableEntity> query = TableQuery.from(DynamicTableEntity.class)
 				.select(COLUMNS_WITH_ONLY_KEYS);
 		if (StringUtils.isNotBlank(filter)){
 			query.where(filter);
 		}
-		for (T entity: table.execute(query)){
+		for (DynamicTableEntity entity: table.execute(query)){
 			TableOperation deleteOp = TableOperation.delete(entity);
 			executeIfExist(table, deleteOp);
 		}
+	}
+
+	/**
+	 * Delete one entity specified by partition key and row key. 404 not found error will be ignored.
+	 * @param table				the table
+	 * @param partitionKey		the partition key of the entity
+	 * @param rowKey			the row key of the entity
+	 * @throws StorageException
+	 */
+	static public void deleteEntitiesIfExist(CloudTable table, String partitionKey, String rowKey) throws StorageException{
+		String partitionFilter = TableQuery.generateFilterCondition(
+				PARTITION_KEY, 
+				QueryComparisons.EQUAL,
+				partitionKey);
+		String rowFilter = TableQuery.generateFilterCondition(
+				ROW_KEY, 
+				QueryComparisons.EQUAL,
+				rowKey);
+		String filter = TableQuery.combineFilters(partitionFilter, Operators.AND, rowFilter);
+		deleteEntitiesIfExist(table, filter);
+	}
+
+	/**
+	 * Delete one entity. 404 not found error will be ignored.
+	 * @param table			the table
+	 * @param entity		the entity to be deleted
+	 * @throws StorageException
+	 */
+	static public void deleteEntitiesIfExist(CloudTable table, TableEntity entity) throws StorageException{
+		String partitionKey = entity.getPartitionKey();
+		String rowKey = entity.getRowKey();
+		deleteEntitiesIfExist(table, partitionKey, rowKey);
 	}
 
 

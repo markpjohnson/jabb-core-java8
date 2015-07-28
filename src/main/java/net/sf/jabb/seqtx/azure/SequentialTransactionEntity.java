@@ -11,7 +11,9 @@ import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.commons.lang3.builder.CompareToBuilder;
 
+import net.sf.jabb.seqtx.SequentialTransaction;
 import net.sf.jabb.seqtx.SequentialTransactionState;
+import net.sf.jabb.seqtx.SimpleSequentialTransaction;
 
 import com.microsoft.azure.storage.table.Ignore;
 import com.microsoft.azure.storage.table.StoreAs;
@@ -40,6 +42,37 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	protected String previousTransactionId;
 	protected String nextTransactionId;
 	
+	public SequentialTransaction toSequentialTransaction(){
+		SimpleSequentialTransaction t = new SimpleSequentialTransaction();
+		t.setAttempts(attempts);
+		t.setDetail(getDetail());
+		t.setEndPosition(endPosition);
+		t.setFinishTime(getFinishTime());
+		t.setProcessorId(processorId);
+		t.setStartPosition(startPosition);
+		t.setStartTime(getStartTime());
+		t.setState(getState());
+		t.setTimeout(getTimeout());
+		t.setTransactionId(getTransactionId());
+		return t;
+	}
+	
+	public boolean isInProgress(){
+		return SequentialTransactionState.IN_PROGRESS.name().equals(state);
+	}
+	
+	public boolean isFinished(){
+		return SequentialTransactionState.FINISHED.name().equals(state);
+	}
+	
+	public boolean isFailed(){
+		return SequentialTransactionState.ABORTED.name().equals(state) || SequentialTransactionState.TIMED_OUT.name().equals(state);
+	}
+	
+	public boolean hasStarted(){
+		return startTime != null;
+	}
+
 	
 	@Ignore
 	public void setTimeout(Instant timeout){
