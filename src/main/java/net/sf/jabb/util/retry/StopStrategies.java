@@ -18,11 +18,8 @@
 package net.sf.jabb.util.retry;
 
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
-import javax.annotation.Nonnull;
-
-import org.jgroups.annotations.Immutable;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Preconditions;
 

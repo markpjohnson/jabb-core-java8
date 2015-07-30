@@ -50,7 +50,7 @@
 		<dependency>
 			<groupId>net.sf.jabb</groupId>
 			<artifactId>jabb-core</artifactId>
-			<version>1.0.79</version>
+			<version>1.0.87</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>commons-logging</artifactId>
@@ -115,6 +115,7 @@
 		        <configuration>
 					<excludes>
 						<exclude>**/*RateTest.java</exclude>
+						<exclude>**/*PerformanceTest.java</exclude>
 					</excludes>
 				</configuration>
 			</plugin>

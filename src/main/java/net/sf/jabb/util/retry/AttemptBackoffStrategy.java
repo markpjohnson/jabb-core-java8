@@ -18,17 +18,18 @@
 package net.sf.jabb.util.retry;
 
 /**
- * This is a strategy used to decide how a specific time duration need to be waited.
- * Normally this is just a Thread.sleep(), but implementations can be
- * something more elaborate if desired.
+ * A strategy used to decide how long to backoff before attempts.
+ *
+ * @author JB
+ * @author James Hu
  */
-public interface WaitStrategy {
+public interface AttemptBackoffStrategy {
 
     /**
-     * Wait for the designated amount of time. 
+     * Returns the time, in milliseconds, to wait before next attempt.
      *
-     * @param timeInMilliseconds 		the duration in milliseconds
-     * @throws InterruptedException		if got interrupted
+     * @param attempt the previous {@code Attempt}
+     * @return the sleep time before next attempt
      */
-    void await(long timeInMilliseconds) throws InterruptedException;
+    <T> long computeBackoffMilliseconds(Attempt<T> attempt);
 }

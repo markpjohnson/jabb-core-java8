@@ -14,7 +14,7 @@ import java.util.Optional;
  * @param <R>	the return type of the attempted operation
  */
 public class Attempt<R> {
-    private long totalAttempts;
+    private int totalAttempts;
     private Instant firstAttemptStartTime;
     private Instant lastAttemptFinishTime;
     private Object context;
@@ -34,7 +34,7 @@ public class Attempt<R> {
      * @param result					result from the attempt
      * @return	a new instance representing the attempt
      */
-    static public <T> Attempt<T> withResult(Object context, long totalAttempts, Instant firstAttemptStartTime, Instant lastAttemptFinishTime, T result){
+    static public <T> Attempt<T> withResult(Object context, int totalAttempts, Instant firstAttemptStartTime, Instant lastAttemptFinishTime, T result){
     	Attempt<T> instance = new Attempt<T>();
     	
     	instance.context = context;
@@ -56,7 +56,7 @@ public class Attempt<R> {
      * @param exception					the Throwable happened during the attempt
      * @return	a new instance representing the attempt
      */
-    static public Attempt<Void> withException(Object context, long totalAttempts, Instant firstAttemptStartTime, Instant lastAttemptFinishTime, Exception exception){
+    static public Attempt<Void> withException(Object context, int totalAttempts, Instant firstAttemptStartTime, Instant lastAttemptFinishTime, Exception exception){
     	Attempt<Void> instance = new Attempt<Void>();
     	
     	instance.context = context;
@@ -85,10 +85,10 @@ public class Attempt<R> {
     	return exception.isPresent();
     }
     
-	public long getTotalAttempts() {
+	public int getTotalAttempts() {
 		return totalAttempts;
 	}
-	public void setTotalAttempts(long totalAttempts) {
+	public void setTotalAttempts(int totalAttempts) {
 		this.totalAttempts = totalAttempts;
 	}
 	/**

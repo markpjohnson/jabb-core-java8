@@ -33,15 +33,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import net.sf.jabb.util.parallel.BackoffStrategies;
+import net.sf.jabb.util.parallel.WaitStrategy;
+
 import org.junit.Test;
 
-public class RetryerBuilderTest {
+public class AttemptStrategyTest {
 
     @Test
     public void testWithBackoffStrategy() {
         Callable<Boolean> callable = notNullAfter5Attempts();
         CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
-                .withBackoffStrategy(BackoffStrategies.fixedWait(50L, TimeUnit.MILLISECONDS))
+                .withBackoffStrategy(BackoffStrategies.fixedBackoff(50L, TimeUnit.MILLISECONDS))
                 .retryIfResult(x-> x == null);
         long start = System.currentTimeMillis();
         boolean result = retryer.call(callable);
@@ -54,8 +57,8 @@ public class RetryerBuilderTest {
         Callable<Boolean> callable = notNullAfter5Attempts();
         CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
                 .withBackoffStrategy(BackoffStrategies.join(
-                        BackoffStrategies.fixedWait(50L, TimeUnit.MILLISECONDS),
-                        BackoffStrategies.fibonacciWait(10, Long.MAX_VALUE, TimeUnit.MILLISECONDS)))
+                        BackoffStrategies.fixedBackoff(50L, TimeUnit.MILLISECONDS),
+                        BackoffStrategies.fibonacciBackoff(10, Long.MAX_VALUE, TimeUnit.MILLISECONDS)))
                 .retryIfResult(x-> x == null);
         long start = System.currentTimeMillis();
         boolean result = retryer.call(callable);
@@ -68,8 +71,8 @@ public class RetryerBuilderTest {
         Callable<Boolean> callable = notNullAfter5Attempts();
         CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
                 .withBackoffStrategy(BackoffStrategies.join(
-                        BackoffStrategies.incrementingWait(10L, TimeUnit.MILLISECONDS, 10L, TimeUnit.MILLISECONDS),
-                        BackoffStrategies.fibonacciWait(10, Long.MAX_VALUE, TimeUnit.MILLISECONDS)))
+                        BackoffStrategies.linearBackoff(10L, TimeUnit.MILLISECONDS, 10L, TimeUnit.MILLISECONDS),
+                        BackoffStrategies.fibonacciBackoff(10, Long.MAX_VALUE, TimeUnit.MILLISECONDS)))
                 .retryIfResult(x-> x == null);
         long start = System.currentTimeMillis();
         boolean result = retryer.call(callable);
@@ -115,6 +118,9 @@ public class RetryerBuilderTest {
             public void await(long sleepTime) throws InterruptedException {
                 counter.incrementAndGet();
             }
+
+			@Override
+			public void handleInterruptedException(InterruptedException e) {}
         };
 
         CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
@@ -382,7 +388,7 @@ public class RetryerBuilderTest {
             @Override
             public void run() {
                 CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
-                        .withBackoffStrategy(BackoffStrategies.fixedWait(1000L, TimeUnit.MILLISECONDS))
+                        .withBackoffStrategy(BackoffStrategies.fixedBackoff(1000L, TimeUnit.MILLISECONDS))
                         .retryIfResult(x-> x == null)
                         ;
                 try {
@@ -446,17 +452,17 @@ public class RetryerBuilderTest {
     public void testWhetherBuilderFailsForNullWaitStrategyWithCompositeStrategies() {
         try {
             new AttemptStrategy()
-                    .withBackoffStrategy(BackoffStrategies.join(null, null))
+                    .withBackoffStrategy(AttemptBackoffStrategies.join(null, null))
                     ;
             fail("Exepcted to fail for null wait strategy");
         } catch (IllegalStateException exception) {
-            assertTrue(exception.getMessage().contains("Cannot have a null wait strategy"));
+            assertTrue(exception.getMessage().contains("Cannot have a null backoff strategy"));
         }
     }
 
     @Test
     public void testRetryListener_SuccessfulAttempt() throws Exception {
-        final Map<Long, Attempt> attempts = new HashMap<Long, Attempt>();
+        final Map<Integer, Attempt> attempts = new HashMap<>();
 
         AttemptListener listener = new AttemptListener() {
             @Override
@@ -475,17 +481,17 @@ public class RetryerBuilderTest {
 
         assertEquals(6, attempts.size());
 
-        assertResultAttempt(attempts.get(1L), true, null);
-        assertResultAttempt(attempts.get(2L), true, null);
-        assertResultAttempt(attempts.get(3L), true, null);
-        assertResultAttempt(attempts.get(4L), true, null);
-        assertResultAttempt(attempts.get(5L), true, null);
-        assertResultAttempt(attempts.get(6L), true, true);
+        assertResultAttempt(attempts.get(1), true, null);
+        assertResultAttempt(attempts.get(2), true, null);
+        assertResultAttempt(attempts.get(3), true, null);
+        assertResultAttempt(attempts.get(4), true, null);
+        assertResultAttempt(attempts.get(5), true, null);
+        assertResultAttempt(attempts.get(6), true, true);
     }
 
     @Test
     public void testRetryListener_WithException() throws Exception {
-        final Map<Long, Attempt> attempts = new HashMap<Long, Attempt>();
+        final Map<Integer, Attempt> attempts = new HashMap<>();
 
         AttemptListener listener = new AttemptListener() {
             @Override
@@ -505,12 +511,12 @@ public class RetryerBuilderTest {
 
         assertEquals(6, attempts.size());
 
-        assertExceptionAttempt(attempts.get(1L), true, IOException.class);
-        assertExceptionAttempt(attempts.get(2L), true, IOException.class);
-        assertExceptionAttempt(attempts.get(3L), true, IOException.class);
-        assertExceptionAttempt(attempts.get(4L), true, IOException.class);
-        assertExceptionAttempt(attempts.get(5L), true, IOException.class);
-        assertResultAttempt(attempts.get(6L), true, true);
+        assertExceptionAttempt(attempts.get(1), true, IOException.class);
+        assertExceptionAttempt(attempts.get(2), true, IOException.class);
+        assertExceptionAttempt(attempts.get(3), true, IOException.class);
+        assertExceptionAttempt(attempts.get(4), true, IOException.class);
+        assertExceptionAttempt(attempts.get(5), true, IOException.class);
+        assertResultAttempt(attempts.get(6), true, true);
     }
 
     @Test

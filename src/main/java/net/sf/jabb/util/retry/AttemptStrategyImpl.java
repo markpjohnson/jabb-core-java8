@@ -27,6 +27,11 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
+import net.sf.jabb.util.parallel.BackoffStrategies;
+import net.sf.jabb.util.parallel.BackoffStrategy;
+import net.sf.jabb.util.parallel.WaitStrategies;
+import net.sf.jabb.util.parallel.WaitStrategy;
+
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.TimeLimiter;
 import com.google.common.util.concurrent.UncheckedTimeoutException;
@@ -49,7 +54,7 @@ import com.google.common.util.concurrent.UncheckedTimeoutException;
  */
 class AttemptStrategyImpl {
 	protected StopStrategy stopStrategy;
-	protected BackoffStrategy backoffStrategy;
+	protected AttemptBackoffStrategy backoffStrategy;
 	protected WaitStrategy waitStrategy;
 	protected TimeLimiter attemptTimeLimiter;
 	protected Duration attemptTimeLimit;
@@ -76,7 +81,7 @@ class AttemptStrategyImpl {
     		stopStrategy = StopStrategies.neverStop();
     	}
     	if (backoffStrategy == null){
-    		backoffStrategy = BackoffStrategies.noWait();
+    		backoffStrategy = AttemptBackoffStrategies.simpleBackoff(BackoffStrategies.noBackoff());
     	}
     	if (waitStrategy == null){
     		waitStrategy = WaitStrategies.threadSleepStrategy();
@@ -143,7 +148,7 @@ class AttemptStrategyImpl {
                 try {
                     waitStrategy.await(sleepTime);
                 } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                	waitStrategy.handleInterruptedException(e);
                     throw new InterruptedBeforeAttemptException(e, attempt);
                 }
             }
@@ -164,7 +169,7 @@ class AttemptStrategyImpl {
 		this.stopStrategy = stopStrategy;
 	}
 
-	protected void setBackoffStrategy(BackoffStrategy backoffStrategy) {
+	protected void setBackoffStrategy(AttemptBackoffStrategy backoffStrategy) {
         Preconditions.checkNotNull(backoffStrategy, "backoffStrategy may not be null");
 		this.backoffStrategy = backoffStrategy;
 	}
@@ -190,9 +195,15 @@ class AttemptStrategyImpl {
         return this;
     }
 
-    protected AttemptStrategyImpl withBackoffStrategy(@Nonnull BackoffStrategy backoffStrategy) throws IllegalStateException {
+    protected AttemptStrategyImpl withBackoffStrategy(@Nonnull AttemptBackoffStrategy backoffStrategy) throws IllegalStateException {
         Preconditions.checkState(this.backoffStrategy == null, "a backoff strategy has already been set %s", this.backoffStrategy);
         this.setBackoffStrategy(backoffStrategy);
+        return this;
+    }
+
+    protected AttemptStrategyImpl withBackoffStrategy(@Nonnull BackoffStrategy backoffStrategy) throws IllegalStateException {
+        Preconditions.checkState(this.backoffStrategy == null, "a backoff strategy has already been set %s", this.backoffStrategy);
+        this.setBackoffStrategy(AttemptBackoffStrategies.simpleBackoff(backoffStrategy));
         return this;
     }
 

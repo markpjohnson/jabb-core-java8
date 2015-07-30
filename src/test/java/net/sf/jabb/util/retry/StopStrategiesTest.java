@@ -53,7 +53,7 @@ public class StopStrategiesTest {
         assertTrue(StopStrategies.stopAfterTotalDuration(Duration.ofSeconds(1)).shouldStop(failedAttempt(2, 1001L)));
     }
 
-    public Attempt<Void> failedAttempt(long attemptNumber, long delaySinceFirstAttempt) {
+    public Attempt<Void> failedAttempt(int attemptNumber, long delaySinceFirstAttempt) {
     	return Attempt.withException(null, attemptNumber, Instant.now().minusMillis(delaySinceFirstAttempt), Instant.now(), new RuntimeException());
     }
 }
