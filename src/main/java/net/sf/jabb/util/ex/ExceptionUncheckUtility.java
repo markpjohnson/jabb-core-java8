@@ -12,22 +12,22 @@ import java.util.function.Supplier;
 public class ExceptionUncheckUtility {
 
 	@FunctionalInterface
-	public interface Consumer_WithExceptions<T> {
+	public interface ConsumerWithExceptions<T> {
 		void accept(T t) throws Exception;
 	}
 
 	@FunctionalInterface
-	public interface Function_WithExceptions<T, R> {
+	public interface FunctionWithExceptions<T, R> {
 		R apply(T t) throws Exception;
 	}
 
 	@FunctionalInterface
-	public interface Supplier_WithExceptions<T> {
+	public interface SupplierWithExceptions<T> {
 		T get() throws Exception;
 	}
 
 	@FunctionalInterface
-	public interface Runnable_WithExceptions {
+	public interface RunnableWithExceptions {
 		void accept() throws Exception;
 	}
 
@@ -36,7 +36,7 @@ public class ExceptionUncheckUtility {
 	 * System.out.println(Class.forName(name)))); or
 	 * .forEach(rethrowConsumer(ClassNameUtil::println));
 	 */
-	public static <T> Consumer<T> rethrowConsumer(Consumer_WithExceptions<T> consumer) {
+	public static <T> Consumer<T> rethrowConsumer(ConsumerWithExceptions<T> consumer) {
 		return t -> {
 			try {
 				consumer.accept(t);
@@ -50,7 +50,7 @@ public class ExceptionUncheckUtility {
 	 * .map(rethrowFunction(name -> Class.forName(name))) or
 	 * .map(rethrowFunction(Class::forName))
 	 */
-	public static <T, R> Function<T, R> rethrowFunction(Function_WithExceptions<T, R> function) {
+	public static <T, R> Function<T, R> rethrowFunction(FunctionWithExceptions<T, R> function) {
 		return t -> {
 			try {
 				return function.apply(t);
@@ -65,7 +65,7 @@ public class ExceptionUncheckUtility {
 	 * rethrowSupplier(() -> new StringJoiner(new String(new byte[]{77, 97, 114,
 	 * 107}, "UTF-8"))),
 	 */
-	public static <T> Supplier<T> rethrowSupplier(Supplier_WithExceptions<T> function) {
+	public static <T> Supplier<T> rethrowSupplier(SupplierWithExceptions<T> function) {
 		return () -> {
 			try {
 				return function.get();
@@ -77,7 +77,7 @@ public class ExceptionUncheckUtility {
 	}
 
 	/** uncheck(() -> Class.forName("xxx")); */
-	public static void uncheck(Runnable_WithExceptions t) {
+	public static void uncheck(RunnableWithExceptions t) {
 		try {
 			t.accept();
 		} catch (Exception exception) {
@@ -86,7 +86,7 @@ public class ExceptionUncheckUtility {
 	}
 
 	/** uncheck(() -> Class.forName("xxx")); */
-	public static <R> R uncheck(Supplier_WithExceptions<R> supplier) {
+	public static <R> R uncheck(SupplierWithExceptions<R> supplier) {
 		try {
 			return supplier.get();
 		} catch (Exception exception) {
@@ -96,7 +96,7 @@ public class ExceptionUncheckUtility {
 	}
 
 	/** uncheck(Class::forName, "xxx"); */
-	public static <T, R> R uncheck(Function_WithExceptions<T, R> function, T t) {
+	public static <T, R> R uncheck(FunctionWithExceptions<T, R> function, T t) {
 		try {
 			return function.apply(t);
 		} catch (Exception exception) {

@@ -4,12 +4,18 @@
 package net.sf.jabb.azure;
 
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Pattern;
+
+import net.sf.jabb.util.parallel.BackoffStrategies;
+import net.sf.jabb.util.parallel.WaitStrategies;
+import net.sf.jabb.util.retry.AttemptStrategy;
+import net.sf.jabb.util.retry.StopStrategies;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -34,6 +40,7 @@ import com.microsoft.azure.storage.table.TableOperation;
 import com.microsoft.azure.storage.table.TableQuery;
 import com.microsoft.azure.storage.table.TableQuery.Operators;
 import com.microsoft.azure.storage.table.TableQuery.QueryComparisons;
+import com.microsoft.azure.storage.table.TableServiceEntity;
 
 /**
  * Utility functions for Azure Storage usage.
@@ -43,8 +50,14 @@ import com.microsoft.azure.storage.table.TableQuery.QueryComparisons;
 public class AzureStorageUtility {
 	static private final Logger logger = LoggerFactory.getLogger(AzureStorageUtility.class);
 	
-	static public final int DEFAULT_MAX_ATTEMPTS_FOR_CREATE_IF_NOT_EXIST = 100;
-	static public final int DEFAULT_BASE_RETRY_INTERVAL_FOR_CREATE_IF_NOT_EXIST = 5;
+	/**
+	 * The default attempt strategy for table/queue creation, with maximum 45 minutes allowed in total, and 1 to 40 seconds backoff interval 
+	 * according to fibonacci series.
+	 */
+	static public final AttemptStrategy DEFAULT_CREATION_ATTEMPT_STRATEGY = new AttemptStrategy()
+		.withWaitStrategy(WaitStrategies.threadSleepStrategy())
+		.withStopStrategy(StopStrategies.stopAfterTotalDuration(Duration.ofMinutes(45)))
+		.withBackoffStrategy(BackoffStrategies.fibonacciBackoff(1000L, 1000L * 40));
 	
     static public final String PARTITION_KEY = "PartitionKey";
     static public final String ROW_KEY = "RowKey";
@@ -52,11 +65,26 @@ public class AzureStorageUtility {
     
 	static public String[] COLUMNS_WITH_ONLY_KEYS = new String[0];
 
-
 	
-	static long calculateRetryInterval(int attempts, int baseRetryInterval){
-		return (long) (Math.log1p(attempts)/Math.log(2) * 1000L * baseRetryInterval);
+	/**
+	 * Create a concatenated string of partitionKey + "/" + rowKey
+	 * @param partitionKey		the partition key
+	 * @param rowKey			the row key
+	 * @return					the concatenated string
+	 */
+	static public String keysToString(String partitionKey, String rowKey){
+		return partitionKey + "/" + rowKey;
 	}
+
+	/**
+	 * Create a concatenated string of partitionKey + "/" + rowKey
+	 * @param entity		the table entity
+	 * @return					the concatenated string
+	 */
+	static public String keysToString(TableEntity entity){
+		return entity == null ? null : entity.getPartitionKey() + "/" + entity.getRowKey();
+	}
+
 	
 	/**
 	 * Delete a table if it exists.
@@ -72,112 +100,76 @@ public class AzureStorageUtility {
 	}
 
 	/**
-	 * Create a table if it does not exist.
+	 * Create a table if it does not exist. If the table is being deleted, the creation will be retried.
 	 * @param tableClient		instance of CloudTableClient
 	 * @param tableName			name of the table
-	 * @param maxAttempts		Maximum number of attempts in the case that Azure returns 409 conflict due to table is being deleted
-	 * @param baseRetryInterval	Base interval between retries in the case that Azure returns 409 conflict.
-	 * 							The interval after attempt n is (Math.log1p(n)/Math.log(2) * 1000L * baseRetryInterval) milliseconds.
+	 * @param attemptStrategy		attempt strategy in the case that Azure returns 409 conflict due to table is being deleted
 	 * @return						true if the table did not exist in the storage service and has been created successfully; otherwise false.
-	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid.
-	 * @throws StorageException		If a storage service error occurred during the operation.
+	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
+	 * @throws StorageException		If a storage service error occurred during the operation. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 */
-	static public boolean createIfNotExist(CloudTableClient tableClient, String tableName, int maxAttempts, int baseRetryInterval) throws URISyntaxException, StorageException {
+	static public boolean createIfNotExist(CloudTableClient tableClient, String tableName, AttemptStrategy attemptStrategy) throws URISyntaxException, StorageException {
 		CloudTable table = tableClient.getTableReference(tableName);
-		int attempts = 1;
-		do {
-			try {
-				return table.createIfNotExists();
-			} catch(StorageException e) {
-				if(e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.TABLE_BEING_DELETED.equals(e.getErrorCode())) {	// conflict - so that we need to retry
-					try {
-						Thread.sleep(calculateRetryInterval(attempts, baseRetryInterval));
-					} catch (InterruptedException e1) {
-						logger.error("Interrupted after attempted {} times to create table '{}'.", attempts, tableName);
-						Thread.currentThread().interrupt();
-					}
-				} else {
-					throw e;
-				}
-			}
-		} while(attempts ++ <= maxAttempts);
-		logger.error("Unable to create table '{}' after attempted {} times.", tableName, attempts - 1);
-		return false;
+		return new AttemptStrategy(attemptStrategy)
+			.retryIfException(StorageException.class, 
+					e-> e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.TABLE_BEING_DELETED.equals(e.getErrorCode()))	// conflict - so that we need to retry
+			.call(()-> table.createIfNotExists());
 	}
 	
 	/**
-	 * Create a table if it does not exist. If the table is being deleted, the creation will be retried.
-	 * The maximum number of attempts is 100. The retry interval starts at 5 seconds and increases to 33 seconds guardedly.
-	 * So the total maximum duration may be as long as 45 minutes.
+	 * Create a table if it does not exist. If the table is being deleted, 
+	 * the creation will be retried with the default attempt strategy: {@link #DEFAULT_CREATION_ATTEMPT_STRATEGY}}.
 	 * @param tableClient		instance of CloudTableClient
 	 * @param tableName			name of the table
 	 * @return						true if the table did not exist in the storage service and has been created successfully; otherwise false.
-	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid.
-	 * @throws StorageException		If a storage service error occurred during the operation.
+	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
+	 * @throws StorageException		If a storage service error occurred during the operation. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 */
 	static public boolean createIfNotExist(CloudTableClient tableClient, String tableName) throws URISyntaxException, StorageException{
-		return createIfNotExist(tableClient, tableName, DEFAULT_MAX_ATTEMPTS_FOR_CREATE_IF_NOT_EXIST, DEFAULT_BASE_RETRY_INTERVAL_FOR_CREATE_IF_NOT_EXIST);
+		return createIfNotExist(tableClient, tableName, DEFAULT_CREATION_ATTEMPT_STRATEGY);
 	}
 	
 	/**
 	 * Delete a queue if it exists.
-	 * @param queueName			name of the queue
 	 * @param queueClient		instance of CloudQueueClient
+	 * @param queueName			name of the queue
 	 * @return						true if the queue existed in the storage service and has been deleted; otherwise false.
 	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid.
 	 * @throws StorageException		If a storage service error occurred during the operation.
 	 */
-	static public boolean deleteIfExist(String queueName, CloudQueueClient queueClient) throws URISyntaxException, StorageException {
+	static public boolean deleteIfExist(CloudQueueClient queueClient, String queueName) throws URISyntaxException, StorageException {
 		CloudQueue queue = queueClient.getQueueReference(queueName);
 		return queue.deleteIfExists();
 	}
 
 	/**
-	 * Create a queue if it does not exist.
+	 * Create a queue if it does not exist. If the queue is being deleted, the creation will be retried.
 	 * @param queueClient				instance of CloudQueueClient
 	 * @param queueName					name of the queue
-	 * @param maxAttempts				Maximum number of attempts in the case that Azure returns 409 conflict due to table is being deleted
-	 * @param baseRetryInterval	Base interval between retries in the case that Azure returns 409 conflict. 
-	 * 							The interval after attempt n is (Math.log1p(n)/Math.log(2) * 1000L * baseRetryInterval) milliseconds.
+	 * @param attemptStrategy		attempt strategy in the case that Azure returns 409 conflict due to table is being deleted
 	 * @return						true if the queue did not exist in the storage service and has been created successfully; otherwise false.
-	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid.
-	 * @throws StorageException		If a storage service error occurred during the operation.
+	 * @throws URISyntaxException	If the resource URI constructed based on the queueName is invalid. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
+	 * @throws StorageException		If a storage service error occurred during the operation. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 */
-	static public boolean createIfNotExist(CloudQueueClient queueClient, String queueName, int maxAttempts, int baseRetryInterval) throws URISyntaxException, StorageException {
+	static public boolean createIfNotExist(CloudQueueClient queueClient, String queueName, AttemptStrategy attemptStrategy) throws URISyntaxException, StorageException {
 		CloudQueue queue = queueClient.getQueueReference(queueName);
-		int attempts = 1;
-		do {
-			try {
-				return queue.createIfNotExists();
-			} catch(StorageException e) {
-				if(e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.QUEUE_BEING_DELETED.equals(e.getErrorCode())) {	// conflict - so that we need to retry
-					try {
-						Thread.sleep(calculateRetryInterval(attempts, baseRetryInterval));
-					} catch (InterruptedException e1) {
-						logger.error("Interrupted after attempted {} times to create queue '{}'.", attempts, queueName);
-						Thread.currentThread().interrupt();
-					}
-				} else {
-					throw e;
-				}
-			}
-		} while(attempts ++ <= maxAttempts);
-		logger.error("Unable to create queue '{}' after attempted {} times.", queueName, attempts - 1);
-		return false;
+		return new AttemptStrategy(attemptStrategy)
+			.retryIfException(StorageException.class, 
+				e-> e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.QUEUE_BEING_DELETED.equals(e.getErrorCode()))	// conflict - so that we need to retry
+			.call(()-> queue.createIfNotExists());
 	}
 	
 	/**
 	 * Create a queue if it does not exist. If the queue is being deleted, the creation will be retried.
-	 * The maximum number of attempts is 100. The retry interval starts at 5 seconds and increases to 33 seconds guardedly.
-	 * So the total maximum duration may be as long as 45 minutes.
+	 * the creation will be retried with the default attempt strategy: {@link #DEFAULT_CREATION_ATTEMPT_STRATEGY}}.
 	 * @param queueClient		instance of CloudQueueClient
 	 * @param queueName			name of the queue
 	 * @return						true if the queue did not exist in the storage service and has been created successfully; otherwise false.
-	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid.
-	 * @throws StorageException		If a storage service error occurred during the operation.
+	 * @throws URISyntaxException	If the resource URI constructed based on the queueName is invalid. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
+	 * @throws StorageException		If a storage service error occurred during the operation. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 */
 	static public boolean createIfNotExist(CloudQueueClient queueClient, String queueName) throws URISyntaxException, StorageException{
-		return createIfNotExist(queueClient, queueName, DEFAULT_MAX_ATTEMPTS_FOR_CREATE_IF_NOT_EXIST, DEFAULT_BASE_RETRY_INTERVAL_FOR_CREATE_IF_NOT_EXIST);
+		return createIfNotExist(queueClient, queueName, DEFAULT_CREATION_ATTEMPT_STRATEGY);
 	}
 	
 	/**

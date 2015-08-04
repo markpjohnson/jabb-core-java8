@@ -4,6 +4,7 @@
 package net.sf.jabb.seqtx.azure;
 
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,8 +31,13 @@ import net.sf.jabb.seqtx.ex.IllegalTransactionStateException;
 import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
 import net.sf.jabb.seqtx.ex.NoSuchTransactionException;
 import net.sf.jabb.seqtx.ex.NotOwningTransactionException;
+import net.sf.jabb.util.parallel.BackoffStrategies;
+import net.sf.jabb.util.parallel.WaitStrategies;
+import net.sf.jabb.util.retry.AttemptStrategy;
+import net.sf.jabb.util.retry.StopStrategies;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
+import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.table.CloudTable;
 import com.microsoft.azure.storage.table.CloudTableClient;
@@ -52,6 +58,15 @@ import com.microsoft.azure.storage.table.TableServiceException;
 public class AzureSequentialTransactionsCoordinator implements SequentialTransactionsCoordinator {
 	static private final Logger logger = LoggerFactory.getLogger(AzureSequentialTransactionsCoordinator.class);
 
+	/**
+	 * The default attempt strategy for Azure operations, with maximum 2 minutes allowed in total, and 1 to 10 seconds backoff interval 
+	 * according to fibonacci series.
+	 */
+	static public final AttemptStrategy DEFAULT_ATTEMPT_STRATEGY = new AttemptStrategy()
+		.withWaitStrategy(WaitStrategies.threadSleepStrategy())
+		.withStopStrategy(StopStrategies.stopAfterTotalDuration(Duration.ofMinutes(2)))
+		.withBackoffStrategy(BackoffStrategies.fibonacciBackoff(1000L, 1000L * 10));
+	
 	public static final String DEFAULT_TABLE_NAME = "SequentialTransactionsCoordinator";
 	protected String tableName = DEFAULT_TABLE_NAME;
 	protected CloudTableClient tableClient;
@@ -59,15 +74,19 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	protected volatile SimpleSequentialTransaction lastSucceededTransactionCached;
 	protected volatile boolean tableExists = false;
 	
+	protected AttemptStrategy attemptStrategy = DEFAULT_ATTEMPT_STRATEGY;
 	
 	public AzureSequentialTransactionsCoordinator(){
 		
 	}
 	
-	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount, String tableName, Consumer<TableRequestOptions> defaultOptionsConfigurer){
+	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount, String tableName, AttemptStrategy attemptStrategy, Consumer<TableRequestOptions> defaultOptionsConfigurer){
 		this();
 		if (tableName != null){
 			this.tableName = tableName;
+		}
+		if (attemptStrategy != null){
+			this.attemptStrategy = attemptStrategy;
 		}
 		tableClient = storageAccount.createCloudTableClient();
 		if (defaultOptionsConfigurer != null){
@@ -75,28 +94,39 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		}
 	}
 	
+	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount, String tableName, AttemptStrategy attemptStrategy){
+		this(storageAccount, tableName, attemptStrategy, null);
+	}
+
 	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount, String tableName){
-		this(storageAccount, tableName, null);
+		this(storageAccount, tableName, null, null);
 	}
 
 	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount, Consumer<TableRequestOptions> defaultOptionsConfigurer){
-		this(storageAccount, null, defaultOptionsConfigurer);
+		this(storageAccount, null, null, defaultOptionsConfigurer);
 	}
 
 	public AzureSequentialTransactionsCoordinator(CloudStorageAccount storageAccount){
-		this(storageAccount, null, null);
+		this(storageAccount, null, null, null);
 	}
 	
-	public AzureSequentialTransactionsCoordinator(CloudTableClient tableClient, String tableName){
+	public AzureSequentialTransactionsCoordinator(CloudTableClient tableClient, String tableName, AttemptStrategy attemptStrategy){
 		this();
 		if (tableName != null){
 			this.tableName = tableName;
 		}
 		this.tableClient = tableClient;
+		if (attemptStrategy != null){
+			this.attemptStrategy = attemptStrategy;
+		}
+	}
+
+	public AzureSequentialTransactionsCoordinator(CloudTableClient tableClient, AttemptStrategy attemptStrategy){
+		this(tableClient, null, attemptStrategy);
 	}
 
 	public AzureSequentialTransactionsCoordinator(CloudTableClient tableClient){
-		this(tableClient, null);
+		this(tableClient, null, null);
 	}
 
 
@@ -106,6 +136,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 
 	public void setTableClient(CloudTableClient tableClient) {
 		this.tableClient = tableClient;
+	}
+
+	public void setTableClient(AttemptStrategy attemptStrategy) {
+		this.attemptStrategy = attemptStrategy;
 	}
 
 	@Override
@@ -142,21 +176,90 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			String transactionId, Instant timeout)
 			throws NotOwningTransactionException, InfrastructureErrorException,
 			IllegalTransactionStateException, NoSuchTransactionException {
+		try {
+			new AttemptStrategy(attemptStrategy)
+				.retryIfException(StorageException.class, e-> e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.CONDITION_NOT_MET.equals(e.getErrorCode()))
+				.runThrowingSuppressed(()->doRenewTransactionTimeout(seriesId, processorId, transactionId, timeout));
+		} catch (NotOwningTransactionException | InfrastructureErrorException | IllegalTransactionStateException | NoSuchTransactionException e){
+			throw e;
+		} catch (Exception e){	// only possible: StorageException
+			throw new InfrastructureErrorException("Failed to update timeout property for transaction entity with keys: " + AzureStorageUtility.keysToString(seriesId, transactionId), e);
+		}
+			
+	}
+	
+	/**
+	 * 
+	 * @param seriesId
+	 * @param processorId
+	 * @param transactionId
+	 * @param timeout
+	 * @throws NotOwningTransactionException
+	 * @throws InfrastructureErrorException
+	 * @throws IllegalTransactionStateException
+	 * @throws NoSuchTransactionException
+	 * @throws StorageException				if failed to replace the entity with updated values
+	 */
+	protected void doRenewTransactionTimeout(String seriesId, String processorId,
+			String transactionId, Instant timeout)
+			throws NotOwningTransactionException, InfrastructureErrorException,
+			IllegalTransactionStateException, NoSuchTransactionException, StorageException {
 		// update a single transaction
+		SequentialTransactionEntity entity = null;
+		try {
+			entity = fetchEntity(seriesId, transactionId);
+		} catch (StorageException e) {
+			throw new InfrastructureErrorException("Failed to fetch transaction entity with keys: " + AzureStorageUtility.keysToString(seriesId, transactionId), e);
+		}
+		if (entity == null){
+			throw new NoSuchTransactionException("Transaction '" + transactionId + "' either does not exist or have succeeded and later been purged");
+		}
+		if (!processorId.equals(entity.getProcessorId())){
+			throw new NotOwningTransactionException("Transaction '" + transactionId + "' is currently owned by processor '" + entity.getProcessorId() + "', not '" + processorId + "'");
+		}
 		
+		if (entity.isInProgress()){
+			entity.setTimeout(timeout);
+			CloudTable table = getTableReference();
+			table.execute(TableOperation.replace(entity));
+		}else{
+			throw new IllegalTransactionStateException("Transaction '" + transactionId + "' is currently in " + entity.getState() + " state and its timeout cannot be changed");
+		}
 	}
 
 	@Override
 	public boolean isTransactionSuccessful(String seriesId,
 			String transactionId, Instant beforeWhen)
 			throws InfrastructureErrorException {
-		// TODO Auto-generated method stub
-		return false;
+		// try cached first
+		if (lastSucceededTransactionCached != null){
+			if (!beforeWhen.isAfter(lastSucceededTransactionCached.getFinishTime())){
+				return true;
+			}
+		}
+		
+		// reload
+		List<? extends ReadOnlySequentialTransaction> transactions = getRecentTransactions(seriesId);
+		
+		if (lastSucceededTransactionCached != null){
+			if (!beforeWhen.isAfter(lastSucceededTransactionCached.getFinishTime())){
+				return true;
+			}
+		}
+
+		// check in recent transactions
+		Optional<? extends ReadOnlySequentialTransaction> matched = transactions.stream().filter(tx -> tx.getTransactionId().equals(transactionId)).findAny();
+		if (matched.isPresent()){
+			return matched.get().isFinished();
+		}
+		
+		return true;		// must be a very old transaction
 	}
 
 	@Override
 	public List<? extends ReadOnlySequentialTransaction> getRecentTransactions(
 			String seriesId) throws InfrastructureErrorException {
+		// TODO: attemptStrategy
 		// get entities by seriesId
 		Map<String, SequentialTransactionWrapper> wrappedTransactionEntities = fetchEntities(seriesId, true);
 		LinkedList<SequentialTransactionWrapper> transactionEntities = toList(wrappedTransactionEntities);
@@ -252,6 +355,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			try{
 				AzureStorageUtility.executeIfExist(table, batchOperation);
 			}catch(StorageException e){
+				// TODO: attemptStrategy
 				throw new InfrastructureErrorException("Failed to remove succeeded transaction entity with keys '" + first.entityKeysToString() 
 						+ "' and make the next entity with keys '" + second.entityKeysToString() 
 						+ "' the new first one, probably one of them has been modified by another client.", e);
@@ -277,6 +381,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 					try{
 						table.execute(TableOperation.replace(wrapper.getEntity()));
 					}catch(StorageException e){
+						// TODO: attemptStrategy
 						throw new InfrastructureErrorException("Failed to update timed out transaction entity with keys '" + wrapper.entityKeysToString() 
 								+ "', probably it has been modified by another client.", e);
 					}
@@ -295,12 +400,34 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				try {
 					AzureStorageUtility.deleteEntitiesIfExist(table, wrapper.getEntity());
 				} catch (StorageException e) {
+					// TODO: attemptStrategy
 					throw new InfrastructureErrorException("Failed to delete failed open range transaction entity with keys '" + wrapper.entityKeysToString() 
 							+ "', probably it has been modified by another client.", e);
 				}
 				transactionEntities.removeLast();
 			}
 		}
+	}
+	
+	/**
+	 * Fetch the transaction entity by seriesId and transactionId
+	 * @param seriesId			the ID of the series that the transaction belongs to
+	 * @param transactionId		the ID of the transaction
+	 * @return					the transaction entity or null if not found
+	 * @throws InfrastructureErrorException		if failed to get table reference
+	 * @throws StorageException					if other underlying error happened
+	 */
+	protected SequentialTransactionEntity fetchEntity(String seriesId, String transactionId) throws InfrastructureErrorException, StorageException{
+		CloudTable table = getTableReference();
+		SequentialTransactionEntity entity = null;
+		try{
+			entity = table.execute(TableOperation.retrieve(seriesId, transactionId, SequentialTransactionEntity.class)).getResultAsType();
+		}catch(StorageException e){
+			if (e.getHttpStatusCode() != 404){
+				throw e;
+			}
+		}
+		return entity;
 	}
 	
 	/**

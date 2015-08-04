@@ -59,20 +59,30 @@ public class CallableAttemptStrategy<R> extends AttemptStrategyImpl {
 	 * @return					the result returned by the Callable
 	 * @throws Exception		It can be any exception thrown from within the Callable that is considered as non-recoverable by the retry strategies.
 	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
+	 * @throws TooManyAttemptsException  If there is no exception happened during last attempt but there is a TooManyAttemptsException
+	 * @throws InterruptedException  If there is no exception happened during last attempt but there is a InterruptedException
      */
-    public R callThrowingOriginal(Callable<R> callable) throws Exception{
+    public R callThrowingSuppressed(Callable<R> callable) throws Exception, TooManyAttemptsException, InterruptedException{
     	try {
     		return callThrowingAll(callable, retryConditionOnResult);
 		} catch (TooManyAttemptsException e) {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
-			lastCause.addSuppressed(e);
-			throw lastCause;
+			if (lastCause != null){
+				lastCause.addSuppressed(e);
+				throw lastCause;
+			}else{
+				throw e;
+			}
 		} catch (InterruptedBeforeAttemptException e) {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
-			lastCause.addSuppressed(e.getCause());
-			throw lastCause;
+			if (lastCause != null){
+				lastCause.addSuppressed(e);
+				throw lastCause;
+			}else{
+				throw e;
+			}
 		}
     }
     
@@ -87,7 +97,7 @@ public class CallableAttemptStrategy<R> extends AttemptStrategyImpl {
 	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
      */
     public R call(Callable<R> callable){
-       	return ExceptionUncheckUtility.uncheck(()->callThrowingOriginal(callable));
+       	return ExceptionUncheckUtility.uncheck(()->callThrowingSuppressed(callable));
     }
     
 
@@ -101,7 +111,7 @@ public class CallableAttemptStrategy<R> extends AttemptStrategyImpl {
 
     /**
      * Constructor initiating an strategy by copying configurations from another instance.
-     * @param that
+     * @param that		another attempt strategy
      */
     @SuppressWarnings("unchecked")
 	public CallableAttemptStrategy(AttemptStrategyImpl that){
@@ -214,6 +224,21 @@ public class CallableAttemptStrategy<R> extends AttemptStrategyImpl {
     }
 
     /**
+     * Adds a predicate to decide whether next attempt is needed when exception of specified type happened in previous attempt.
+     * retryIf*Exceptin(...) methods can be called multiple times, all the predicates will be or-ed.
+     * If no retryIf*Exceptin(...) has been called or if an exception happened during an attempt cannot
+     * make any of the predicates true, it will be propagated and there will be no further attempt.
+     * @param exceptionClass		type of the exception that the predicate applies to
+     * @param exceptionPredicate The predicate to be called when exception of specified type happened in previous attempt.
+     * 								It should return true if another attempt is needed.
+     * @return <code>this</code>
+     */
+	@SuppressWarnings("unchecked")
+	public <E extends Exception> CallableAttemptStrategy<R> retryIfException(@Nonnull Class<E> exceptionClass, @Nonnull Predicate<E> exceptionPredicate) {
+		return (CallableAttemptStrategy<R>) super.retryIfException(exceptionClass, exceptionPredicate);
+	}
+	
+    /**
      * Add a predicate that if a specific type of exception happened during an attempt, there needs to be a next attempt. 
      * retryIf*Exceptin(...) methods can be called multiple times, all the predicates will be or-ed.
      * If no retryIf*Exceptin(...) has been called or if an exception happened during an attempt cannot
@@ -295,6 +320,73 @@ public class CallableAttemptStrategy<R> extends AttemptStrategyImpl {
         return retryIfAttemptHasResult(attempt-> null == attempt.getResult());
     }
 
+
+    /////////////////
+    
+	/**
+	 * Attempt the Runnable according to the strategies defined, throwing all the exceptions in their original forms.
+	 * Please note that there should be no retry condition on callable returning null, otherwise there will be an infinite loop.
+	 * @param runnable			the Runnable to be attempted
+	 * @throws TooManyAttemptsException				If no more attempt is allowed by the stop strategy
+	 * @throws InterruptedBeforeAttemptException	If InterruptedException happened while applying attempt time limit strategy or backoff strategy
+	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies
+	 */
+    public void runThrowingAll(Runnable runnable)
+    		throws TooManyAttemptsException, InterruptedBeforeAttemptException, Exception {
+    	callThrowingAll(() -> {runnable.run(); return null;}, null);
+    }
+    
+    /**
+     * Attempt the Runnable according to the strategies defined, throwing all the exceptions in their original forms.
+	 * Please note that there should be no retry condition on callable returning null, otherwise there will be an infinite loop.
+     * Possible exceptions thrown from this method are not declared in the method signature. But they will still be thrown and need to be handled.
+	 * @param runnable			the Runnable to be attempted
+	 * @throws TooManyAttemptsException				If no more attempt is allowed by the stop strategy
+	 * @throws InterruptedBeforeAttemptException	If InterruptedException happened while applying attempt time limit strategy or backoff strategy
+	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies
+     */
+    public void runThrowingUncheckedAll(Runnable runnable){
+    	ExceptionUncheckUtility.uncheck(()->callThrowingAll(() -> {runnable.run(); return null;}, null));
+    }
+
+    /**
+     * Attempt the Runnable according to the strategies defined, throwing exceptions in their original or modified forms.
+	 * Please note that there should be no retry condition on callable returning null, otherwise there will be an infinite loop.
+     * If no more attempt is allowed by the stop strategy or InterruptedException happened while applying attempt time limit strategy or backoff strategy,
+     * a TooManyAttemptsException or InterruptedException will be added as a suppressed exception to the exception thrown from within the last attempt.
+	 * @param runnable			the Runnable to be attempted
+	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies.
+	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
+     */
+    public void runThrowingOriginal(Runnable runnable) throws Exception{
+    	try {
+    		callThrowingAll(() -> {runnable.run(); return null;}, null);
+		} catch (TooManyAttemptsException e) {
+			Attempt<?> lastAttempt = e.getLastAttempt();
+			Exception lastCause = lastAttempt.getException();
+			lastCause.addSuppressed(e);
+			throw lastCause;
+		} catch (InterruptedBeforeAttemptException e) {
+			Attempt<?> lastAttempt = e.getLastAttempt();
+			Exception lastCause = lastAttempt.getException();
+			lastCause.addSuppressed(e.getCause());
+			throw lastCause;
+		}
+    }
+    
+    /**
+     * Attempt the Runnable according to the strategies defined, throwing exceptions in their original or modified forms.
+	 * Please note that there should be no retry condition on callable returning null, otherwise there will be an infinite loop.
+     * Possible exceptions thrown from this method are not declared in the method signature. But they will still be thrown and need to be handled.
+     * If no more attempt is allowed by the stop strategy or InterruptedException happened while applying attempt time limit strategy or backoff strategy,
+     * a TooManyAttemptsException or InterruptedException will be added as a suppressed exception to the exception thrown from within the last attempt.
+	 * @param runnable			the Runnable to be attempted
+	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies.
+	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
+     */
+    public void run(Runnable runnable){
+       	ExceptionUncheckUtility.uncheck(()->runThrowingOriginal(runnable));
+    }
 
 
 }

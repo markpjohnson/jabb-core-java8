@@ -333,7 +333,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 					throw new NotOwningTransactionException("Transaction '" + transactionId + "' is currently owned by processor '" + tx.getProcessorId() + "', not '" + processorId + "'");
 				}
 			}else{
-				throw new NoSuchTransactionException("Transaction '" + transactionId + "' either does not exist or have succeeded and then been purged");
+				throw new NoSuchTransactionException("Transaction '" + transactionId + "' either does not exist or have succeeded and later been purged");
 			}
 		}
 	}

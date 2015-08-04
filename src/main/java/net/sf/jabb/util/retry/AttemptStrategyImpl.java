@@ -235,6 +235,18 @@ class AttemptStrategyImpl {
         return retryIfAttemptHasException(attempt->exceptionPredicate.test(attempt.getException()));
     }
 
+    @SuppressWarnings("unchecked")
+	protected <E extends Exception> AttemptStrategyImpl retryIfException(@Nonnull Class<E> exceptionClass, @Nonnull Predicate<E> exceptionPredicate) {
+        return retryIfAttemptHasException(attempt->{
+        	Exception e = attempt.getException();
+        	if (exceptionClass.isAssignableFrom(attempt.getException().getClass())){
+        		return exceptionPredicate.test((E)e);
+        	}else{
+        		return false;
+        	}
+        });
+    }
+
     protected AttemptStrategyImpl retryIfException(@Nonnull Class<? extends Exception> exceptionClass) {
         Preconditions.checkNotNull(exceptionClass, "exception class may not be null");
         return retryIfAttemptHasException(new ExceptionClassPredicate(exceptionClass));

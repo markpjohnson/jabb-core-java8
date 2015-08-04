@@ -73,6 +73,10 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 		return startTime != null;
 	}
 
+	public String keysToString(){
+		return getPartitionKey() + "/" + getRowKey();
+	}
+
 	
 	@Ignore
 	public void setTimeout(Instant timeout){
