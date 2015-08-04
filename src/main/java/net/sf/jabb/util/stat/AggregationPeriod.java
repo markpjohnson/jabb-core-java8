@@ -68,6 +68,7 @@ public class AggregationPeriod implements Serializable, Comparable<AggregationPe
 	 * Parse strings like '1 hour', '2 days', '3 Years', '12 minute' into AggregationPeriod.
 	 * Short formats like '1H', '2 D', '3y' are also supported.
 	 * @param amountAndUnit	the string to be parsed
+	 * @param zone  the time zone
 	 * @return	the AggregationPeriod instance with specified amount and unit
 	 */
 	public static AggregationPeriod parse(String amountAndUnit, ZoneId zone){
