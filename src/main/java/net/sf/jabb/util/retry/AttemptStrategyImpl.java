@@ -37,17 +37,8 @@ import com.google.common.util.concurrent.TimeLimiter;
 import com.google.common.util.concurrent.UncheckedTimeoutException;
 
 /**
- * A retryer, which executes a call, and retries it until it succeeds, or
- * a stop strategy decides to stop retrying. A wait strategy is used to sleep
- * between attempts. The strategy to decide if the call succeeds or not is
- * also configurable.
- * <p></p>
- * A retryer can also wrap the callable into a RetryerCallable, which can be submitted to an executor.
- * <p></p>
- * Retryer instances are better constructed with a {@link RetryerBuilder}. A retryer
- * is thread-safe, provided the arguments passed to its constructor are thread-safe.
+ * Base class with core functions of AttemptStrategy
  *
- * @param <V> the type of the call return value
  * @author JB
  * @author Jason Dunkelberger (dirkraft)
  * @author James Hu
@@ -93,13 +84,17 @@ class AttemptStrategyImpl {
      * accepts the attempt, the stop strategy is used to decide if a new attempt
      * must be made. Then the wait strategy is used to decide how much time to sleep
      * and a new attempt is made.
-     *
-     * @param callable the callable task to be executed
+     * @param <V> type of the result of the attempt
+     * @param callable 					the callable task to be executed
+     * @param retryConditionOnResult	retry condition based on the result
      * @return the computed result of the given callable
-     * @throws Throwable 
+	 * @throws AttemptException		Any exception happened while applying the attempt strategy.
+	 * 								For example, {@link TooManyAttemptsException} if no more attempt is allowed by the stop strategy,
+	 * 								or {@link InterruptedBeforeAttemptException} if InterruptedException happened while applying attempt time limit strategy or backoff strategy
+	 * @throws Exception		It can be any exception thrown from within the Callable that is considered as non-recoverable by the retry strategies
      */
     protected <V> V callThrowingAll(Callable<V> callable, Predicate<Attempt<V>> retryConditionOnResult) 
-    		throws TooManyAttemptsException, InterruptedBeforeAttemptException, Exception {
+    		throws AttemptException, Exception {
     	setDefaultsIfNotSet();
     	
         Attempt<?> attempt = null;
@@ -194,9 +189,19 @@ class AttemptStrategyImpl {
         this.setStopStrategy(stopStrategy);
         return this;
     }
+	
+	protected AttemptStrategyImpl overrideStopStrategy(@Nonnull StopStrategy stopStrategy){
+        this.setStopStrategy(stopStrategy);
+        return this;
+	}
 
     protected AttemptStrategyImpl withBackoffStrategy(@Nonnull AttemptBackoffStrategy backoffStrategy) throws IllegalStateException {
         Preconditions.checkState(this.backoffStrategy == null, "a backoff strategy has already been set %s", this.backoffStrategy);
+        this.setBackoffStrategy(backoffStrategy);
+        return this;
+    }
+
+    protected AttemptStrategyImpl overrideBackoffStrategy(@Nonnull AttemptBackoffStrategy backoffStrategy){
         this.setBackoffStrategy(backoffStrategy);
         return this;
     }
@@ -207,14 +212,29 @@ class AttemptStrategyImpl {
         return this;
     }
 
+    protected AttemptStrategyImpl overrideBackoffStrategy(@Nonnull BackoffStrategy backoffStrategy){
+        this.setBackoffStrategy(AttemptBackoffStrategies.simpleBackoff(backoffStrategy));
+        return this;
+    }
+
     protected AttemptStrategyImpl withWaitStrategy(@Nonnull WaitStrategy waitStrategy) throws IllegalStateException {
         Preconditions.checkState(this.waitStrategy == null, "a wait strategy has already been set %s", this.backoffStrategy);
         this.setWaitStrategy(waitStrategy);
         return this;
     }
     
-    protected AttemptStrategyImpl withAttemptTimeLimit(TimeLimiter attemptTimeLimiter, Duration attemptTimeLimit){
+    protected AttemptStrategyImpl overrideWaitStrategy(@Nonnull WaitStrategy waitStrategy){
+        this.setWaitStrategy(waitStrategy);
+        return this;
+    }
+    
+    protected AttemptStrategyImpl withAttemptTimeLimit(TimeLimiter attemptTimeLimiter, Duration attemptTimeLimit) throws IllegalStateException {
         Preconditions.checkState(this.attemptTimeLimit == null, "an attempt time limit has already been set %s", this.attemptTimeLimit);
+        setAttemptTimeLimit(attemptTimeLimiter, attemptTimeLimit);
+        return this;
+    }
+
+    protected AttemptStrategyImpl overrideAttemptTimeLimit(TimeLimiter attemptTimeLimiter, Duration attemptTimeLimit){
         setAttemptTimeLimit(attemptTimeLimiter, attemptTimeLimit);
         return this;
     }

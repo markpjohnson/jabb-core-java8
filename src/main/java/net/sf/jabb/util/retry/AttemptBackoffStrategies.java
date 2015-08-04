@@ -49,6 +49,7 @@ public final class AttemptBackoffStrategies {
      * {@code function} determines how the wait time should be calculated for the given
      * {@code exceptionClass}. If the exception does not match, a wait time of 0 is returned.
      *
+     * @param <T>			type of the exception
      * @param function       function to calculate wait time
      * @param exceptionClass class to calculate wait time from
      * @return a backoff strategy calculated from the failed attempt

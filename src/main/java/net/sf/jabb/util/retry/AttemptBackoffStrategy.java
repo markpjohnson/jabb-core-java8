@@ -28,6 +28,7 @@ public interface AttemptBackoffStrategy {
     /**
      * Returns the time, in milliseconds, to wait before next attempt.
      *
+     * @param <T>  type of the result of the attempt
      * @param attempt the previous {@code Attempt}
      * @return the sleep time before next attempt
      */

@@ -9,7 +9,7 @@ package net.sf.jabb.util.retry;
  * @author James Hu
  *
  */
-public class TooManyAttemptsException extends AttemptStrategyException {
+public class TooManyAttemptsException extends AttemptException {
 	private static final long serialVersionUID = 341884244760490259L;
 
 	public TooManyAttemptsException(Attempt<?> lastAttempt){

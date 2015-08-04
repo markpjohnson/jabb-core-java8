@@ -12,6 +12,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import net.sf.jabb.util.ex.ExceptionUncheckUtility;
 import net.sf.jabb.util.parallel.BackoffStrategies;
 import net.sf.jabb.util.parallel.WaitStrategies;
 import net.sf.jabb.util.retry.AttemptStrategy;
@@ -110,10 +111,12 @@ public class AzureStorageUtility {
 	 */
 	static public boolean createIfNotExist(CloudTableClient tableClient, String tableName, AttemptStrategy attemptStrategy) throws URISyntaxException, StorageException {
 		CloudTable table = tableClient.getTableReference(tableName);
-		return new AttemptStrategy(attemptStrategy)
-			.retryIfException(StorageException.class, 
+		return ExceptionUncheckUtility.getThrowingUnchecked(()->{
+			return new AttemptStrategy(attemptStrategy)
+				.retryIfException(StorageException.class, 
 					e-> e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.TABLE_BEING_DELETED.equals(e.getErrorCode()))	// conflict - so that we need to retry
-			.call(()-> table.createIfNotExists());
+				.call(()-> table.createIfNotExists());
+		});
 	}
 	
 	/**
@@ -153,10 +156,12 @@ public class AzureStorageUtility {
 	 */
 	static public boolean createIfNotExist(CloudQueueClient queueClient, String queueName, AttemptStrategy attemptStrategy) throws URISyntaxException, StorageException {
 		CloudQueue queue = queueClient.getQueueReference(queueName);
-		return new AttemptStrategy(attemptStrategy)
-			.retryIfException(StorageException.class, 
-				e-> e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.QUEUE_BEING_DELETED.equals(e.getErrorCode()))	// conflict - so that we need to retry
-			.call(()-> queue.createIfNotExists());
+		return ExceptionUncheckUtility.getThrowingUnchecked(()->{
+			return new AttemptStrategy(attemptStrategy)
+				.retryIfException(StorageException.class, 
+						e-> e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.QUEUE_BEING_DELETED.equals(e.getErrorCode()))	// conflict - so that we need to retry
+				.callThrowingSuppressed(()-> queue.createIfNotExists());
+		});
 	}
 	
 	/**
@@ -179,7 +184,7 @@ public class AzureStorageUtility {
 	 * @return				true if the operation succeeded, false if 404 not found error happened. 
 	 * 						Please note that due to the retry logic inside Azure Storage SDK, 
 	 * 						even if this method returns false it may be caused by a retry rather than the first attempt. 
-	 * @throws StorageException
+	 * @throws StorageException		if non-404 error happened
 	 */
 	static public boolean executeIfExist(CloudTable table, TableOperation operation) throws StorageException{
 		try {
@@ -201,7 +206,7 @@ public class AzureStorageUtility {
 	 * @return				true if the operation succeeded, false if 404 not found error happened. 
 	 * 						Please note that due to the retry logic inside Azure Storage SDK, 
 	 * 						even if this method returns false it may be caused by a retry rather than the first attempt. 
-	 * @throws StorageException
+	 * @throws StorageException		if non-404 error happened
 	 */
 	static public boolean executeIfExist(CloudTable table, TableBatchOperation operation) throws StorageException{
 		try {
@@ -221,7 +226,7 @@ public class AzureStorageUtility {
 	 * Delete entities specified by a filtering condition. 404 not found error will be ignored.
 	 * @param table		the table
 	 * @param filter		the filter specifies the entities to be deleted
-	 * @throws StorageException
+	 * @throws StorageException		if non-404 error happened
 	 */
 	static public void deleteEntitiesIfExist(CloudTable table, String filter) throws StorageException{
 		TableQuery<DynamicTableEntity> query = TableQuery.from(DynamicTableEntity.class)
@@ -240,7 +245,7 @@ public class AzureStorageUtility {
 	 * @param table				the table
 	 * @param partitionKey		the partition key of the entity
 	 * @param rowKey			the row key of the entity
-	 * @throws StorageException
+	 * @throws StorageException		if non-404 error happened
 	 */
 	static public void deleteEntitiesIfExist(CloudTable table, String partitionKey, String rowKey) throws StorageException{
 		String partitionFilter = TableQuery.generateFilterCondition(
@@ -259,7 +264,7 @@ public class AzureStorageUtility {
 	 * Delete one entity. 404 not found error will be ignored.
 	 * @param table			the table
 	 * @param entity		the entity to be deleted
-	 * @throws StorageException
+	 * @throws StorageException		if non-404 error happened
 	 */
 	static public void deleteEntitiesIfExist(CloudTable table, TableEntity entity) throws StorageException{
 		String partitionKey = entity.getPartitionKey();

@@ -64,8 +64,8 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 */
 	static public final AttemptStrategy DEFAULT_ATTEMPT_STRATEGY = new AttemptStrategy()
 		.withWaitStrategy(WaitStrategies.threadSleepStrategy())
-		.withStopStrategy(StopStrategies.stopAfterTotalDuration(Duration.ofMinutes(2)))
-		.withBackoffStrategy(BackoffStrategies.fibonacciBackoff(1000L, 1000L * 10));
+		.withStopStrategy(StopStrategies.stopAfterTotalDuration(Duration.ofMinutes(1)))
+		.withBackoffStrategy(BackoffStrategies.fibonacciBackoff(500L, 1000L * 10));
 	
 	public static final String DEFAULT_TABLE_NAME = "SequentialTransactionsCoordinator";
 	protected String tableName = DEFAULT_TABLE_NAME;
@@ -189,15 +189,15 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	}
 	
 	/**
-	 * 
-	 * @param seriesId
-	 * @param processorId
-	 * @param transactionId
-	 * @param timeout
-	 * @throws NotOwningTransactionException
-	 * @throws InfrastructureErrorException
-	 * @throws IllegalTransactionStateException
-	 * @throws NoSuchTransactionException
+	 * Perform timeout renew of a transaction
+	 * @param seriesId							ID of the series
+	 * @param processorId						ID of the process requesting the renew
+	 * @param transactionId						ID of the transaction
+	 * @param timeout							the new time out
+	 * @throws NotOwningTransactionException		if the transaction is not currently owned by the process with specified processId
+	 * @throws InfrastructureErrorException			if failed to update the entity
+	 * @throws IllegalTransactionStateException		if the state of the transaction is not IN_PROGRESS
+	 * @throws NoSuchTransactionException	if no such transaction can be found
 	 * @throws StorageException				if failed to replace the entity with updated values
 	 */
 	protected void doRenewTransactionTimeout(String seriesId, String processorId,
@@ -318,7 +318,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * Remove succeeded from the head and leave only one, transit those timed out to TIMED_OUT state,
 	 * and remove the last transaction if it is a failed one with a null end position.
 	 * @param transactionEntities	 The list of transaction entities. The list may be changed inside this method.
-	 * @throws InfrastructureErrorException 
+	 * @throws InfrastructureErrorException 	if failed to update entities during the compact process
 	 */
 	protected void compact(LinkedList<SequentialTransactionWrapper> transactionEntities) throws InfrastructureErrorException{
 		// remove finished historical transactions and leave only one of them
@@ -437,7 +437,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * 												and the value will be the wrapper of the first transaction.
 	 * @return		a map of SequentialTransactionEntityWrapper indexed by transaction ID, if putAdditionalFirstTransactionEntry argument is true
 	 * 				there will be one more additional entry for the first transaction.
-	 * @throws InfrastructureErrorException
+	 * @throws InfrastructureErrorException		if failed to fetch entities
 	 */
 	protected Map<String, SequentialTransactionWrapper> fetchEntities(String seriesId, boolean putAdditionalFirstTransactionEntry) throws InfrastructureErrorException{
 		// fetch entities by seriesId

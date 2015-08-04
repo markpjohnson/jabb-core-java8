@@ -27,6 +27,7 @@ public class Attempt<R> {
     
     /**
      * Construct an instance representing an attempt with a result.
+     * @param <T> type of the result type
      * @param context					the context object
      * @param totalAttempts				total number of attempts
      * @param firstAttemptStartTime		start time of the first attempt

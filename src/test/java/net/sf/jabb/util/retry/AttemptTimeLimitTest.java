@@ -45,7 +45,7 @@ public class AttemptTimeLimitTest {
         SleepyOut.resetCounts();
 
         try {
-            r.runThrowingAttemptStrategyException(new SleepyOut(100L));
+            r.runThrowingAttempt(new SleepyOut(100L));
         } catch (Exception e) {
             Assert.fail("Should not timeout");
         }
@@ -55,7 +55,7 @@ public class AttemptTimeLimitTest {
         SleepyOut.resetCounts();
 
         try {
-        	r.runThrowingAttemptStrategyException(new SleepyOut(10 * 1000L));
+        	r.runThrowingAttempt(new SleepyOut(10 * 1000L));
             Assert.fail("should have exception");
         } catch (UncheckedTimeoutException e) {
         	Assert.fail("should not have UncheckedTimeoutException");

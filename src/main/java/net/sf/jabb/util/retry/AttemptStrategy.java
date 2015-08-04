@@ -10,7 +10,7 @@ import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 
 import net.sf.jabb.util.ex.ExceptionUncheckUtility;
-import net.sf.jabb.util.ex.ExceptionUncheckUtility.RunnableWithExceptions;
+import net.sf.jabb.util.ex.ExceptionUncheckUtility.RunnableThrowsExceptions;
 import net.sf.jabb.util.parallel.BackoffStrategy;
 import net.sf.jabb.util.parallel.WaitStrategy;
 
@@ -24,61 +24,48 @@ import com.google.common.util.concurrent.TimeLimiter;
 public class AttemptStrategy extends AttemptStrategyImpl {
 	
 	/**
-	 * Attempt the RunnableWithExceptions according to the strategies defined, throwing all the exceptions in their original forms.
-	 * @param runnable			the RunnableWithExceptions to be attempted
-	 * @throws TooManyAttemptsException				If no more attempt is allowed by the stop strategy
-	 * @throws InterruptedBeforeAttemptException	If InterruptedException happened while applying attempt time limit strategy or backoff strategy
+	 * Attempt the RunnableThrowsExceptions according to the strategies defined, throwing all the exceptions in their original forms.
+	 * @param runnable			the RunnableThrowsExceptions to be attempted
+	 * @throws AttemptException		Any exception happened while applying the attempt strategy.
+	 * 								For example, {@link TooManyAttemptsException} if no more attempt is allowed by the stop strategy,
+	 * 								or {@link InterruptedBeforeAttemptException} if InterruptedException happened while applying attempt time limit strategy or backoff strategy
 	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies
 	 */
-    public void runThrowingAll(RunnableWithExceptions runnable)
-    		throws TooManyAttemptsException, InterruptedBeforeAttemptException, Exception {
-    	callThrowingAll(() -> {runnable.accept(); return null;}, null);
+    public void runThrowingAll(RunnableThrowsExceptions runnable)
+    		throws AttemptException, Exception {
+    	callThrowingAll(() -> {runnable.run(); return null;}, null);
     }
     
 	/**
 	 * Attempt the Runnable according to the strategies defined, throwing all the exceptions in their original forms.
 	 * @param runnable			the Runnable to be attempted
-	 * @throws TooManyAttemptsException				If no more attempt is allowed by the stop strategy
-	 * @throws InterruptedBeforeAttemptException	If InterruptedException happened while applying attempt time limit strategy or backoff strategy
-	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies
+	 * @throws AttemptException		Any exception happened while applying the attempt strategy.
+	 * 								For example, {@link TooManyAttemptsException} if no more attempt is allowed by the stop strategy,
+	 * 								or {@link InterruptedBeforeAttemptException} if InterruptedException happened while applying attempt time limit strategy or backoff strategy
 	 */
-    public void runThrowingAttemptStrategyException(Runnable runnable)
-    		throws TooManyAttemptsException, InterruptedBeforeAttemptException {
-    	ExceptionUncheckUtility.uncheck(()->callThrowingAll(() -> {runnable.run(); return null;}, null));
+    public void runThrowingAttempt(Runnable runnable)
+    		throws AttemptException {
+    	ExceptionUncheckUtility.runThrowingUnchecked(()->callThrowingAll(() -> {runnable.run(); return null;}, null));
     }
     
     /**
-     * Attempt the RunnableWithExceptions according to the strategies defined, throwing all the exceptions in their original forms.
-     * Possible exceptions thrown from this method are not declared in the method signature. But they will still be thrown and need to be handled.
-	 * @param runnable			the RunnableWithExceptions to be attempted
-	 * @throws TooManyAttemptsException				If no more attempt is allowed by the stop strategy
-	 * @throws InterruptedBeforeAttemptException	If InterruptedException happened while applying attempt time limit strategy or backoff strategy
-	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies
-     */
-    public void runThrowingUncheckedAll(RunnableWithExceptions runnable){
-    	ExceptionUncheckUtility.uncheck(()->runThrowingAll(runnable));
-    }
-
-    /**
-     * Attempt the RunnableWithExceptions according to the strategies defined, throwing exceptions in their original or modified forms.
+     * Attempt the RunnableThrowsExceptions according to the strategies defined, throwing exceptions in their original or modified forms.
      * If no more attempt is allowed by the stop strategy or InterruptedException happened while applying attempt time limit strategy or backoff strategy,
      * a TooManyAttemptsException or InterruptedException will be added as a suppressed exception to the exception thrown from within the last attempt.
-	 * @param runnable			the RunnableWithExceptions to be attempted
+	 * @param runnable			the RunnableThrowsExceptions to be attempted
 	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies.
 	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
-	 * @throws TooManyAttemptsException  If there is no exception happened during last attempt but there is a TooManyAttemptsException
-	 * @throws InterruptedException  If there is no exception happened during last attempt but there is a InterruptedException
      */
-    public void runThrowingSuppressed(RunnableWithExceptions runnable) throws Exception, TooManyAttemptsException, InterruptedException{
+    public void runThrowingSuppressed(RunnableThrowsExceptions runnable) throws Exception{
     	try {
-    		callThrowingAll(() -> {runnable.accept(); return null;}, null);
+    		callThrowingAll(() -> {runnable.run(); return null;}, null);
 		} catch (TooManyAttemptsException e) {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
 				lastCause.addSuppressed(e);
 				throw lastCause;
-			}else{
+			}else{	// should never happen
 				throw e;
 			}
 		} catch (InterruptedBeforeAttemptException e) {
@@ -87,36 +74,30 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			if (lastCause != null){
 				lastCause.addSuppressed(e);
 				throw lastCause;
-			}else{
+			}else{	// should never happen
 				throw e;
 			}
 		}
     }
     
+  
     /**
-     * Attempt the RunnableWithExceptions according to the strategies defined, throwing exceptions in their original or modified forms.
-     * Possible exceptions thrown from this method are not declared in the method signature. But they will still be thrown and need to be handled.
-     * If no more attempt is allowed by the stop strategy or InterruptedException happened while applying attempt time limit strategy or backoff strategy,
-     * a TooManyAttemptsException or InterruptedException will be added as a suppressed exception to the exception thrown from within the last attempt.
-	 * @param runnable			the RunnableWithExceptions to be attempted
-	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies.
+     * Synonym of {@link #runThrowingSuppressed(net.sf.jabb.util.ex.ExceptionUncheckUtility.RunnableThrowsExceptions)}
+	 * @param runnable			the RunnableThrowsExceptions to be attempted
+ 	 * @throws Exception		It can be any exception thrown from within the Runnable that is considered as non-recoverable by the retry strategies.
 	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
-	 * @throws TooManyAttemptsException  If there is no exception happened during last attempt but there is a TooManyAttemptsException
-	 * @throws InterruptedException  If there is no exception happened during last attempt but there is a InterruptedException
-     */
-    public void run(RunnableWithExceptions runnable){
-       	ExceptionUncheckUtility.uncheck(()->runThrowingSuppressed(runnable));
+    */
+    public void run(RunnableThrowsExceptions runnable) throws Exception{
+       	runThrowingSuppressed(runnable);
     }
     
-
-
     /**
-     * Constructor initiating an empty strategy ready for further configuring.
+     * Constructor initiating an empty strategy
      */
-    public AttemptStrategy(){
-    	super();
-    }
-    
+    public AttemptStrategy() {
+		super();
+	}
+
     /**
      * Constructor initiating an strategy by copying configurations from another instance.
      * @param that		another attempt strategy
@@ -125,7 +106,34 @@ public class AttemptStrategy extends AttemptStrategyImpl {
     	super(that);
     }
     
-    ///////////////////////////
+    /**
+     * Create an instance with empty strategy
+     * @return	the new instance
+     */
+    static public AttemptStrategy create(){
+    	return new AttemptStrategy();
+    }
+
+    /**
+     * Create an instance with configurations copied from another instance
+     * @param <R> type of the result of the attempt
+     * @param that	another instance
+     * @return	the new instance
+     */
+    static public <R> AttemptStrategyWithRetryOnResult<R> create(AttemptStrategyWithRetryOnResult<R> that){
+   		return new AttemptStrategyWithRetryOnResult<R>(that);
+    }
+
+    /**
+     * Create an instance with configurations copied from another instance
+     * @param that	another instance
+     * @return	the new instance
+     */
+    static public AttemptStrategy create(AttemptStrategyImpl that){
+    	return new AttemptStrategy(that);
+    }
+
+	///////////////////////////
 
     /**
      * Sets the stop strategy used to decide when to stop attempting. The default strategy is to not stop at all .
@@ -136,6 +144,16 @@ public class AttemptStrategy extends AttemptStrategyImpl {
      */
     public AttemptStrategy withStopStrategy(@Nonnull StopStrategy stopStrategy) throws IllegalStateException {
         return (AttemptStrategy) super.withStopStrategy(stopStrategy);
+    }
+
+    /**
+     * Sets the stop strategy used to decide when to stop attempting. The default strategy is to not stop at all .
+     *
+     * @param stopStrategy the strategy used to decide when to stop retrying
+     * @return <code>this</code>
+     */
+    public AttemptStrategy overrideStopStrategy(@Nonnull StopStrategy stopStrategy) {
+        return (AttemptStrategy) super.overrideStopStrategy(stopStrategy);
     }
 
     /**
@@ -151,12 +169,31 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 
     /**
      * Sets the backoff strategy used to decide how long to backoff before next attempt. The default strategy is to not backoff at all .
+     *
+     * @param backoffStrategy the strategy used to decide how long to backoff before next attempt
+     * @return <code>this</code>
+     */
+    public AttemptStrategy overrideBackoffStrategy(@Nonnull AttemptBackoffStrategy backoffStrategy) {
+        return (AttemptStrategy) super.overrideBackoffStrategy(backoffStrategy);
+    }
+
+    /**
+     * Sets the backoff strategy used to decide how long to backoff before next attempt. The default strategy is to not backoff at all .
      * @param backoffStrategy the strategy used to decide how long to backoff before next attempt
      * @return <code>this</code>
      * @throws IllegalStateException if a backoff strategy has already been set.
      */
 	public AttemptStrategy withBackoffStrategy(@Nonnull BackoffStrategy backoffStrategy) throws IllegalStateException {
     	return (AttemptStrategy) super.withBackoffStrategy(backoffStrategy);
+    }
+
+    /**
+     * Sets the backoff strategy used to decide how long to backoff before next attempt. The default strategy is to not backoff at all .
+     * @param backoffStrategy the strategy used to decide how long to backoff before next attempt
+     * @return <code>this</code>
+     */
+	public AttemptStrategy overrideBackoffStrategy(@Nonnull BackoffStrategy backoffStrategy) {
+    	return (AttemptStrategy) super.overrideBackoffStrategy(backoffStrategy);
     }
 
 	/**
@@ -170,6 +207,16 @@ public class AttemptStrategy extends AttemptStrategyImpl {
     	return (AttemptStrategy) super.withWaitStrategy(waitStrategy);
     }
     
+	/**
+     * Sets the wait strategy used to decide how to perform waiting before next attempt. The default strategy is to use Thread.sleep() .
+     *
+     * @param waitStrategy the strategy used to decide how to perform waiting before next attempt
+     * @return <code>this</code>
+     */
+    public AttemptStrategy overrideWaitStrategy(@Nonnull WaitStrategy waitStrategy) {
+    	return (AttemptStrategy) super.overrideWaitStrategy(waitStrategy);
+    }
+    
     /**
      * Sets the time limit for each of the attempts. By default there will be no time limit applied.
      *
@@ -178,8 +225,19 @@ public class AttemptStrategy extends AttemptStrategyImpl {
      * @return <code>this</code>
      * @throws IllegalStateException if a time limit has already been set.
      */
-    public AttemptStrategy withAttemptTimeLimit(TimeLimiter attemptTimeLimiter, Duration attemptTimeLimit){
+    public AttemptStrategy withAttemptTimeLimit(TimeLimiter attemptTimeLimiter, Duration attemptTimeLimit) throws IllegalStateException{
         return (AttemptStrategy) super.withAttemptTimeLimit(attemptTimeLimiter, attemptTimeLimit);
+    }
+
+    /**
+     * Sets the time limit for each of the attempts. By default there will be no time limit applied.
+     *
+     * @param attemptTimeLimiter the TimeLimiter implementation
+     * @param attemptTimeLimit the maximum time allowed for an attempt
+     * @return <code>this</code>
+     */
+    public AttemptStrategy overrideAttemptTimeLimit(TimeLimiter attemptTimeLimiter, Duration attemptTimeLimit){
+        return (AttemptStrategy) super.overrideAttemptTimeLimit(attemptTimeLimiter, attemptTimeLimit);
     }
 
     /**
@@ -270,19 +328,20 @@ public class AttemptStrategy extends AttemptStrategyImpl {
     }
 
     
-    ///////////  switching to CallableAttemptStrategy<R>
+    ///////////  switching to AttemptStrategyWithRetryOnResult<R>
     
     /**
      * Adds a predicate to decide whether next attempt is needed when there is a result from previous attempt.
      * retryIf*Result*(...) methods can be called multiple times, all the predicates will be or-ed.
      * If no retryIf*Result*(...) method has been called or if a result got from an attempt cannot
      * make any of the predicates true, it will be returned and there will be no further attempt.
+     * @param <R> type of the result of the attempt
      * @param resultPredicate	The predicate to be called when a result was returned in previous attempt.
      * 								It should return true if another attempt is needed.
-     * @return a new instance of CallableAttemptStrategy with the same configuration as this
+     * @return a new instance of AttemptStrategyWithRetryOnResult with the same configuration as this
      */
-    public <R> CallableAttemptStrategy<R> retryIfAttemptHasResult(@Nonnull Predicate<Attempt<R>> resultPredicate) {
-    	CallableAttemptStrategy<R> that = new CallableAttemptStrategy<R>(this);
+    public <R> AttemptStrategyWithRetryOnResult<R> retryIfAttemptHasResult(@Nonnull Predicate<Attempt<R>> resultPredicate) {
+    	AttemptStrategyWithRetryOnResult<R> that = new AttemptStrategyWithRetryOnResult<R>(this);
     	return that.retryIfAttemptHasResult(resultPredicate);
     }
 
@@ -291,12 +350,13 @@ public class AttemptStrategy extends AttemptStrategyImpl {
      * retryIf*Result*(...) methods can be called multiple times, all the predicates will be or-ed.
      * If no retryIf*Result*(...) method has been called or if a result got from an attempt cannot
      * make any of the predicates true, it will be returned and there will be no further attempt.
+     * @param <R> type of the result of the attempt
      * @param resultPredicate	The predicate to be called when a result was returned in previous attempt.
      * 								It should return true if another attempt is needed.
-     * @return a new instance of CallableAttemptStrategy with the same configuration as this
+     * @return a new instance of AttemptStrategyWithRetryOnResult with the same configuration as this
      */
-    public <R> CallableAttemptStrategy<R> retryIfResult(@Nonnull Predicate<R> resultPredicate) {
-    	CallableAttemptStrategy<R> that = new CallableAttemptStrategy<R>(this);
+    public <R> AttemptStrategyWithRetryOnResult<R> retryIfResult(@Nonnull Predicate<R> resultPredicate) {
+    	AttemptStrategyWithRetryOnResult<R> that = new AttemptStrategyWithRetryOnResult<R>(this);
     	return that.retryIfResult(resultPredicate);
     }
 
@@ -305,76 +365,73 @@ public class AttemptStrategy extends AttemptStrategyImpl {
      * retryIf*Result*(...) methods can be called multiple times, all the predicates will be or-ed.
      * If no retryIf*Result*(...) method has been called or if a result got from an attempt cannot
      * make any of the predicates true, it will be returned and there will be no further attempt.
-     * @param resultPredicate	The predicate to be called when a result was returned in previous attempt.
-     * 								It should return true if another attempt is needed.
-     * @return a new instance of CallableAttemptStrategy with the same configuration as this
+     * @param <R> type of the result of the attempt
+     * @return a new instance of AttemptStrategyWithRetryOnResult with the same configuration as this
      */
-     public <R> CallableAttemptStrategy<R> retryIfResultIsNull() {
-    	CallableAttemptStrategy<R> that = new CallableAttemptStrategy<R>(this);
+     public <R> AttemptStrategyWithRetryOnResult<R> retryIfResultIsNull() {
+    	AttemptStrategyWithRetryOnResult<R> that = new AttemptStrategyWithRetryOnResult<R>(this);
     	return that.retryIfResultIsNull();
     }
 
-    /**
-     * Switch to CallableAttemptStrategy which has a call(...) method
-     * @return	a new instance of CallableAttemptStrategy with the same configuration as this
-     */
-    public <R> CallableAttemptStrategy<R>  toCallableAttemptStrategy(){
-    	return new CallableAttemptStrategy<R>(this);
-    }
-    
 	/**
 	 * Attempt the Callable according to the strategies defined, throwing all the exceptions in their original forms.
+     * @param <R> type of the result of the attempt
 	 * @param callable			the Callable to be attempted
 	 * @return					the result returned by the Callable
 	 * @throws TooManyAttemptsException				If no more attempt is allowed by the stop strategy
 	 * @throws InterruptedBeforeAttemptException	If InterruptedException happened while applying attempt time limit strategy or backoff strategy
+	 * @throws AttemptException		Any exception happened while applying the attempt strategy
 	 * @throws Exception		It can be any exception thrown from within the Callable that is considered as non-recoverable by the retry strategies
 	 */
     public <R> R callThrowingAll(Callable<R> callable)
-    		throws TooManyAttemptsException, InterruptedBeforeAttemptException, Exception {
-    	return new CallableAttemptStrategy<R>(this).callThrowingAll(callable);
-    }
-    
-    /**
-	 * Attempt the Callable according to the strategies defined, throwing all the exceptions in their original forms.
-     * Possible exceptions thrown from this method are not declared in the method signature. But they will still be thrown and need to be handled.
-	 * @param callable			the Callable to be attempted
-	 * @return					the result returned by the Callable
-	 * @throws TooManyAttemptsException				If no more attempt is allowed by the stop strategy
-	 * @throws InterruptedBeforeAttemptException	If InterruptedException happened while applying attempt time limit strategy or backoff strategy
-	 * @throws Exception		It can be any exception thrown from within the Callable that is considered as non-recoverable by the retry strategies
-     */
-    public <R> R callThrowingUncheckedAll(Callable<R> callable){
-    	return new CallableAttemptStrategy<R>(this).callThrowingUncheckedAll(callable);
-    }
-
-    /**
-     * Attempt the Callable according to the strategies defined, throwing exceptions in their original or modified forms.
-     * If no more attempt is allowed by the stop strategy or InterruptedException happened while applying attempt time limit strategy or backoff strategy,
-     * a TooManyAttemptsException or InterruptedException will be added as a suppressed exception to the exception thrown from within the last attempt.
-	 * @param callable			the Callable to be attempted
-	 * @return					the result returned by the Callable
-	 * @throws Exception		It can be any exception thrown from within the Callable that is considered as non-recoverable by the retry strategies.
-	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
-	 * @throws TooManyAttemptsException  If there is no exception happened during last attempt but there is a TooManyAttemptsException
-	 * @throws InterruptedException  If there is no exception happened during last attempt but there is a InterruptedException
-     */
-    public <R> R callThrowingSuppressed(Callable<R> callable) throws Exception, TooManyAttemptsException, InterruptedException{
-    	return new CallableAttemptStrategy<R>(this).callThrowingSuppressed(callable);
+    		throws AttemptException, Exception {
+    	return callThrowingAll(callable, null);
     }
     
     /**
      * Attempt the Callable according to the strategies defined, throwing exceptions in their original or modified forms.
-     * Possible exceptions thrown from this method are not declared in the method signature. But they will still be thrown and need to be handled.
      * If no more attempt is allowed by the stop strategy or InterruptedException happened while applying attempt time limit strategy or backoff strategy,
      * a TooManyAttemptsException or InterruptedException will be added as a suppressed exception to the exception thrown from within the last attempt.
+     * @param <R> type of the result of the attempt
 	 * @param callable			the Callable to be attempted
 	 * @return					the result returned by the Callable
 	 * @throws Exception		It can be any exception thrown from within the Callable that is considered as non-recoverable by the retry strategies.
 	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
      */
-    public <R> R call(Callable<R> callable){
-    	return new CallableAttemptStrategy<R>(this).call(callable);
+    public <R> R callThrowingSuppressed(Callable<R> callable) throws Exception{
+    	try {
+    		return callThrowingAll(callable, null);
+		} catch (TooManyAttemptsException e) {
+			Attempt<?> lastAttempt = e.getLastAttempt();
+			Exception lastCause = lastAttempt.getException();
+			if (lastCause != null){
+				lastCause.addSuppressed(e);
+				throw lastCause;
+			}else{	// should never happen
+				throw e;
+			}
+		} catch (InterruptedBeforeAttemptException e) {
+			Attempt<?> lastAttempt = e.getLastAttempt();
+			Exception lastCause = lastAttempt.getException();
+			if (lastCause != null){
+				lastCause.addSuppressed(e);
+				throw lastCause;
+			}else{	// should never happen
+				throw e;
+			}
+		}
+    }
+    
+    /**
+     * Synonym of {@link #callThrowingSuppressed(Callable)}
+     * @param <R> type of the result of the attempt
+	 * @param callable			the Callable to be attempted
+	 * @return					the result returned by the Callable
+	 * @throws Exception		It can be any exception thrown from within the Callable that is considered as non-recoverable by the retry strategies.
+	 * 							Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
+     */
+    public <R> R call(Callable<R> callable) throws Exception{
+       	return callThrowingSuppressed(callable);
     }
  
 

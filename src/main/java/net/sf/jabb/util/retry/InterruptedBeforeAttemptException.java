@@ -10,7 +10,7 @@ package net.sf.jabb.util.retry;
  * @author James Hu
  *
  */
-public class InterruptedBeforeAttemptException extends AttemptStrategyException {
+public class InterruptedBeforeAttemptException extends AttemptException {
 	private static final long serialVersionUID = 6766685242106896432L;
 
 	public InterruptedBeforeAttemptException(InterruptedException e, Attempt<?> lastAttempt){

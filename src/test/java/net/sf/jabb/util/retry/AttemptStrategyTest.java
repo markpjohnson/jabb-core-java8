@@ -41,9 +41,9 @@ import org.junit.Test;
 public class AttemptStrategyTest {
 
     @Test
-    public void testWithBackoffStrategy() {
+    public void testWithBackoffStrategy() throws AttemptException, Exception {
         Callable<Boolean> callable = notNullAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .withBackoffStrategy(BackoffStrategies.fixedBackoff(50L, TimeUnit.MILLISECONDS))
                 .retryIfResult(x-> x == null);
         long start = System.currentTimeMillis();
@@ -53,9 +53,9 @@ public class AttemptStrategyTest {
     }
 
     @Test
-    public void testWithMoreThanOneBackoffStrategyOneBeingFixed() {
+    public void testWithMoreThanOneBackoffStrategyOneBeingFixed() throws AttemptException, Exception {
         Callable<Boolean> callable = notNullAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .withBackoffStrategy(BackoffStrategies.join(
                         BackoffStrategies.fixedBackoff(50L, TimeUnit.MILLISECONDS),
                         BackoffStrategies.fibonacciBackoff(10, Long.MAX_VALUE, TimeUnit.MILLISECONDS)))
@@ -67,9 +67,9 @@ public class AttemptStrategyTest {
     }
 
     @Test
-    public void testWithMoreThanOneBackoffStrategyOneBeingIncremental(){
+    public void testWithMoreThanOneBackoffStrategyOneBeingIncremental() throws AttemptException, Exception{
         Callable<Boolean> callable = notNullAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .withBackoffStrategy(BackoffStrategies.join(
                         BackoffStrategies.linearBackoff(10L, TimeUnit.MILLISECONDS, 10L, TimeUnit.MILLISECONDS),
                         BackoffStrategies.fibonacciBackoff(10, Long.MAX_VALUE, TimeUnit.MILLISECONDS)))
@@ -98,7 +98,7 @@ public class AttemptStrategyTest {
     @Test
     public void testWithStopStrategy() throws InterruptedBeforeAttemptException, Exception  {
         Callable<Boolean> callable = notNullAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .withStopStrategy(StopStrategies.stopAfterTotalAttempts(3))
                 .retryIfResult(x-> x == null);
         try {
@@ -110,7 +110,7 @@ public class AttemptStrategyTest {
     }
 
     @Test
-    public void testWithWaitStrategy() {
+    public void testWithWaitStrategy() throws AttemptException, Exception {
         Callable<Boolean> callable = notNullAfter5Attempts();
         final AtomicInteger counter = new AtomicInteger();
         WaitStrategy blockStrategy = new WaitStrategy() {
@@ -123,7 +123,7 @@ public class AttemptStrategyTest {
 			public void handleInterruptedException(InterruptedException e) {}
         };
 
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .withWaitStrategy(blockStrategy)
                 .retryIfResult(x-> x == null);
         final int retryCount = 5;
@@ -135,9 +135,9 @@ public class AttemptStrategyTest {
     @Test
     public void testRetryIfException() throws InterruptedBeforeAttemptException, Exception {
         Callable<Boolean> callable = noIOExceptionAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategy retryer = new AttemptStrategy()
                 .retryIfException()
-                .toCallableAttemptStrategy();
+                ;
         boolean result = retryer.call(callable);
         assertTrue(result);
 
@@ -145,7 +145,7 @@ public class AttemptStrategyTest {
         retryer = new AttemptStrategy()
                 .retryIfException()
                 .withStopStrategy(StopStrategies.stopAfterTotalAttempts(3))
-                .toCallableAttemptStrategy();
+                ;
         try {
             retryer.callThrowingAll(callable);
             fail("RetryException expected");
@@ -160,7 +160,7 @@ public class AttemptStrategyTest {
         retryer = new AttemptStrategy()
                 .retryIfException()
                 .withStopStrategy(StopStrategies.stopAfterTotalAttempts(3))
-                .toCallableAttemptStrategy();
+                ;
         try {
             retryer.callThrowingAll(callable);
             fail("RetryException expected");
@@ -205,9 +205,9 @@ public class AttemptStrategyTest {
     @Test
     public void testRetryIfRuntimeException() throws InterruptedBeforeAttemptException, Exception  {
         Callable<Boolean> callable = noIOExceptionAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategy retryer = new AttemptStrategy()
                 .retryIfRuntimeException()
-                .toCallableAttemptStrategy();
+                ;
         try {
             retryer.callThrowingAll(callable);
             fail("IOException expected");
@@ -222,7 +222,7 @@ public class AttemptStrategyTest {
         retryer = new AttemptStrategy()
                 .retryIfRuntimeException()
                 .withStopStrategy(StopStrategies.stopAfterTotalAttempts(3))
-                .toCallableAttemptStrategy();
+                ;
         try {
             retryer.callThrowingAll(callable);
             fail("TooManyAttemptsException expected");
@@ -237,9 +237,9 @@ public class AttemptStrategyTest {
     @Test
     public void testRetryIfExceptionOfType() throws InterruptedBeforeAttemptException, Exception  {
         Callable<Boolean> callable = noIOExceptionAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategy retryer = new AttemptStrategy()
                 .retryIfException(IOException.class)
-                .toCallableAttemptStrategy();
+                ;
         assertTrue(retryer.call(callable));
 
         callable = noIllegalStateExceptionAfter5Attempts();
@@ -254,7 +254,7 @@ public class AttemptStrategyTest {
         retryer = new AttemptStrategy()
                 .retryIfException(IOException.class)
                 .withStopStrategy(StopStrategies.stopAfterTotalAttempts(3))
-                .toCallableAttemptStrategy();
+                ;
         try {
             retryer.callThrowingAll(callable);
             fail("TooManyAttemptsException expected");
@@ -269,14 +269,14 @@ public class AttemptStrategyTest {
     @Test
     public void testRetryIfExceptionWithPredicate() throws InterruptedBeforeAttemptException, Exception {
         Callable<Boolean> callable = noIOExceptionAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategy retryer = new AttemptStrategy()
                 .retryIfException(new Predicate<Exception>() {
                     @Override
                     public boolean test(Exception t) {
                         return t instanceof IOException;
                     }
                 })
-                .toCallableAttemptStrategy();
+                ;
         assertTrue(retryer.call(callable));
 
         callable = noIllegalStateExceptionAfter5Attempts();
@@ -296,7 +296,7 @@ public class AttemptStrategyTest {
                     }
                 })
                 .withStopStrategy(StopStrategies.stopAfterTotalAttempts(3))
-                .toCallableAttemptStrategy();
+                ;
         try {
             retryer.callThrowingAll(callable);
             fail("TooManyAttemptsException expected");
@@ -311,7 +311,7 @@ public class AttemptStrategyTest {
     @Test
     public void testRetryIfResult() throws InterruptedBeforeAttemptException, Exception  {
         Callable<Boolean> callable = notNullAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .retryIfResult(x-> x == null)
                 ;
         assertTrue(retryer.call(callable));
@@ -335,7 +335,7 @@ public class AttemptStrategyTest {
     @Test
     public void testMultipleRetryConditions() throws InterruptedBeforeAttemptException, Exception {
         Callable<Boolean> callable = notNullResultOrIOExceptionOrRuntimeExceptionAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .retryIfResult((Boolean x)-> x == null)
                 .retryIfException(IOException.class)
                 .retryIfRuntimeException()
@@ -387,7 +387,7 @@ public class AttemptStrategyTest {
         Runnable r = new Runnable() {
             @Override
             public void run() {
-                CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+                AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                         .withBackoffStrategy(BackoffStrategies.fixedBackoff(1000L, TimeUnit.MILLISECONDS))
                         .retryIfResult(x-> x == null)
                         ;
@@ -416,7 +416,7 @@ public class AttemptStrategyTest {
     @Test
     public void testWrap() throws ExecutionException, RetryException {
         Callable<Boolean> callable = notNullAfter5Attempts();
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .retryIfResult(x-> x == null)
                 ;
         RetryerCallable<Boolean> wrapped = retryer.wrap(callable);
@@ -473,7 +473,7 @@ public class AttemptStrategyTest {
 
         Callable<Boolean> callable = notNullAfter5Attempts();
 
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .retryIfResult((Boolean x)-> x == null)
                 .withAttemptListener(listener)
                 ;
@@ -502,7 +502,7 @@ public class AttemptStrategyTest {
 
         Callable<Boolean> callable = noIOExceptionAfter5Attempts();
 
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategyWithRetryOnResult<Boolean> retryer = new AttemptStrategy()
                 .retryIfResult((Boolean x)-> x == null)
                 .retryIfException()
                 .withAttemptListener(listener)
@@ -531,7 +531,7 @@ public class AttemptStrategyTest {
         final AtomicBoolean listenerOne = new AtomicBoolean(false);
         final AtomicBoolean listenerTwo = new AtomicBoolean(false);
 
-        CallableAttemptStrategy<Boolean> retryer = new AttemptStrategy()
+        AttemptStrategy retryer = new AttemptStrategy()
                 .withAttemptListener(new AttemptListener() {
                     @Override
                     public <V> void onAttempted(Attempt<V> attempt) {
@@ -544,7 +544,7 @@ public class AttemptStrategyTest {
                         listenerTwo.set(true);
                     }
                 })
-                .toCallableAttemptStrategy();
+                ;
 
         assertTrue(retryer.call(callable));
         assertTrue(listenerOne.get());

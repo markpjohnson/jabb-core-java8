@@ -12,31 +12,35 @@ import java.util.function.Supplier;
 public class ExceptionUncheckUtility {
 
 	@FunctionalInterface
-	public interface ConsumerWithExceptions<T> {
+	public interface ConsumerThrowsExceptions<T> {
 		void accept(T t) throws Exception;
 	}
 
 	@FunctionalInterface
-	public interface FunctionWithExceptions<T, R> {
+	public interface FunctionThrowsExceptions<T, R> {
 		R apply(T t) throws Exception;
 	}
 
 	@FunctionalInterface
-	public interface SupplierWithExceptions<T> {
+	public interface SupplierThrowsExceptions<T> {
 		T get() throws Exception;
 	}
 
 	@FunctionalInterface
-	public interface RunnableWithExceptions {
-		void accept() throws Exception;
+	public interface RunnableThrowsExceptions {
+		void run() throws Exception;
 	}
 
 	/**
-	 * .forEach(rethrowConsumer(name ->
-	 * System.out.println(Class.forName(name)))); or
-	 * .forEach(rethrowConsumer(ClassNameUtil::println));
+	 * Usage example:
+	 * <code>.forEach(consumerThrowsUnchecked(name -&gt; System.out.println(Class.forName(name)))); </code> or
+	 * <code>.forEach(consumerThrowsUnchecked(ClassNameUtil::println));</code>
+	 * 
+	 * @param <T>		argument type of the consumer
+	 * @param consumer	the original lambda
+	 * @return			the wrapped lambda that throws exceptions in an unchecked manner
 	 */
-	public static <T> Consumer<T> rethrowConsumer(ConsumerWithExceptions<T> consumer) {
+	public static <T> Consumer<T> consumerThrowsUnchecked(ConsumerThrowsExceptions<T> consumer) {
 		return t -> {
 			try {
 				consumer.accept(t);
@@ -47,10 +51,16 @@ public class ExceptionUncheckUtility {
 	}
 
 	/**
-	 * .map(rethrowFunction(name -> Class.forName(name))) or
-	 * .map(rethrowFunction(Class::forName))
+	 * Usage example:
+	 * <code>.map(functionThrowsUnchecked(name -&gt; Class.forName(name)))</code> or
+	 * <code>.map(functionThrowsUnchecked(Class::forName))</code>
+	 * 
+	 * @param <T>		argument type of the function
+	 * @param <R>		return type of the function
+	 * @param function	the original lambda
+	 * @return			the wrapped lambda that throws exceptions in an unchecked manner
 	 */
-	public static <T, R> Function<T, R> rethrowFunction(FunctionWithExceptions<T, R> function) {
+	public static <T, R> Function<T, R> functionThrowsUnchecked(FunctionThrowsExceptions<T, R> function) {
 		return t -> {
 			try {
 				return function.apply(t);
@@ -62,10 +72,13 @@ public class ExceptionUncheckUtility {
 	}
 
 	/**
-	 * rethrowSupplier(() -> new StringJoiner(new String(new byte[]{77, 97, 114,
-	 * 107}, "UTF-8"))),
+	 * Usage example:
+	 * <code>supplierThrowsUnchecked(() -&gt; new StringJoiner(new String(new byte[]{77, 97, 114, 107}, "UTF-8")))</code>
+	 * @param <T>		argument type of the function
+	 * @param function	the original lambda
+	 * @return			the wrapped lambda that throws exceptions in an unchecked manner
 	 */
-	public static <T> Supplier<T> rethrowSupplier(SupplierWithExceptions<T> function) {
+	public static <T> Supplier<T> supplierThrowsUnchecked(SupplierThrowsExceptions<T> function) {
 		return () -> {
 			try {
 				return function.get();
@@ -76,17 +89,27 @@ public class ExceptionUncheckUtility {
 		};
 	}
 
-	/** uncheck(() -> Class.forName("xxx")); */
-	public static void uncheck(RunnableWithExceptions t) {
+	/**
+	 * Execute the lambda and throw exceptions in an unchecked manner
+	 * Usage example: <code>runThrowingUnchecked(() -&gt; Class.forName("xxx"));</code>
+	 * @param runnable		the original lambda
+	 */
+	public static void runThrowingUnchecked(RunnableThrowsExceptions runnable) {
 		try {
-			t.accept();
+			runnable.run();
 		} catch (Exception exception) {
 			throwAsUnchecked(exception);
 		}
 	}
 
-	/** uncheck(() -> Class.forName("xxx")); */
-	public static <R> R uncheck(SupplierWithExceptions<R> supplier) {
+	/**
+	 * Execute the lambda and throw exceptions in an unchecked manner
+	 * Usage example: <code>getThrowingUnchecked(() -&gt; Class.forName("xxx"));</code>
+	 * @param <R>		return type of the function
+	 * @param supplier	the original lambda
+	 * @return			the result returned by the lambda
+	 */
+	public static <R> R getThrowingUnchecked(SupplierThrowsExceptions<R> supplier) {
 		try {
 			return supplier.get();
 		} catch (Exception exception) {
@@ -95,8 +118,16 @@ public class ExceptionUncheckUtility {
 		}
 	}
 
-	/** uncheck(Class::forName, "xxx"); */
-	public static <T, R> R uncheck(FunctionWithExceptions<T, R> function, T t) {
+	/**
+	 * Execute the lambda and throw exceptions in an unchecked manner
+	 * Usage example: <code>applyThrowingUnchecked(Class::forName, "xxx");</code>
+	 * @param <T>		argument type of the function
+	 * @param <R>		return type of the function
+	 * @param function	the original lambda
+	 * @param t			argument to the lambda
+	 * @return			the result returned by the lambda
+	 */
+	public static <T, R> R applyThrowingUnchecked(FunctionThrowsExceptions<T, R> function, T t) {
 		try {
 			return function.apply(t);
 		} catch (Exception exception) {
@@ -105,6 +136,26 @@ public class ExceptionUncheckUtility {
 		}
 	}
 
+	/**
+	 * Execute the lambda and throw exceptions in an unchecked manner
+	 * Usage example: <code>acceptThrowingUnchecked(MySystemOut::println, "abc");</code>
+	 * @param <T>		argument type of the function
+	 * @param function	the original lambda
+	 * @param t			argument to the lambda
+	 */
+	public static <T> void acceptThrowingUnchecked(ConsumerThrowsExceptions<T> function, T t) {
+		try {
+			function.accept(t);
+		} catch (Exception exception) {
+			throwAsUnchecked(exception);
+		}
+	}
+
+	/**
+	 * Throw the exception in an unchecked manner
+	 * @param exception	the exception
+	 * @throws E	the exception
+	 */
 	@SuppressWarnings("unchecked")
 	private static <E extends Throwable> void throwAsUnchecked(Exception exception) throws E {
 		throw (E) exception;
