@@ -9,18 +9,18 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
+import net.sf.jabb.seqtx.SequentialTransactionsCoordinator.TransactionCounts;
 import net.sf.jabb.seqtx.SimpleSequentialTransaction;
 import net.sf.jabb.seqtx.SequentialTransactionsCoordinator;
 import net.sf.jabb.seqtx.SequentialTransactionsCoordinatorTest;
 import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
 import net.sf.jabb.seqtx.mem.InMemSequentialTransactionsCoordinator;
-import net.sf.jabb.seqtx.mem.InMemSequentialTransactionsCoordinator.TransactionCounts;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransactionsCoordinatorTest{
 
 	@Override
-	protected SequentialTransactionsCoordinator createTracker() {
+	protected SequentialTransactionsCoordinator createCoordinator() {
 		SequentialTransactionsCoordinator tracker = new InMemSequentialTransactionsCoordinator();
 		return tracker;
 	}
@@ -28,38 +28,38 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 	@Test
 	public void test00CompactEmpty(){
 		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();
-		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createTracker();
+		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createCoordinator();
 
 		tracker.compact(transactions);
 		assertEquals(0, transactions.size());
 
 		TransactionCounts counts = tracker.compactAndGetCounts(transactions);
-		assertEquals(0, counts.failedCount);
-		assertEquals(0, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(0, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 	}
 
 	@Test
 	public void test00CompactMore(){
 		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();
-		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createTracker();
+		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createCoordinator();
 
 		SimpleSequentialTransaction t1 = new SimpleSequentialTransaction("transaction01", "processor01", "001", "010", Instant.now().plusSeconds(3600), null);
 		transactions.add(t1);
 		TransactionCounts counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(1, transactions.size());	// t1
-		assertEquals(0, counts.failedCount);
-		assertEquals(1, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(1, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 		
 		t1.finish();
 		tracker.compact(transactions);
 		assertEquals(1, transactions.size());	// t1
 		
 		counts = tracker.compactAndGetCounts(transactions);
-		assertEquals(0, counts.failedCount);
-		assertEquals(0, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(0, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 
 		
 		SimpleSequentialTransaction t2 = new SimpleSequentialTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
@@ -68,9 +68,9 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 		assertEquals(2, transactions.size());	// t1, t2
 		
 		counts = tracker.compactAndGetCounts(transactions);
-		assertEquals(0, counts.failedCount);
-		assertEquals(1, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(1, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 
 		
 		t2.finish();
@@ -79,9 +79,9 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 		assertEquals(t2, transactions.getFirst());	// t2
 		
 		counts = tracker.compactAndGetCounts(transactions);
-		assertEquals(0, counts.failedCount);
-		assertEquals(0, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(0, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 
 		
 		transactions.add(t1);
@@ -102,9 +102,9 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 		assertEquals(t4, transactions.getLast());
 		
 		counts = tracker.compactAndGetCounts(transactions);
-		assertEquals(0, counts.failedCount);
-		assertEquals(2, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(2, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 
 		
 		t4.finish();
@@ -113,9 +113,9 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 		assertEquals(t4, transactions.getLast());	// t2, t3, t4
 		
 		counts = tracker.compactAndGetCounts(transactions);
-		assertEquals(0, counts.failedCount);
-		assertEquals(1, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(1, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 
 		t3.finish();
 		tracker.compact(transactions);			// t4
@@ -123,69 +123,69 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 		assertEquals(t4, transactions.getFirst());	// t4
 		
 		counts = tracker.compactAndGetCounts(transactions);
-		assertEquals(0, counts.failedCount);
-		assertEquals(0, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(0, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 	}
 	
 	@Test
 	public void test00CompactTimedOutAndRetry(){
 		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();
-		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createTracker();
+		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createCoordinator();
 		
 		SimpleSequentialTransaction t1 = new SimpleSequentialTransaction("transaction01", "processor01", "001", "010", Instant.now().plusSeconds(-1), null);
 		transactions.add(t1);
 		TransactionCounts counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(1, transactions.size());	// t1
-		assertEquals(1, counts.failedCount);
-		assertEquals(0, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(1, counts.getFailed());
+		assertEquals(0, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 
 		t1.retry("processor02", Instant.now().plusSeconds(3600));
 		counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(1, transactions.size());	// t1
-		assertEquals(0, counts.failedCount);
-		assertEquals(1, counts.inProgressCount);
-		assertEquals(1, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(1, counts.getInProgress());
+		assertEquals(1, counts.getRetrying());
 		
 		SimpleSequentialTransaction t2 = new SimpleSequentialTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
 		transactions.add(t2);
 		counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(2, transactions.size());	// t1, t2
-		assertEquals(0, counts.failedCount);
-		assertEquals(2, counts.inProgressCount);
-		assertEquals(1, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(2, counts.getInProgress());
+		assertEquals(1, counts.getRetrying());
 
 		t2.abort();
 		counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(2, transactions.size());	// t1, t2
-		assertEquals(1, counts.failedCount);
-		assertEquals(1, counts.inProgressCount);
-		assertEquals(1, counts.retryingCount);
+		assertEquals(1, counts.getFailed());
+		assertEquals(1, counts.getInProgress());
+		assertEquals(1, counts.getRetrying());
 		
 	}
 	
 	@Test
 	public void test00CompactOpenTransactions(){
 		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();
-		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createTracker();
+		InMemSequentialTransactionsCoordinator tracker = (InMemSequentialTransactionsCoordinator)createCoordinator();
 		
 		SimpleSequentialTransaction t1 = new SimpleSequentialTransaction("transaction01", "processor01", "001", null, Instant.now().plusSeconds(-1), null);
 		transactions.add(t1);
 		TransactionCounts counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(0, transactions.size());	// t1
-		assertEquals(0, counts.failedCount);
-		assertEquals(0, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(0, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 
 		SimpleSequentialTransaction t2 = new SimpleSequentialTransaction("transaction01", "processor01", "011", "020", Instant.now().plusSeconds(3600), null);
 		transactions.add(t2);
 		transactions.add(t1);
 		counts = tracker.compactAndGetCounts(transactions);
 		assertEquals(1, transactions.size());	// t2
-		assertEquals(0, counts.failedCount);
-		assertEquals(1, counts.inProgressCount);
-		assertEquals(0, counts.retryingCount);
+		assertEquals(0, counts.getFailed());
+		assertEquals(1, counts.getInProgress());
+		assertEquals(0, counts.getRetrying());
 
 	}
 
@@ -194,4 +194,5 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 	public void test00ClearAll() throws InfrastructureErrorException{
 		tracker.clearAll();
 	}
+
 }

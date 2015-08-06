@@ -50,7 +50,7 @@
 		<dependency>
 			<groupId>net.sf.jabb</groupId>
 			<artifactId>jabb-core</artifactId>
-			<version>1.0.87</version>
+			<version>1.0.88</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>commons-logging</artifactId>

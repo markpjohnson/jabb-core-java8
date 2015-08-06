@@ -2,6 +2,7 @@ package net.sf.jabb.util.ex;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -19,6 +20,11 @@ public class ExceptionUncheckUtility {
 	@FunctionalInterface
 	public interface FunctionThrowsExceptions<T, R> {
 		R apply(T t) throws Exception;
+	}
+
+	@FunctionalInterface
+	public interface PredicateThrowsExceptions<T> {
+		Boolean test(T t) throws Exception;
 	}
 
 	@FunctionalInterface
@@ -67,6 +73,26 @@ public class ExceptionUncheckUtility {
 			} catch (Exception exception) {
 				throwAsUnchecked(exception);
 				return null;
+			}
+		};
+	}
+
+	/**
+	 * Usage example:
+	 * <code>.map(predicateThrowsUnchecked(t -&gt; Class.isInstance(t))</code> or
+	 * <code>.map(predicateThrowsUnchecked(Class::isInstance))</code>
+	 * 
+	 * @param <T>		argument type of the function
+	 * @param function	the original lambda
+	 * @return			the wrapped lambda that throws exceptions in an unchecked manner
+	 */
+	public static <T> Predicate<T> predicateThrowsUnchecked(PredicateThrowsExceptions<T> function) {
+		return t -> {
+			try {
+				return function.test(t);
+			} catch (Exception exception) {
+				throwAsUnchecked(exception);
+				return false;
 			}
 		};
 	}
@@ -130,6 +156,23 @@ public class ExceptionUncheckUtility {
 	public static <T, R> R applyThrowingUnchecked(FunctionThrowsExceptions<T, R> function, T t) {
 		try {
 			return function.apply(t);
+		} catch (Exception exception) {
+			throwAsUnchecked(exception);
+			return null;
+		}
+	}
+
+	/**
+	 * Execute the lambda and throw exceptions in an unchecked manner
+	 * Usage example: <code>testThrowingUnchecked(Class::isInstance, "xxx");</code>
+	 * @param <T>		argument type of the function
+	 * @param function	the original lambda
+	 * @param t			argument to the lambda
+	 * @return			the result returned by the lambda
+	 */
+	public static <T> Boolean testThrowingUnchecked(PredicateThrowsExceptions<T> function, T t) {
+		try {
+			return function.test(t);
 		} catch (Exception exception) {
 			throwAsUnchecked(exception);
 			return null;

@@ -50,10 +50,10 @@ public class SequentialTransactionWrapper {
 		
 		EntityProperty p = null;
 		
-		p = entity.getProperties().get("previous");
+		p = entity.getProperties().get("Previous");
 		this.previousTransactionId = p == null ? null : p.getValueAsString();
 
-		p = entity.getProperties().get("next");
+		p = entity.getProperties().get("Next");
 		this.nextTransactionId = p == null ? null : p.getValueAsString();
 	}
 	
@@ -73,40 +73,40 @@ public class SequentialTransactionWrapper {
 		
 		EntityProperty p = null;
 		
-		p = entity.getProperties().get("attempts");
+		p = entity.getProperties().get("Attempts");
 		transaction.setAttempts(p == null ? 0 : p.getValueAsInteger());
 		
-		p = entity.getProperties().get("detail");
+		p = entity.getProperties().get("Detail");
 		transaction.setDetail(p == null ? null : (Serializable)SerializationUtils.deserialize(p.getValueAsByteArray()));
 
-		p = entity.getProperties().get("endPosition");
+		p = entity.getProperties().get("EndPosition");
 		transaction.setEndPosition(p == null ? null : p.getValueAsString());
 
-		p = entity.getProperties().get("finishTime");
+		p = entity.getProperties().get("FinishTime");
 		transaction.setFinishTime(p == null ? null : p.getValueAsDate().toInstant());
 		
-		p = entity.getProperties().get("processorId");
+		p = entity.getProperties().get("ProcessorId");
 		transaction.setProcessorId(p == null ? null : p.getValueAsString());
 		
-		p = entity.getProperties().get("startPosition");
+		p = entity.getProperties().get("StartPosition");
 		transaction.setStartPosition(p == null ? null : p.getValueAsString());
 		
-		p = entity.getProperties().get("startTime");
+		p = entity.getProperties().get("StartTime");
 		transaction.setStartTime(p == null ? null : p.getValueAsDate().toInstant());
 		
-		p = entity.getProperties().get("state");
+		p = entity.getProperties().get("State");
 		transaction.setState(p == null ? null : SequentialTransactionState.valueOf(p.getValueAsString()));
 		
-		p = entity.getProperties().get("timeout");
+		p = entity.getProperties().get("Timeout");
 		transaction.setTimeout(p == null ? null : p.getValueAsDate().toInstant());
 		
 		transaction.setTransactionId(entity.getRowKey());
 		this.seriesId = entity.getPartitionKey();
 		
-		p = entity.getProperties().get("previous");
+		p = entity.getProperties().get("Previous");
 		this.previousTransactionId = p == null ? null : p.getValueAsString();
 
-		p = entity.getProperties().get("next");
+		p = entity.getProperties().get("Next");
 		this.nextTransactionId = p == null ? null : p.getValueAsString();
 
 	}
@@ -119,42 +119,42 @@ public class SequentialTransactionWrapper {
 		Instant i = null;
 		SequentialTransactionState s = null;
 		
-		entity.getProperties().put("attempts", new EntityProperty(transaction.getAttempts()));
+		entity.getProperties().put("Attempts", new EntityProperty(transaction.getAttempts()));
 		
 		if (transaction.getDetail() != null){
 			byte[] serializedDetail = SerializationUtils.serialize(transaction.getDetail());
 			Validate.isTrue(serializedDetail.length <= MAX_BINARY_LENGTH, 
 					"Serialized transaction detail must not exceed %d bytes, that's the limitation of Azure table storage."
 					, MAX_BINARY_LENGTH);
-			entity.getProperties().put("detail", new EntityProperty(serializedDetail));
+			entity.getProperties().put("Detail", new EntityProperty(serializedDetail));
 		}else{
-			entity.getProperties().remove("detail");
+			entity.getProperties().remove("Detail");
 		}
 		
-		entity.getProperties().put("endPosition", new EntityProperty(transaction.getEndPosition()));
+		entity.getProperties().put("EndPosition", new EntityProperty(transaction.getEndPosition()));
 		
 		i = transaction.getFinishTime();
-		entity.getProperties().put("finishTime", new EntityProperty(i == null ? null : Date.from(i)));
+		entity.getProperties().put("FinishTime", new EntityProperty(i == null ? null : Date.from(i)));
 		
 		
-		entity.getProperties().put("processorId", new EntityProperty(transaction.getProcessorId()));
+		entity.getProperties().put("ProcessorId", new EntityProperty(transaction.getProcessorId()));
 		
-		entity.getProperties().put("startPosition", new EntityProperty(transaction.getStartPosition()));
+		entity.getProperties().put("StartPosition", new EntityProperty(transaction.getStartPosition()));
 		
 		i = transaction.getStartTime();
-		entity.getProperties().put("startTime", new EntityProperty(i == null ? null : Date.from(i)));
+		entity.getProperties().put("StartTime", new EntityProperty(i == null ? null : Date.from(i)));
 		
 		s = transaction.getState();
-		entity.getProperties().put("state", new EntityProperty(s == null ? null : s.name()));
+		entity.getProperties().put("State", new EntityProperty(s == null ? null : s.name()));
 		
 		i = transaction.getTimeout();
-		entity.getProperties().put("timeout", new EntityProperty(i == null ? null : Date.from(i)));
+		entity.getProperties().put("Timeout", new EntityProperty(i == null ? null : Date.from(i)));
 		
 		entity.setRowKey(transaction.getTransactionId());
 		
 		entity.setPartitionKey(seriesId);
-		entity.getProperties().put("previous", new EntityProperty(this.previousTransactionId));
-		entity.getProperties().put("next", new EntityProperty(this.nextTransactionId));
+		entity.getProperties().put("Previous", new EntityProperty(this.previousTransactionId));
+		entity.getProperties().put("Next", new EntityProperty(this.nextTransactionId));
 	}
 	
 	public SimpleSequentialTransaction getTransactionNotNull(){
@@ -170,7 +170,7 @@ public class SequentialTransactionWrapper {
 	public void setFirstTransaction(){
 		this.previousTransactionId = "";
 		if (entity != null){
-			entity.getProperties().put("previous", new EntityProperty(""));
+			entity.getProperties().put("Previous", new EntityProperty(""));
 		}
 	}
 	public boolean isFirstTransaction(){
@@ -183,7 +183,7 @@ public class SequentialTransactionWrapper {
 	public void setLastTransaction(){
 		this.nextTransactionId = "";
 		if (entity != null){
-			entity.getProperties().put("next", new EntityProperty(""));
+			entity.getProperties().put("Next", new EntityProperty(""));
 		}
 	}
 	public boolean isLastTransaction(){

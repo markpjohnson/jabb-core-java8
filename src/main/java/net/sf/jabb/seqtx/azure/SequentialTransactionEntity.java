@@ -11,8 +11,10 @@ import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.commons.lang3.builder.CompareToBuilder;
 
+import net.sf.jabb.seqtx.ReadOnlySequentialTransaction;
 import net.sf.jabb.seqtx.SequentialTransaction;
 import net.sf.jabb.seqtx.SequentialTransactionState;
+import net.sf.jabb.seqtx.SequentialTransactionStateMachine;
 import net.sf.jabb.seqtx.SimpleSequentialTransaction;
 
 import com.microsoft.azure.storage.table.Ignore;
@@ -57,6 +59,25 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 		return t;
 	}
 	
+	public static SequentialTransactionEntity fromSequentialTransaction(String seriesId, ReadOnlySequentialTransaction t, String previousTransactionId, String nextTransactionId){
+		SequentialTransactionEntity tx = new SequentialTransactionEntity();
+		tx.setPartitionKey(seriesId);
+		tx.setRowKey(t.getTransactionId());
+		tx.processorId = t.getProcessorId();
+		tx.startPosition = t.getStartPosition();
+		tx.endPosition = t.getEndPosition();
+		tx.timeout = t.getTimeout() == null ? null : Date.from(t.getTimeout());
+		tx.startTime = t.getStartTime() == null ? null : Date.from(t.getStartTime());
+		tx.finishTime = t.getFinishTime() == null ? null : Date.from(t.getFinishTime());
+		tx.state = t.getState() == null ? null : t.getState().name();
+		tx.setDetail(t.getDetail());
+		tx.attempts = t.getAttempts();
+		tx.previousTransactionId = previousTransactionId;
+		tx.nextTransactionId = nextTransactionId;
+		
+		return tx;
+	}
+	
 	public boolean isInProgress(){
 		return SequentialTransactionState.IN_PROGRESS.name().equals(state);
 	}
@@ -77,38 +98,82 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 		return getPartitionKey() + "/" + getRowKey();
 	}
 
+	public boolean finish(){
+		SequentialTransactionStateMachine stateMachine = new SequentialTransactionStateMachine(getState());
+		if (stateMachine.finish()){
+			this.finishTime = new Date();
+			setState(stateMachine.getState());
+			return true;
+		}
+		return false;
+	}
+	
+	public boolean abort(){
+		SequentialTransactionStateMachine stateMachine = new SequentialTransactionStateMachine(getState());
+		if (stateMachine.abort()){
+			this.finishTime = new Date();
+			setState(stateMachine.getState());
+			return true;
+		}
+		return false;
+	}
+	
+	public boolean retry(String processorId, Instant timeout){
+		SequentialTransactionStateMachine stateMachine = new SequentialTransactionStateMachine(getState());
+		if (stateMachine.retry()){
+			this.startTime = new Date();
+			this.finishTime = null;
+			setState(stateMachine.getState());
+			this.attempts ++;
+			this.processorId = processorId;
+			this.timeout = Date.from(timeout);
+			return true;
+		}
+		return false;
+	}
+	
+	public boolean timeout(){
+		SequentialTransactionStateMachine stateMachine = new SequentialTransactionStateMachine(getState());
+		if (stateMachine.timeout()){
+			this.finishTime = new Date();
+			setState(stateMachine.getState());
+			return true;
+		}
+		return false;
+	}
+	
 	
 	@Ignore
 	public void setTimeout(Instant timeout){
-		this.timeout = Date.from(timeout);
+		this.timeout = timeout == null ? null : Date.from(timeout);
 	}
 	@Ignore
 	public Instant getTimeout(){
-		return this.timeout.toInstant();
+		return timeout == null ? null : timeout.toInstant();
 	}
 	@Ignore
 	public void setStartTime(Instant startTime){
-		this.startTime = Date.from(startTime);
+		this.startTime = startTime == null ? null : Date.from(startTime);
 	}
 	@Ignore
 	public Instant getStartTime(){
-		return this.startTime.toInstant();
+		return startTime == null ? null : startTime.toInstant();
 	}
 	@Ignore
 	public void setFinishTime(Instant finishTime){
-		this.finishTime = Date.from(finishTime);
+		this.finishTime = finishTime == null ? null : Date.from(finishTime);
 	}
 	@Ignore
 	public Instant getFinishTime(){
-		return this.finishTime.toInstant();
+		return finishTime == null ? null : finishTime.toInstant();
 	}
 	@Ignore
 	public void setState(SequentialTransactionState state){
-		this.state = state.name();
+		this.state = state == null ? null : state.name();
 	}
 	@Ignore
 	public SequentialTransactionState getState(){
-		return SequentialTransactionState.valueOf(this.state);
+		return state == null ? null : SequentialTransactionState.valueOf(state);
 	}
 	@Ignore
 	public void setDetail(Serializable detail){
@@ -128,7 +193,7 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 		return this.getPartitionKey();
 	}
 	@Ignore
-	public void setseriesId(String seriesId) {
+	public void setSeriesId(String seriesId) {
 		this.setPartitionKey(seriesId);
 	}
 	@Ignore
@@ -158,39 +223,59 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public void setEndPosition(String endPosition) {
 		this.endPosition = endPosition;
 	}
-	@StoreAs(name="timeout")
+	@StoreAs(name="Timeout")
 	public Date getTimeoutAsDate() {
 		return timeout;
 	}
+	@StoreAs(name="Timeout")
+	public void setTimeoutAsDate(Date timeout) {
+		this.timeout = timeout;
+	}
+	@Ignore
 	public void setTimeout(Date timeout) {
 		this.timeout = timeout;
 	}
-	@StoreAs(name="startTime")
+	@StoreAs(name="StartTime")
 	public Date getStartTimeAsDate() {
 		return startTime;
 	}
+	@StoreAs(name="StartTime")
+	public void setStartTimeAsDate(Date startTime) {
+		this.startTime = startTime;
+	}
+	@Ignore
 	public void setStartTime(Date startTime) {
 		this.startTime = startTime;
 	}
-	@StoreAs(name="finishTime")
+	@StoreAs(name="FinishTime")
 	public Date getFinishTimeAsDate() {
 		return finishTime;
 	}
+	@StoreAs(name="FinishTime")
+	public void setFinishTimeAsDate(Date finishTime) {
+		this.finishTime = finishTime;
+	}
+	@Ignore
 	public void setFinishTime(Date finishTime) {
 		this.finishTime = finishTime;
 	}
-	@StoreAs(name="state")
+	@StoreAs(name="State")
 	public String getStateAsString() {
 		return state;
 	}
+	@StoreAs(name="State")
+	public void setStateAsString(String state) {
+		this.state = state;
+	}
+	@Ignore
 	public void setState(String state) {
 		this.state = state;
 	}
-	@StoreAs(name = "detail")
+	@StoreAs(name = "Detail")
 	public byte[] getSerializedDetail() {
 		return serializedDetail;
 	}
-	@StoreAs(name = "detail")
+	@StoreAs(name = "Detail")
 	public void setSerializedDetail(byte[] serializedDetail) {
 		this.serializedDetail = serializedDetail;
 	}
@@ -200,21 +285,29 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public void setAttempts(int attempts) {
 		this.attempts = attempts;
 	}
-	@StoreAs(name = "previous")
+	@StoreAs(name = "Previous")
 	public String getPreviousTransactionId() {
 		return previousTransactionId;
 	}
-	@StoreAs(name = "previous")
+	@StoreAs(name = "Previous")
 	public void setPreviousTransactionId(String previousTransactionId) {
-		this.previousTransactionId = previousTransactionId;
+		if (previousTransactionId == null){
+			setFirstTransaction();
+		}else{
+			this.previousTransactionId = previousTransactionId;
+		}
 	}
-	@StoreAs(name = "next")
+	@StoreAs(name = "Next")
 	public String getNextTransactionId() {
 		return nextTransactionId;
 	}
-	@StoreAs(name = "next")
+	@StoreAs(name = "Next")
 	public void setNextTransactionId(String nextTransactionId) {
-		this.nextTransactionId = nextTransactionId;
+		if (nextTransactionId == null){
+			setLastTransaction();
+		}else{
+			this.nextTransactionId = nextTransactionId;
+		}
 	}
 	
 	@Ignore

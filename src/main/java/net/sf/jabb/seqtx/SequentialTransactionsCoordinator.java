@@ -5,6 +5,7 @@ package net.sf.jabb.seqtx;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
@@ -104,8 +105,7 @@ public interface SequentialTransactionsCoordinator {
 	 * 	<li>If the number of currently retrying previously failed transactions is less than maxRetryingTransactions, 
 	 * 				and there is at least one previously failed transaction needs retry, then that transaction will be started for retry.
 	 * 				Full detail of that transaction will be returned for the processor to work on.</li>
-	 *  <li>Otherwise, a new transaction will be proposed to the processor. Partial detail of the proposed transaction will be returned for
-	 *  			the processor to complete and then to request starting it in a following call to this method.</li>
+	 *  <li>Otherwise, null will be returned.</li>
 	 * </ul>
 	 * The returned object can be safely modified by the caller and reused for other purposes.
 	 * @param seriesId	ID of the transaction series
@@ -114,22 +114,25 @@ public interface SequentialTransactionsCoordinator {
 	 * @param maxInProgressTransacions	maximum number of concurrent transaction
 	 * @param maxRetryingTransactions	maximum number of retrying transactions
 	 * @return Full information (hasStarted() returns true, transactionId is not null, startTime is not null) of a transaction 
-	 * 			(can be the new transaction as specified by the argument, or a previously failed transaction) just started, 
-	 * 			or a skeleton (hasStarted() returns false, transactionId is the ID of the previous one or null if this is the very first one, 
-	 * 			startTime is null, startPosition is the endPosition of the previous one or null if this is the very first one, 
-	 * 			endPosition is null) of a proposed transaction,
-	 * 			or null if no more concurrent transaction is allowed.
+	 * 			(will always be a previously failed transaction) just started, 
+	 * 			or null if no more concurrent in-progress or retrying transaction is allowed.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
 	default SequentialTransaction startAnyFailedTransaction(String seriesId, String processorId, Instant timeout, int maxInProgressTransacions, int maxRetryingTransactions)
 					throws InfrastructureErrorException{
-		SimpleSequentialTransaction transaction = new SimpleSequentialTransaction();
-		transaction.setProcessorId(processorId);
-		transaction.setTimeout(timeout);
+		SimpleSequentialTransaction transaction = new SimpleSequentialTransaction(processorId, timeout);
+		
+		SequentialTransaction tx = null;
 		try {
-			return startTransaction(seriesId, null, transaction, maxInProgressTransacions, maxRetryingTransactions);
+			tx = startTransaction(seriesId, null, transaction, maxInProgressTransacions, maxRetryingTransactions);
 		} catch (DuplicatedTransactionIdException e) {
 			throw Throwables.propagate(e); // should never reach here
+		}
+		
+		if (tx != null && tx.hasStarted()){		// picked up a failed one to retry
+			return tx;
+		}else{				// no failed one available for retrying
+			return null;
 		}
 	}
 
@@ -140,8 +143,7 @@ public interface SequentialTransactionsCoordinator {
 	 * 	<li>If the number of currently retrying previously failed transactions is less than maxRetryingTransactions, 
 	 * 				and there is at least one previously failed transaction needs retry, then that transaction will be started for retry.
 	 * 				Full detail of that transaction will be returned for the processor to work on.</li>
-	 *  <li>Otherwise, a new transaction will be proposed to the processor. Partial detail of the proposed transaction will be returned for
-	 *  			the processor to complete and then to request starting it in a following call to this method.</li>
+	 *  <li>Otherwise, null will be returned.</li>
 	 * </ul>
 	 * The returned object can be safely modified by the caller and reused for other purposes.
 	 * @param seriesId	ID of the transaction series
@@ -150,23 +152,13 @@ public interface SequentialTransactionsCoordinator {
 	 * @param maxInProgressTransacions	maximum number of concurrent transaction
 	 * @param maxRetryingTransactions	maximum number of retrying transactions
 	 * @return Full information (hasStarted() returns true, transactionId is not null, startTime is not null) of a transaction 
-	 * 			(can be the new transaction as specified by the argument, or a previously failed transaction) just started, 
-	 * 			or a skeleton (hasStarted() returns false, transactionId is the ID of the previous one or null if this is the very first one, 
-	 * 			startTime is null, startPosition is the endPosition of the previous one or null if this is the very first one, 
-	 * 			endPosition is null) of a proposed transaction,
-	 * 			or null if no more concurrent transaction is allowed.
+	 * 			(will always be a previously failed transaction) just started, 
+	 * 			or null if no more concurrent in-progress or retrying transaction is allowed.
 	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
 	 */
 	default SequentialTransaction startAnyFailedTransaction(String seriesId, String processorId, Duration timeoutDuration, int maxInProgressTransacions, int maxRetryingTransactions)
 					throws InfrastructureErrorException{
-		SimpleSequentialTransaction transaction = new SimpleSequentialTransaction();
-		transaction.setProcessorId(processorId);
-		transaction.setTimeout(timeoutDuration);
-		try {
-			return startTransaction(seriesId, null, transaction, maxInProgressTransacions, maxRetryingTransactions);
-		} catch (DuplicatedTransactionIdException e) {
-			throw Throwables.propagate(e);  // should never reach here
-		}
+		return startAnyFailedTransaction(seriesId, processorId, Instant.now().plus(timeoutDuration), maxInProgressTransacions, maxRetryingTransactions);
 	}
 
 
@@ -381,4 +373,81 @@ public interface SequentialTransactionsCoordinator {
 			return (int) transactions.stream().filter(predicate).count();
 		}
 	}
+	
+	/**
+	 * Counts about transaction, it includes retrying count, in progress count, and failed count.
+	 * Both first attempting and retrying are considered as in progress.
+	 * Both timed out and aborted are considered as failed.
+	 * @author James Hu
+	 *
+	 */
+	public static class TransactionCounts{
+		private int retrying;
+		private int inProgress;
+		private int failed;
+		/**
+		 * @return the retrying
+		 */
+		public int getRetrying() {
+			return retrying;
+		}
+		/**
+		 * @param retrying the retrying to set
+		 */
+		public void setRetrying(int retrying) {
+			this.retrying = retrying;
+		}
+		/**
+		 * @return the inProgress
+		 */
+		public int getInProgress() {
+			return inProgress;
+		}
+		/**
+		 * @param inProgress the inProgress to set
+		 */
+		public void setInProgress(int inProgress) {
+			this.inProgress = inProgress;
+		}
+		/**
+		 * @return the failed
+		 */
+		public int getFailed() {
+			return failed;
+		}
+		/**
+		 * @param failed the failed to set
+		 */
+		public void setFailed(int failed) {
+			this.failed = failed;
+		}
+	}
+	
+	/**
+	 * Get counts about a collection of transactions
+	 * @param transactions		the collection of transactions
+	 * @return		counts
+	 */
+	static TransactionCounts getTransactionCounts(Collection<? extends ReadOnlySequentialTransaction> transactions){
+		TransactionCounts counts = new TransactionCounts();
+		
+		for (ReadOnlySequentialTransaction tx: transactions){
+			switch(tx.getState()){
+				case IN_PROGRESS:
+					counts.inProgress ++;
+					if (tx.getAttempts() > 1){
+						counts.retrying ++;
+					}
+					break;
+				case FINISHED:
+					break;
+				default:	// failed
+					counts.failed ++;
+					break;
+			}
+		}
+		return counts;
+	}
+	
+
 }

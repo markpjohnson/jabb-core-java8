@@ -85,36 +85,9 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		}
 	}
 	
-	static class TransactionCounts{
-		int retryingCount;
-		int inProgressCount;
-		int failedCount;
-	}
-	
-	private TransactionCounts getCounts(LinkedList<SimpleSequentialTransaction> transactions){
-		TransactionCounts counts = new TransactionCounts();
-		
-		for (SimpleSequentialTransaction tx: transactions){
-			switch(tx.getState()){
-				case IN_PROGRESS:
-					counts.inProgressCount ++;
-					if (tx.getAttempts() > 1){
-						counts.retryingCount ++;
-					}
-					break;
-				case FINISHED:
-					break;
-				default:	// failed
-					counts.failedCount ++;
-					break;
-			}
-		}
-		return counts;
-	}
-	
 	TransactionCounts compactAndGetCounts(LinkedList<SimpleSequentialTransaction> transactions){
 		compact(transactions);
-		return getCounts(transactions);
+		return SequentialTransactionsCoordinator.getTransactionCounts(transactions);
 	}
 
 
@@ -135,14 +108,13 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
 		synchronized(transactions){
 			TransactionCounts counts = compactAndGetCounts(transactions);
+			SimpleSequentialTransaction last = transactions.size() > 0 ? transactions.getLast() : null;
 			
-			if (counts.inProgressCount >= maxInProgressTransacions ||  // no more transaction allowed
-					counts.inProgressCount > 0 && transactions.getLast().getEndPosition() == null && transactions.getLast().isInProgress()  // the last one is in-progress and is open
-					){	
+			if (counts.getInProgress() >= maxInProgressTransacions){  // no more transaction allowed
 				return null;
 			}
 			
-			if (counts.retryingCount < maxRetryingTransactions && counts.failedCount > 0){	// always first try to pick up a failed to retry
+			if (counts.getRetrying() < maxRetryingTransactions && counts.getFailed() > 0){	// always first try to pick up a failed to retry
 				Optional<SimpleSequentialTransaction> firstFailed = transactions.stream().filter(tx->tx.isFailed()).findFirst();
 				if (firstFailed.isPresent()){
 					SimpleSequentialTransaction tx = firstFailed.get();
@@ -153,10 +125,13 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 				}
 			}
 			
+			if (counts.getInProgress() > 0 && last.getEndPosition() == null && last.isInProgress()){  // the last one is in-progress and is open
+				return null;
+			}
+			
 			SimpleSequentialTransaction tx;
 			if (transaction.getStartPosition() == null){		// the client has nothing in mind, so propose a new one
 				if (transactions.size() > 0){
-					SimpleSequentialTransaction last = transactions.getLast();
 					tx = new SimpleSequentialTransaction(last.getTransactionId(), transaction.getProcessorId(), last.getEndPosition(), transaction.getTimeout());
 				}else{
 					tx = new SimpleSequentialTransaction(null, transaction.getProcessorId(), null, transaction.getTimeout());
@@ -182,7 +157,6 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 					tx = SimpleSequentialTransaction.copyOf(newTrans);
 				}else{
 					// propose a new one
-					SimpleSequentialTransaction last = transactions.getLast();
 					tx = new SimpleSequentialTransaction(last.getTransactionId(), transaction.getProcessorId(), last.getEndPosition(), transaction.getTimeout());
 				}
 			}
@@ -197,7 +171,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 			InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
-		Validate.notNull(transactionId, "Transaction time out cannot be null");
+		Validate.notNull(transactionId, "Transaction ID cannot be null");
 
 		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
 		synchronized(transactions){

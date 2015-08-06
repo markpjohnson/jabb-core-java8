@@ -4,6 +4,7 @@
 package net.sf.jabb.seqtx;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.Instant;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -44,6 +45,27 @@ public class SimpleSequentialTransaction implements SequentialTransaction, Seria
 		this.startTime = null;
 		this.state = null;
 		this.attempts = 0;
+	}
+
+	/**
+	 * Constructor to create an instance with only processorId and timeout
+	 * @param processorId		ID of the processor
+	 * @param timeout			the time out time of this transaction
+	 */
+	public SimpleSequentialTransaction(String processorId, Instant timeout){
+		this(null, processorId, null, null, timeout, null, null);
+		this.startTime = null;
+		this.state = null;
+		this.attempts = 0;
+	}
+
+	/**
+	 * Constructor to create an instance with only processorId and timeout
+	 * @param processorId		ID of the processor
+	 * @param timeoutDuration			the duration after which the this transaction will time out
+	 */
+	public SimpleSequentialTransaction(String processorId, Duration timeoutDuration){
+		this(processorId, Instant.now().plus(timeoutDuration));
 	}
 
 	
