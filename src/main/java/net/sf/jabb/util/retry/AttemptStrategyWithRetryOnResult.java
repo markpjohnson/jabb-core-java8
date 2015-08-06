@@ -307,6 +307,20 @@ public class AttemptStrategyWithRetryOnResult<R> extends AttemptStrategyImpl {
     }
 
     /**
+     * Adds a predicate to decide whether next attempt is needed when a specified value equals to the result from previous attempt.
+     * retryIf*Result*(...) methods can be called multiple times, all the predicates will be or-ed.
+     * If no retryIf*Result*(...) method has been called or if a result got from an attempt cannot
+     * make any of the predicates true, it will be returned and there will be no further attempt.
+     * @param resultValue	The value to be compared when a result was returned in previous attempt.
+     * 					resultValue.equals(...) will be used.
+     * @return <code>this</code>
+     */
+    public AttemptStrategyWithRetryOnResult<R> retryIfResultEquals(@Nonnull R resultValue) {
+        Preconditions.checkNotNull(resultValue, "resultValue may not be null");
+        return retryIfAttemptHasResult(attempt->resultValue.equals(attempt.getResult()));
+    }
+
+    /**
      * Adds a predicate to make sure that if there is a null result from an attempt there will be a need for next attempt.
      * retryIf*Result*(...) methods can be called multiple times, all the predicates will be or-ed.
      * If no retryIf*Result*(...) method has been called or if a result got from an attempt cannot

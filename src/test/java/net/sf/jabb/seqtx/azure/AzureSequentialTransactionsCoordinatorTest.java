@@ -25,7 +25,7 @@ public class AzureSequentialTransactionsCoordinatorTest extends SequentialTransa
 
 	public AzureSequentialTransactionsCoordinatorTest(){
 		super();
-		timeScale = 10;
+		timeScale = 20;
 	}
 	
 	
