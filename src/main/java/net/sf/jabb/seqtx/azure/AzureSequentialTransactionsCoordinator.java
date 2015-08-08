@@ -3,10 +3,8 @@
  */
 package net.sf.jabb.seqtx.azure;
 
-import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -15,31 +13,22 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import net.sf.jabb.azure.AzureStorageUtility;
-import net.sf.jabb.seqtx.SequentialTransactionState;
-import net.sf.jabb.seqtx.SimpleSequentialTransaction;
-import net.sf.jabb.seqtx.SequentialTransaction;
 import net.sf.jabb.seqtx.ReadOnlySequentialTransaction;
+import net.sf.jabb.seqtx.SequentialTransaction;
+import net.sf.jabb.seqtx.SequentialTransactionState;
 import net.sf.jabb.seqtx.SequentialTransactionsCoordinator;
+import net.sf.jabb.seqtx.SimpleSequentialTransaction;
 import net.sf.jabb.seqtx.ex.DuplicatedTransactionIdException;
 import net.sf.jabb.seqtx.ex.IllegalEndPositionException;
 import net.sf.jabb.seqtx.ex.IllegalTransactionStateException;
 import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
 import net.sf.jabb.seqtx.ex.NoSuchTransactionException;
 import net.sf.jabb.seqtx.ex.NotOwningTransactionException;
-import net.sf.jabb.seqtx.ex.SequentialTransactionException;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility.ConsumerThrowsExceptions;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility.PredicateThrowsExceptions;
@@ -49,7 +38,11 @@ import net.sf.jabb.util.retry.AttemptStrategy;
 import net.sf.jabb.util.retry.StopStrategies;
 import net.sf.jabb.util.text.DurationFormatter;
 
-import com.google.common.base.Throwables;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
@@ -61,7 +54,6 @@ import com.microsoft.azure.storage.table.TableOperation;
 import com.microsoft.azure.storage.table.TableQuery;
 import com.microsoft.azure.storage.table.TableQuery.QueryComparisons;
 import com.microsoft.azure.storage.table.TableRequestOptions;
-import com.microsoft.azure.storage.table.TableServiceException;
 
 /**
  * The implementation of SequentialTransactionsCoordinator that is backed by Microsoft Azure table storage.
@@ -230,14 +222,14 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				}
 				try {
 					SequentialTransactionEntity createdEntity = createNewTransaction(seriesId, previousTransactionId, previousTransactionEndPosition, newTrans);
-					logger.debug("Created new transaction '{}' after '{}'. finishStartAnyFailedTime: {}, finishGetRecentTime: {}, failedToStartNewTime: {}", 
+					logger.debug("Created new transaction '{}' after '{}'. tryStartAnyFailed: {}, getRecent: {}, createNew(succeeded): {}", 
 							createdEntity.keysToString(), previousTransactionId,
 							DurationFormatter.format(finishStartAnyFailedTime-startTime), 
 							DurationFormatter.format(finishGetRecentTime-finishStartAnyFailedTime),
 							DurationFormatter.formatSince(finishGetRecentTime));
 					return createdEntity.toSequentialTransaction();
 				} catch (IllegalStateException e) {	// the last one is no longer the last
-					logger.debug("Transaction '{}/{}' is no longer the last. finishStartAnyFailedTime: {}, finishGetRecentTime: {}, failedToStartNewTime: {}", 
+					logger.debug("Transaction '{}/{}' is no longer the last. tryStartAnyFailed: {}, getRecent: {}, createNew(failed): {}", 
 							seriesId, previousTransactionId,
 							DurationFormatter.format(finishStartAnyFailedTime-startTime), 
 							DurationFormatter.format(finishGetRecentTime-finishStartAnyFailedTime),
@@ -618,6 +610,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 							AzureStorageUtility.PARTITION_KEY, 
 							QueryComparisons.EQUAL,
 							seriesId));
+			logger.debug("Deleted all transactions in series '{}' in table {}", table == null ? null : table.getName()); 
 		}catch(Exception e){
 			throw new InfrastructureErrorException("Failed to delete entities belonging to series '" + seriesId + "' in table " + tableName, e);
 		}
@@ -629,6 +622,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		try{
 			CloudTable table = getTableReference();
 			AzureStorageUtility.deleteEntitiesIfExist(table, (String)null);
+			logger.debug("Deleted all transactions in all series in table {}", table == null ? null : table.getName()); 
 		}catch(Exception e){
 			throw new InfrastructureErrorException("Failed to delete all entities in table " + tableName, e);
 		}
@@ -643,7 +637,9 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		}
 		if (!tableExists){
 			try {
-				AzureStorageUtility.createIfNotExist(tableClient, tableName);
+				if (AzureStorageUtility.createIfNotExist(tableClient, tableName)){
+					logger.debug("Created table {}", tableName); 
+				}
 			} catch (Exception e) {
 				throw new InfrastructureErrorException("Failed to ensure the existence of table '" + tableName + "'", e);
 			}

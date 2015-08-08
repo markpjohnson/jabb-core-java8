@@ -25,6 +25,12 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 		return tracker;
 	}
 	
+	@Override
+	protected SequentialTransactionsCoordinator createPerProcessorCoordinator(){
+		return tracker;
+	}
+
+	
 	@Test
 	public void test00CompactEmpty(){
 		LinkedList<SimpleSequentialTransaction> transactions = new LinkedList<>();

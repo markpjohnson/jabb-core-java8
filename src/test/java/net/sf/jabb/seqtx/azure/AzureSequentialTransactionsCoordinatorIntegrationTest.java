@@ -28,9 +28,9 @@ import net.sf.jabb.seqtx.ex.NotOwningTransactionException;
 import net.sf.jabb.seqtx.mem.InMemSequentialTransactionsCoordinator;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class AzureSequentialTransactionsCoordinatorTest extends SequentialTransactionsCoordinatorTest{
+public class AzureSequentialTransactionsCoordinatorIntegrationTest extends SequentialTransactionsCoordinatorTest{
 
-	public AzureSequentialTransactionsCoordinatorTest(){
+	public AzureSequentialTransactionsCoordinatorIntegrationTest(){
 		super();
 		timeScale = 20;
 	}

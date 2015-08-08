@@ -70,11 +70,19 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		try {
 			tracker = createCoordinator();
 		} catch (Exception e) {
-			Throwables.propagate(e);
+			throw Throwables.propagate(e);
 		}
 	}
 
 	abstract protected SequentialTransactionsCoordinator createCoordinator() throws Exception;
+	
+	protected SequentialTransactionsCoordinator createPerProcessorCoordinator(){
+		try {
+			return createCoordinator();
+		} catch (Exception e) {
+			throw Throwables.propagate(e);
+		}
+	}
 	
 	@Test
 	public void test09ClearTransactions() throws InfrastructureErrorException{
@@ -87,9 +95,9 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		
 		String lastId;
 		// empty
-		SequentialTransaction transaction = tracker.startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);
+		SequentialTransaction transaction = createPerProcessorCoordinator().startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);
 		assertNull(transaction);
-		transaction = tracker.startTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);
 		assertNotNull(transaction);
 		assertFalse(transaction.hasStarted());
 		assertNull(transaction.getTransactionId());
@@ -101,7 +109,7 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		transaction.setEndPosition("010");
 		transaction.setDetail(transactionDetail);
 		
-		transaction = tracker.startTransaction(seriesId, null, null, transaction, 5, 5); // in-progress
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, null, null, transaction, 5, 5); // in-progress
 		assertNotNull(transaction);
 		assertTrue(transaction.hasStarted());
 		assertEquals(SequentialTransactionState.IN_PROGRESS, transaction.getState());
@@ -116,9 +124,9 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		assertEquals(SequentialTransactionState.IN_PROGRESS, tracker.getRecentTransactions(seriesId).get(0).getState());
 	
 		lastId = transaction.getTransactionId();
-		transaction = tracker.startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);	// in-progress
+		transaction = createPerProcessorCoordinator().startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);	// in-progress
 		assertNull(transaction);
-		transaction = tracker.startTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);	// in-progress
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);	// in-progress
 		assertNotNull(transaction);
 		assertFalse(transaction.hasStarted());
 		assertEquals(lastId, transaction.getTransactionId());
@@ -131,7 +139,7 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		transaction.setDetail(transactionDetail);
 		transaction.setTimeout(Duration.ofSeconds(120*timeScale));
 		
-		transaction = tracker.startTransaction(seriesId, "alksdjflksdj", "xyz", transaction, 5, 5);  // will get a skeleton
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, "alksdjflksdj", "xyz", transaction, 5, 5);  // will get a skeleton
 		assertNotNull(transaction);
 		assertFalse(transaction.hasStarted());
 		assertEquals(lastId, transaction.getTransactionId());
@@ -145,7 +153,7 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		transaction.setTimeout(Duration.ofSeconds(120*timeScale));
 
 		try{
-			tracker.startTransaction(seriesId, lastId, "010", transaction, 5, 5);
+			createPerProcessorCoordinator().startTransaction(seriesId, lastId, "010", transaction, 5, 5);
 			fail("should throw DuplicatedTransactionIdException");
 		}catch(DuplicatedTransactionIdException e){
 			// ignore
@@ -166,9 +174,9 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		assertEquals(SequentialTransactionState.IN_PROGRESS, tracker.getRecentTransactions(seriesId).get(1).getState());
 		
 		lastId = transaction.getTransactionId();
-		tracker.abortTransaction(seriesId, processorId, lastId);	// in-progress, aborted
+		createPerProcessorCoordinator().abortTransaction(seriesId, processorId, lastId);	// in-progress, aborted
 		
-		transaction = tracker.startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);	// in-progress, in-progress(retry)
+		transaction = createPerProcessorCoordinator().startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);	// in-progress, in-progress(retry)
 		assertNotNull(transaction);
 		assertTrue(transaction.hasStarted());
 		assertEquals(lastId, transaction.getTransactionId());
@@ -189,9 +197,9 @@ public abstract class SequentialTransactionsCoordinatorTest {
 
 		String lastId = "my custom Id";
 		// finish
-		SequentialTransaction transaction = tracker.startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);
+		SequentialTransaction transaction = createPerProcessorCoordinator().startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);
 		assertNull(transaction);
-		transaction = tracker.startTransaction(seriesId, null, null, new SimpleSequentialTransaction(processorId, Duration.ofSeconds(120*timeScale)), 5, 5);
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, null, null, new SimpleSequentialTransaction(processorId, Duration.ofSeconds(120*timeScale)), 5, 5);
 		assertNotNull(transaction);
 		assertFalse(transaction.hasStarted());
 
@@ -199,19 +207,19 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		transaction.setStartPosition("001");
 		transaction.setEndPosition("010");
 		transaction.setDetail(transactionDetail);
-		transaction = tracker.startTransaction(seriesId, null, null, transaction, 5, 5); // in-progress
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, null, null, transaction, 5, 5); // in-progress
 		assertNotNull(transaction);
 		assertTrue(transaction.hasStarted());
 		assertEquals(SequentialTransactionState.IN_PROGRESS, transaction.getState());
 		assertEquals(lastId, transaction.getTransactionId());
 		
 		try{
-			tracker.finishTransaction(seriesId, processorId, "another transaction");
+			createPerProcessorCoordinator().finishTransaction(seriesId, processorId, "another transaction");
 			fail("should throw NoSuchTransactionException");
 		}catch(NoSuchTransactionException e){}
 		
 		try{
-			tracker.finishTransaction(seriesId, "another processor", lastId);
+			createPerProcessorCoordinator().finishTransaction(seriesId, "another processor", lastId);
 			fail("should throw NotOwningTransactionException");
 		}catch(NotOwningTransactionException e){}
 		
@@ -252,7 +260,7 @@ public abstract class SequentialTransactionsCoordinatorTest {
 			fail("should throw NotOwningTransactionException");
 		}catch(NotOwningTransactionException e){}
 		
-		assertFalse(tracker.isTransactionSuccessful(seriesId, lastId));
+		assertFalse(createPerProcessorCoordinator().isTransactionSuccessful(seriesId, lastId));
 		
 		List<? extends ReadOnlySequentialTransaction> transactions = tracker.getRecentTransactions(seriesId);
 		assertNotNull(transactions);
@@ -279,9 +287,9 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		assertEquals(lastId, transaction.getTransactionId());
 		assertEquals(2, transaction.getAttempts());
 
-		assertFalse(tracker.isTransactionSuccessful(seriesId, lastId));
+		assertFalse(createPerProcessorCoordinator().isTransactionSuccessful(seriesId, lastId));
 		Thread.sleep(2000);
-		assertFalse(tracker.isTransactionSuccessful(seriesId, lastId));
+		assertFalse(createPerProcessorCoordinator().isTransactionSuccessful(seriesId, lastId));
 		
 		// finish retry
 		transaction = tracker.startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(2*timeScale), 5, 5);
@@ -314,7 +322,7 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		transaction.setStartPosition("001");
 		transaction.setEndPosition("010");
 		transaction.setDetail(transactionDetail);
-		transaction = tracker.startTransaction(seriesId, null, null, transaction, 5, 5); // in-progress
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, null, null, transaction, 5, 5); // in-progress
 		assertNotNull(transaction);
 		assertTrue(transaction.hasStarted());
 		assertEquals(SequentialTransactionState.IN_PROGRESS, transaction.getState());
@@ -336,13 +344,13 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		transaction.setStartPosition("011");
 		transaction.setEndPosition(null);
 		transaction.setDetail(transactionDetail);
-		transaction = tracker.startTransaction(seriesId, lastId, "010", transaction, 5, 5); // in-progress
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, lastId, "010", transaction, 5, 5); // in-progress
 		assertNotNull(transaction);
 		assertTrue(transaction.hasStarted());
 		assertEquals(SequentialTransactionState.IN_PROGRESS, transaction.getState());
 		lastId = transaction.getTransactionId();
 		
-		assertFalse(tracker.isTransactionSuccessful(seriesId, lastId));
+		assertFalse(createPerProcessorCoordinator().isTransactionSuccessful(seriesId, lastId));
 		
 		tracker.finishTransaction(seriesId, processorId, lastId, "015");
 		
@@ -359,7 +367,7 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		transaction.setEndPosition(null);
 		transaction.setDetail(transactionDetail);
 		transaction.setTimeout(Duration.ofSeconds(10*timeScale));
-		transaction = tracker.startTransaction(seriesId, lastId, "015", transaction, 5, 5); // in-progress
+		transaction = createPerProcessorCoordinator().startTransaction(seriesId, lastId, "015", transaction, 5, 5); // in-progress
 		assertNotNull(transaction);
 		assertTrue(transaction.hasStarted());
 		assertEquals(SequentialTransactionState.IN_PROGRESS, transaction.getState());
@@ -449,6 +457,8 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		private Random random = new Random(System.currentTimeMillis());
 		private Duration timeoutDuration = BASE_TIMEOUT_DURATION.multipliedBy(timeScale);
 		
+		private SequentialTransactionsCoordinator tracker;
+		
 		RandomProcessor(AtomicBoolean runFlag, String processorId, Map<Integer, AtomicInteger> logMap,
 				BasicFrequencyCounter attemptsFrequencyCounter, AtomicInteger newTransactionCount, AtomicInteger retryTransactionCount){
 			this.runFlag = runFlag;
@@ -457,6 +467,8 @@ public abstract class SequentialTransactionsCoordinatorTest {
 			this.attemptsFrequencyCounter = attemptsFrequencyCounter;
 			this.newTransactionCount = newTransactionCount;
 			this.retryTransactionCount = retryTransactionCount;
+			
+			this.tracker = createPerProcessorCoordinator();
 		}
 
 		@Override
@@ -547,7 +559,7 @@ public abstract class SequentialTransactionsCoordinatorTest {
 			}
 
 			int dice = random.nextInt(100);
-			if (dice < 70 || transaction.getAttempts() >= 10){	// finish
+			if (dice < 70 || transaction.getAttempts() >= 5){	// finish
 				if (dice < 10){
 					try {
 						tracker.renewTransactionTimeout(seriesId, processorId, transaction.getTransactionId(), timeoutDuration);
