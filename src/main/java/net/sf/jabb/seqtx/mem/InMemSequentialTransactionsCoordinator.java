@@ -92,7 +92,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 
 
 	@Override
-	public SequentialTransaction startTransaction(String seriesId, String previousTransactionId,
+	public SequentialTransaction startTransaction(String seriesId, String previousTransactionId, String previousTransactionEndPosition, 
 			ReadOnlySequentialTransaction transaction, int maxInProgressTransacions,
 			int maxRetryingTransactions) throws InfrastructureErrorException, DuplicatedTransactionIdException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
@@ -100,6 +100,12 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		Validate.notNull(transaction.getTimeout(), "Transaction time out cannot be null");
 		if (transaction.getStartPosition() == null){	// startPosition is not null when restarting a specific transaction
 			Validate.isTrue(null == transaction.getEndPosition(), "End position must be null when start position is null");
+		}
+		if (previousTransactionId != null){
+			Validate.notNull(previousTransactionEndPosition, "previousTransactionEndPosition cannot be null when previousTransactionId is not null");
+		}
+		if (previousTransactionEndPosition != null){
+			Validate.notNull(previousTransactionId, "previousTransactionId cannot be null when previousTransactionEndPosition is not null");
 		}
 		Validate.isTrue(maxInProgressTransacions > 0, "Maximum number of in-progress transactions must be greater than zero: %d", maxInProgressTransacions);
 		Validate.isTrue(maxRetryingTransactions > 0, "Maximum number of retrying transactions must be greater than zero: %d", maxRetryingTransactions);
@@ -131,13 +137,13 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 			
 			SimpleSequentialTransaction tx;
 			if (transaction.getStartPosition() == null){		// the client has nothing in mind, so propose a new one
-				if (transactions.size() > 0){
+				if (last != null && last.getEndPosition() != null){
 					tx = new SimpleSequentialTransaction(last.getTransactionId(), transaction.getProcessorId(), last.getEndPosition(), transaction.getTimeout());
 				}else{
 					tx = new SimpleSequentialTransaction(null, transaction.getProcessorId(), null, transaction.getTimeout());
 				}
 			}else{		// try to start the transaction requested by the client
-				if ( transactions.size() == 0 || transactions.getLast().getTransactionId().equals(previousTransactionId)){
+				if ( last == null || last.getTransactionId().equals(previousTransactionId) && previousTransactionEndPosition.equals(last.getEndPosition())){
 					// start the requested one
 					SimpleSequentialTransaction newTrans = SimpleSequentialTransaction.copyOf(transaction);
 					newTrans.setAttempts(1);
