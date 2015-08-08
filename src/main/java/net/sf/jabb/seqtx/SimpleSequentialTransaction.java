@@ -76,7 +76,6 @@ public class SimpleSequentialTransaction implements SequentialTransaction, Seria
 	 * @param startPosition		the start position in the progress
 	 * @param endPosition		the end position in the progress
 	 * @param timeout			the time out time of this transaction
-	 * @param startTime			start time of this transaction
 	 * @param detail			detail of this transaction
 	 */
 	public SimpleSequentialTransaction(String transactionId, String processorId, String startPosition, String endPosition, Instant timeout, Serializable detail){

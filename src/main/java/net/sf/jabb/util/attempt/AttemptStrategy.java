@@ -366,6 +366,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
      * retryIf*Result*(...) methods can be called multiple times, all the predicates will be or-ed.
      * If no retryIf*Result*(...) method has been called or if a result got from an attempt cannot
      * make any of the predicates true, it will be returned and there will be no further attempt.
+     * @param <R> type of the result of the attempt
      * @param resultValue	The value to be compared when a result was returned in previous attempt.
      * 					resultValue.equals(...) will be used.
      * @return <code>this</code>

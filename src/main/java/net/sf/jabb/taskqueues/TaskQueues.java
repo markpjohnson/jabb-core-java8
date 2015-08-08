@@ -24,70 +24,70 @@ public interface TaskQueues {
 	/**
 	 * Put a task into the queue.
 	 * @param queue		id/name of the queue
-	 * @param task		the task
+	 * @param detail		the detail
 	 * @param expectedExecutionTime		the time that the task needs to be executed
 	 * @param predecessorId				ID of the predecessor task. This task will not be visible until the predecessor task has been deleted.
 	 * @return	ID of the just enqueued task
 	 */
-	String put(String queue, Serializable task, Instant expectedExecutionTime, String predecessorId);
+	String put(String queue, Serializable detail, Instant expectedExecutionTime, String predecessorId);
 	
 	/**
 	 * Put a task into the queue.
 	 * @param queue		id/name of the queue
-	 * @param task		the task
-	 * @param expectedExecutionTime		the time that the task needs to be executed
+	 * @param detail		the detail
+	 * @param expectedExecutionDelay		the duration after which the task needs to be executed
 	 * @param predecessorId				ID of the predecessor task. This task will not be visible until the predecessor task has been deleted.
 	 * @return	ID of the just enqueued task
 	 */
-	default String put(String queue, Serializable task, Duration expectedExecutionDelay, String predecessorId){
-		return put(queue, task, Instant.now().plus(expectedExecutionDelay), predecessorId);
+	default String put(String queue, Serializable detail, Duration expectedExecutionDelay, String predecessorId){
+		return put(queue, detail, Instant.now().plus(expectedExecutionDelay), predecessorId);
 	}
 
 	/**
 	 * Put a task into the queue. The task has no predecessor thus its predecessorId will be set to null.
 	 * @param queue		id/name of the queue
-	 * @param task		the task
+	 * @param detail		the detail
 	 * @param expectedExecutionTime		the time that the task needs to be executed
 	 * @return	ID of the just enqueued task
 	 */
-	default String put(String queue, Serializable task, Instant expectedExecutionTime){
-		return put(queue, task, expectedExecutionTime, null);
+	default String put(String queue, Serializable detail, Instant expectedExecutionTime){
+		return put(queue, detail, expectedExecutionTime, null);
 	}
 	
 	/**
 	 * Put a task into the queue, and let the expected execution time of the task to be now.
 	 * @param queue		id/name of the queue
-	 * @param task		the task
+	 * @param detail		the detail
 	 * @param expectedExecutionDelay  the delay after which the task is expected to be executed
 	 * @return	ID of the just enqueued task
 	 */
-	default String put(String queue, Serializable task, Duration expectedExecutionDelay){
-		return put(queue, task, Instant.now().plus(expectedExecutionDelay), null);
+	default String put(String queue, Serializable detail, Duration expectedExecutionDelay){
+		return put(queue, detail, Instant.now().plus(expectedExecutionDelay), null);
 	}
 	
 	/**
 	 * Put a task into the queue, and let the expected execution time of the task to be now.
 	 * @param queue		id/name of the queue
-	 * @param task		the task
+	 * @param detail		the detail
 	 * @return	ID of the just enqueued task
 	 */
-	default String put(String queue, Serializable task){
-		return put(queue, task, Instant.now(), null);
+	default String put(String queue, Serializable detail){
+		return put(queue, detail, Instant.now(), null);
 	}
 	
 	/**
 	 * Put a task into the queue, and let the expected execution time of the task to be now.
 	 * @param queue		id/name of the queue
-	 * @param task		the task
+	 * @param detail		the detail
 	 * @param predecessorId				ID of the predecessor task. This task will not be visible until the predecessor task has been deleted.
 	 * @return	ID of the just enqueued task
 	 */
-	default String put(String queue, Serializable task, String predecessorId){
-		return put(queue, task, Instant.now(), predecessorId);
+	default String put(String queue, Serializable detail, String predecessorId){
+		return put(queue, detail, Instant.now(), predecessorId);
 	}
 	
 	/**
-	 * Get tasks from the queues by (where queue = :queues and expectedExecutionTime <= :expectedExecutionTime and not exists (where id = :predecessorId) order by expectedExecutionTime, enqueuedTime limit :limit). 
+	 * Get tasks from the queues by {@code (where queue = :queues and expectedExecutionTime <= :expectedExecutionTime and not exists (where id = :predecessorId) order by expectedExecutionTime, enqueuedTime limit :limit) }. 
 	 * And for those returned tasks, on server side they will be updated by setting (lastConsumer = :consumerId, expectedExecutionTime = NOW() + :visibilityTimeout)
 	 * @param queue	The queue in which tasks will be retrieved
 	 * @param expectedExecutionTime		All returned tasks must have an expected execution time no later than this parameter
@@ -99,7 +99,7 @@ public interface TaskQueues {
 	List<QueuedTask> get(String queue, Instant expectedExecutionTime, int limit, String consumerId, Duration leasePeriod);
 	
 	/**
-	 * Get tasks from the queues by (where queue = :queues and expectedExecutionTime <= :NOW() and not exists (where id = :predecessorId) order by expectedExecutionTime, enqueuedTime limit :limit). 
+	 * Get tasks from the queues by {@code (where queue = :queues and expectedExecutionTime <= :NOW() and not exists (where id = :predecessorId) order by expectedExecutionTime, enqueuedTime limit :limit) }. 
 	 * And for those returned tasks, on server side they will be updated by setting (lastConsumer = :consumerId, expectedExecutionTime = NOW() + :visibilityTimeout)
 	 * @param queue	The queue in which tasks will be retrieved
 	 * @param limit		the maximum number of tasks to be returned
@@ -115,7 +115,7 @@ public interface TaskQueues {
 	/**
 	 * Remove a task from the queue. If the task cannot be found in the queue, this method will succeed.
 	 * If the task is not currently owned by the consumer, an exception will be thrown.
-	 * The effect is deleting (where id = :id and lastConsumer = :consumerId)
+	 * The effect is deleting {@code (where id = :id and lastConsumer = :consumerId) }
 	 * @param id	ID of the task
 	 * @param consumerId 	ID of the consumer
 	 */
@@ -124,7 +124,7 @@ public interface TaskQueues {
 	/**
 	 * Update the lease period.
 	 * If the task cannot be found or it is not currently owned by the consumer, an exception will be thrown.
-	 * The effect is updating (expectedExecutionTime = NOW() + leasePeriod where id = :id and lastConsumer = :consumerId)
+	 * The effect is updating {@code (expectedExecutionTime = NOW() + leasePeriod where id = :id and lastConsumer = :consumerId) }
 	 * @param id			ID of the task
 	 * @param consumerId	ID of the consumer
 	 * @param leasePeriod	the lease period from now	

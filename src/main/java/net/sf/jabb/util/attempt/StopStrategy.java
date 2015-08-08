@@ -27,9 +27,9 @@ public interface StopStrategy {
 
     /**
      * Returns <code>true</code> if the no more attempt is allowed.
-     *
+     * @param <R> type of the result of the attempt
      * @param attempt the previous {@code Attempt}
      * @return <code>true</code> if should stop attempting, <code>false</code> otherwise
      */
-    <T> boolean shouldStop(Attempt<T> attempt);
+    <R> boolean shouldStop(Attempt<R> attempt);
 }
