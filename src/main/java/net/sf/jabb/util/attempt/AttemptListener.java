@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 /**
  * Listener of the events of finished attempts

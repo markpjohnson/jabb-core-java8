@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 import java.util.List;
 import java.util.function.Function;

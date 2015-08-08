@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 import java.time.Duration;
 import java.util.concurrent.Callable;

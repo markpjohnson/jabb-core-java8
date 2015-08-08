@@ -8,9 +8,9 @@ import static org.junit.Assert.*;
 import java.net.URISyntaxException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import net.sf.jabb.util.retry.AttemptStrategy;
-import net.sf.jabb.util.retry.StopStrategies;
-import net.sf.jabb.util.retry.TooManyAttemptsException;
+import net.sf.jabb.util.attempt.AttemptStrategy;
+import net.sf.jabb.util.attempt.StopStrategies;
+import net.sf.jabb.util.attempt.TooManyAttemptsException;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;

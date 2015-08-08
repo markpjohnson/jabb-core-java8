@@ -15,13 +15,16 @@
  * limitations under the License.
  */
 
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
+
+import net.sf.jabb.util.attempt.Attempt;
+import net.sf.jabb.util.attempt.StopStrategies;
 
 import org.junit.Test;
 
