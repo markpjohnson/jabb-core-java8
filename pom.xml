@@ -146,6 +146,7 @@
 					<excludes>
 						<exclude>**/*RateTest.java</exclude>
 						<exclude>**/*PerformanceTest.java</exclude>
+						<exclude>**/*IntegrationTest.java</exclude>
 					</excludes>
 				</configuration>
 			</plugin>
