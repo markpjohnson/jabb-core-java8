@@ -373,7 +373,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
      */
     public <R> AttemptStrategyWithRetryOnResult<R> retryIfResultEquals(@Nonnull R resultValue) {
     	AttemptStrategyWithRetryOnResult<R> that = new AttemptStrategyWithRetryOnResult<R>(this);
-        return that.retryIfAttemptHasResult(attempt->resultValue.equals(attempt.getResult()));
+        return that.retryIfResultEquals(resultValue);
     }
 
     /**
