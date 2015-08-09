@@ -28,9 +28,9 @@ public interface QueuedTask {
 	
 	/**
 	 * Get the detail of the task
-	 * @return
+	 * @return full detail of the task
 	 */
-	Serializable getTask();
+	Serializable getDetail();
 	
 	/**
 	 * Get the time that this task was put into the queue
@@ -46,7 +46,7 @@ public interface QueuedTask {
 	
 	/**
 	 * Get the ID of the consumer that last dequeued this task
-	 * @return
+	 * @return ID of the last consumer
 	 */
 	String getLastConsumer();
 	

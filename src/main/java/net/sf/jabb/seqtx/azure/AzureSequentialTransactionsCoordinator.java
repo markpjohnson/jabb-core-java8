@@ -29,13 +29,13 @@ import net.sf.jabb.seqtx.ex.IllegalTransactionStateException;
 import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
 import net.sf.jabb.seqtx.ex.NoSuchTransactionException;
 import net.sf.jabb.seqtx.ex.NotOwningTransactionException;
+import net.sf.jabb.util.attempt.AttemptStrategy;
+import net.sf.jabb.util.attempt.StopStrategies;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility.ConsumerThrowsExceptions;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility.PredicateThrowsExceptions;
 import net.sf.jabb.util.parallel.BackoffStrategies;
 import net.sf.jabb.util.parallel.WaitStrategies;
-import net.sf.jabb.util.retry.AttemptStrategy;
-import net.sf.jabb.util.retry.StopStrategies;
 import net.sf.jabb.util.text.DurationFormatter;
 
 import org.apache.commons.lang3.StringUtils;

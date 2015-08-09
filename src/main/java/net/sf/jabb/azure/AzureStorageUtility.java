@@ -12,11 +12,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import net.sf.jabb.util.attempt.AttemptStrategy;
+import net.sf.jabb.util.attempt.StopStrategies;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility;
 import net.sf.jabb.util.parallel.BackoffStrategies;
 import net.sf.jabb.util.parallel.WaitStrategies;
-import net.sf.jabb.util.retry.AttemptStrategy;
-import net.sf.jabb.util.retry.StopStrategies;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;

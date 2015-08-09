@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 /**
  * A strategy used to decide how long to backoff before attempts.

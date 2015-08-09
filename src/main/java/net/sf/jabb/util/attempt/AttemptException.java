@@ -1,4 +1,4 @@
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 /**
  * Exception happened while applying the {@link AttemptStrategy}

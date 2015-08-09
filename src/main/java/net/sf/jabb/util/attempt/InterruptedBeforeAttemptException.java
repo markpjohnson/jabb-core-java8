@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 /**
  * Exception thrown in the situation that interruption happened while waiting or preparing for next attempt.

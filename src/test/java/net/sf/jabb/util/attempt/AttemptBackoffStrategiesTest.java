@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -24,9 +24,14 @@ import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import net.sf.jabb.util.attempt.Attempt;
+import net.sf.jabb.util.attempt.AttemptBackoffStrategies;
+import net.sf.jabb.util.attempt.AttemptBackoffStrategy;
+
 import org.junit.Test;
 
 import java.util.function.Function;
+
 import com.google.common.collect.Sets;
 
 public class AttemptBackoffStrategiesTest {

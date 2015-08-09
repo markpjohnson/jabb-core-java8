@@ -1,7 +1,7 @@
 /**
  * 
  */
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 /**
  * Exception thrown in the situation that too many attempts has been performed and the stop strategy does not allow any further.

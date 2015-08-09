@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package net.sf.jabb.util.retry;
+package net.sf.jabb.util.attempt;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -33,6 +33,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import net.sf.jabb.util.attempt.Attempt;
+import net.sf.jabb.util.attempt.AttemptBackoffStrategies;
+import net.sf.jabb.util.attempt.AttemptException;
+import net.sf.jabb.util.attempt.AttemptListener;
+import net.sf.jabb.util.attempt.AttemptStrategy;
+import net.sf.jabb.util.attempt.AttemptStrategyWithRetryOnResult;
+import net.sf.jabb.util.attempt.InterruptedBeforeAttemptException;
+import net.sf.jabb.util.attempt.StopStrategies;
+import net.sf.jabb.util.attempt.TooManyAttemptsException;
 import net.sf.jabb.util.parallel.BackoffStrategies;
 import net.sf.jabb.util.parallel.WaitStrategy;
 
