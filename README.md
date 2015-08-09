@@ -1,5 +1,4 @@
-# jabb-core-java8 
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/net.sf.jabb/jabb-core-java8/badge.svg)](https://maven-badges.herokuapp.com/maven-central/net.sf.jabb/jabb-core-java8)
+# jabb-core-java8 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/net.sf.jabb/jabb-core-java8/badge.svg)](https://maven-badges.herokuapp.com/maven-central/net.sf.jabb/jabb-core-java8)
 
 Collection of reusable application building blocks that require Java 8.
 
