@@ -44,7 +44,7 @@ public class StopStrategiesTest {
 
     @Test
     public void testStopAfterDelayWithMilliseconds() {
-        assertFalse(StopStrategies.stopAfterTotalDuration(Duration.ofMillis(1000L)).shouldStop(failedAttempt(2, 999L)));
+        assertFalse(StopStrategies.stopAfterTotalDuration(Duration.ofMillis(1000L)).shouldStop(failedAttempt(2, 799L)));
         assertTrue(StopStrategies.stopAfterTotalDuration(Duration.ofMillis(1000L)).shouldStop(failedAttempt(2, 1000L)));
         assertTrue(StopStrategies.stopAfterTotalDuration(Duration.ofMillis(1000L)).shouldStop(failedAttempt(2, 1001L)));
     }
