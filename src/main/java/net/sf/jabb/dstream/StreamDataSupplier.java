@@ -1,0 +1,174 @@
+/**
+ * 
+ */
+package net.sf.jabb.dstream;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
+import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
+
+/**
+ * Abstraction of suppliers of stream data, such as Azure Event Hub, AWS Kinesis, Kafka, etc.
+ * @author James Hu
+ * @param <M> type of the message object
+ */
+public interface StreamDataSupplier<M> {
+	
+	/**
+	 * Get the first position/offset in the stream. 
+	 * This method can return a constant (e.g. "0", "", or null) representing the very first position if necessary.
+	 * @return	the position/offset representing the first in the stream, can be null if necessary
+	 */
+	String firstPosition();
+	
+	/**
+	 * Get the first position/offset in the stream enqueued after a specified time. 
+	 * This method should never return a constant representing the very first position if necessary.
+	 * @param enquedAfter		the time after which the the position of the first message needs to be returned
+	 * @param waitForArrival  time duration to wait for arrival of the first message if it is not immediately available
+	 * @return	the position/offset of the first data/message in the stream enqueued after the specified time, 
+	 * 			or null if no message enqueued after the specified time can be found within the specified duration.
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened while finding out the first position meeting the condition in the stream
+	 */
+	String firstPosition(Instant enquedAfter, Duration waitForArrival) throws InterruptedException, DataStreamInfrastructureException;
+	
+	/**
+	 * Get the first position/offset in the stream enqueued after a specified time. 
+	 * This method wait for at most 2 seconds for the first message enqueued after that time to be available.
+	 * This method should never return a constant representing the very first position if necessary.
+	 * @param enquedAfter		the time after which the the position of the first message needs to be returned
+	 * @return	the position/offset of the first data/message in the stream enqueued after the specified time, 
+	 * 			or null if no message enqueued after the specified time can be found within 2 seconds.
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened while finding out the first position meeting the condition in the stream
+	 */
+	default String firstPosition(Instant enquedAfter) throws InterruptedException, DataStreamInfrastructureException{
+		return firstPosition(enquedAfter, Duration.ofSeconds(15));
+	}
+	
+	/**
+	 * Get the last position/offset in the stream
+	 * @return	the position/offset representing the last in the stream, or null if there is no message found.
+	 * @throws  DataStreamInfrastructureException when error happened while finding out the last position in the stream
+	 */
+	String lastPosition() throws DataStreamInfrastructureException;
+	
+	/**
+	 * Get the enqueued time of the message at a specified location
+	 * @param position	the position of the message, the message must exist at this position
+	 * @return			the time the message was enqueued
+	 * @throws DataStreamInfrastructureException	if any error happened
+	 */
+	Instant enqueuedTime(String position) throws DataStreamInfrastructureException;
+	
+	/**
+	 * Get the next start position/offset
+	 * @param previousEndPosition		previous end position/offset. 
+	 * @return	the next start position/offset that can ensure there is no gap between it and previousEndPosition
+	 */
+	String nextStartPosition(String previousEndPosition);
+	
+	/**
+	 * Check if a position is within the range defined by an end position
+	 * @param position		the position to be checked
+	 * @param endPosition	the end position
+	 * @return	true if in range, false otherwise
+	 */
+	boolean isInRange(String position, String endPosition);
+	
+	/**
+	 * Fetch the data/messages in the range specified by start and end positions.
+	 * @param list		list into which the data/messages found within the range will be added
+	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
+	 * @param endPosition		the end position, inclusive/exclusive defined by the implementation
+	 * @param maxItems			maximum number of items that will be fetched and added into the list
+	 * @param timeoutDuration	maximum total duration allowed for fetch those data
+	 * @return	end position of the last message added into the list, or null if no message had been added
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened
+	 */
+	String fetch(List<? super M> list, String startPosition, String endPosition, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException;
+
+	/**
+	 * Fetch the data/messages in the range specified by start and end positions, allowing fetching as much data as possible.
+	 * @param list		list into which the data/messages found within the range will be added
+	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
+	 * @param endPosition		the end position, inclusive/exclusive defined by the implementation
+	 * @param timeoutDuration	maximum total duration allowed for fetch those data
+	 * @return	end position of the last message added into the list, or null if no message had been added
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened
+	 */
+	default String fetch(List<? super M> list, String startPosition, String endPosition, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
+		return fetch(list, startPosition, endPosition, Integer.MAX_VALUE, timeoutDuration);
+	}
+
+	/**
+	 * Fetch the data/messages starting from a position
+	 * @param list				list into which the data/messages will be added
+	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
+	 * @param maxItems			maximum number of items that will be fetched and added into the list
+	 * @param timeoutDuration	maximum total duration allowed for fetch those data
+	 * @return	end position of the last message added into the list, or null if no message had been added
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened
+	 */
+	default String fetch(List<? super M> list, String startPosition, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
+		return fetch(list, startPosition, null, maxItems, timeoutDuration);
+	}
+	
+	/**
+	 * Start receiving data/messages starting from a position asynchronously. 
+	 * The method of the receiver will be called from a background thread, rather than the calling thread of this method.
+	 * @param receiver			the receiver of the data/messages
+	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
+	 * @return				an ID for this receiving session
+	 * @throws DataStreamInfrastructureException 	any exception
+	 */
+	String startAsyncReceiving(Consumer<M> receiver, String startPosition) throws DataStreamInfrastructureException;
+	
+	/**
+	 * Stop asynchronous receiving
+	 * @param id			ID of the receiving session
+	 */
+	void stopAsyncReceiving(String id);
+	
+	/**
+	 * Synchronously receive data/messages starting from a position.
+	 * The method of the receiver will be called from the calling thread of this method.
+	 * @param receiver			The receiver which accepts one message each time and return number of milliseconds left for receiving remaining next message
+	 * 							If the receiver receives a null as input, it should ignore it but still return the correct number of milliseconds left.
+	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
+	 * @param endPosition		the end position, inclusive/exclusive defined by the implementation
+	 * @return	end position of the last message received, or null if no message had been received
+	 * @throws DataStreamInfrastructureException	if any error happened
+	 */
+	String receive(Function<M, Long> receiver, String startPosition, String endPosition) throws DataStreamInfrastructureException;
+	
+	/**
+	 * Start/activate/connect to the data stream
+	 * @throws Exception any exception
+	 */
+	void start() throws Exception;
+	
+	/**
+	 * Stop/deactivate/disconnect from the data stream
+	 * @throws Exception any exception
+	 */
+	void stop() throws Exception;
+	
+	/**
+	 * Wrap this and an id into a <code>StreamDataSupplierWithId</code> data structure
+	 * @param id	ID of the supplier
+	 * @return		an <code>StreamDataSupplierWithId</code> instance
+	 */
+	default StreamDataSupplierWithId<M> withId(String id){
+		return new StreamDataSupplierWithId<>(id, this);
+	}
+}

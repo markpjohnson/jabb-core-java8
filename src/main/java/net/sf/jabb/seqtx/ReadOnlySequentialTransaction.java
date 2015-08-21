@@ -4,6 +4,7 @@
 package net.sf.jabb.seqtx;
 
 import java.io.Serializable;
+import java.math.BigInteger;
 import java.time.Instant;
 
 /**
@@ -91,5 +92,36 @@ public interface ReadOnlySequentialTransaction {
 	default boolean hasStarted(){
 		return getStartTime() != null;
 	}
+	
+	default Long getStartPositionAsLong(){
+		String s = getStartPosition();
+		return s == null ? null : Long.valueOf(s);
+	}
 
+	default BigInteger getStartPositionAsBigInteger(){
+		String s = getStartPosition();
+		return s == null ? null : new BigInteger(s);
+	}
+
+	default Long getEndPositionAsLong(){
+		String s = getEndPosition();
+		return s == null ? null : Long.valueOf(s);
+	}
+
+	default BigInteger getEndPositionAsBigInteger(){
+		String s = getEndPosition();
+		return s == null ? null : new BigInteger(s);
+	}
+
+	default String getDetailAsString(){
+		return (String)getDetail();
+	}
+
+	default Integer getDetailAsInteger(){
+		return (Integer)getDetail();
+	}
+	
+	default Long getDetailAsLong(){
+		return (Long)getDetail();
+	}
 }

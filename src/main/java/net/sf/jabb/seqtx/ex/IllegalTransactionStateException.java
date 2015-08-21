@@ -9,7 +9,7 @@ package net.sf.jabb.seqtx.ex;
  * @author James Hu
  *
  */
-public class IllegalTransactionStateException extends SequentialTransactionException {
+public class IllegalTransactionStateException extends SequentialTransactionsCoordinatorException {
 	private static final long serialVersionUID = -5609051174330714129L;
 
 	/**

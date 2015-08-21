@@ -3,6 +3,7 @@
  */
 package net.sf.jabb.seqtx.mem;
 
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -20,7 +21,7 @@ import net.sf.jabb.seqtx.SequentialTransactionsCoordinator;
 import net.sf.jabb.seqtx.ex.DuplicatedTransactionIdException;
 import net.sf.jabb.seqtx.ex.IllegalEndPositionException;
 import net.sf.jabb.seqtx.ex.IllegalTransactionStateException;
-import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
+import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
 import net.sf.jabb.seqtx.ex.NoSuchTransactionException;
 import net.sf.jabb.seqtx.ex.NotOwningTransactionException;
 import net.sf.jabb.util.col.PutIfAbsentMap;
@@ -94,7 +95,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 	@Override
 	public SequentialTransaction startTransaction(String seriesId, String previousTransactionId, String previousTransactionEndPosition, 
 			ReadOnlySequentialTransaction transaction, int maxInProgressTransacions,
-			int maxRetryingTransactions) throws InfrastructureErrorException, DuplicatedTransactionIdException {
+			int maxRetryingTransactions) throws TransactionStorageInfrastructureException, DuplicatedTransactionIdException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(transaction.getProcessorId(), "Processor ID cannot be null");
 		Validate.notNull(transaction.getTimeout(), "Transaction time out cannot be null");
@@ -104,14 +105,14 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		if (previousTransactionId != null){
 			Validate.notNull(previousTransactionEndPosition, "previousTransactionEndPosition cannot be null when previousTransactionId is not null");
 		}
-		if (previousTransactionEndPosition != null){
-			Validate.notNull(previousTransactionId, "previousTransactionId cannot be null when previousTransactionEndPosition is not null");
-		}
 		Validate.isTrue(maxInProgressTransacions > 0, "Maximum number of in-progress transactions must be greater than zero: %d", maxInProgressTransacions);
 		Validate.isTrue(maxRetryingTransactions > 0, "Maximum number of retrying transactions must be greater than zero: %d", maxRetryingTransactions);
 		Validate.isTrue(maxInProgressTransacions >= maxRetryingTransactions, "Maximum number of in-progress transactions must not be less than the maximum number of retrying transactions: %d, %d", maxInProgressTransacions, maxRetryingTransactions);
 
 		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
+		if (transactions.size() > 0 && previousTransactionEndPosition != null){
+			Validate.notNull(previousTransactionId, "previousTransactionId cannot be null when previousTransactionEndPosition is not null");
+		}
 		synchronized(transactions){
 			TransactionCounts counts = compactAndGetCounts(transactions);
 			SimpleSequentialTransaction last = transactions.size() > 0 ? transactions.getLast() : null;
@@ -174,7 +175,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 	@Override
 	public void finishTransaction(String seriesId, String processorId,
 			String transactionId, String endPosition) throws NotOwningTransactionException,
-			InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException {
+			TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.notNull(transactionId, "Transaction ID cannot be null");
@@ -220,7 +221,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 	@Override
 	public void abortTransaction(String seriesId, String processorId,
 			String transactionId) throws NotOwningTransactionException,
-			InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException {
+			TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.notNull(transactionId, "Transaction time out cannot be null");
@@ -248,7 +249,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 
 	@Override
 	public List<? extends ReadOnlySequentialTransaction> getRecentTransactions(String seriesId)
-			throws InfrastructureErrorException {
+			throws TransactionStorageInfrastructureException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 
 		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
@@ -290,11 +291,11 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 	}
 	
 	@Override
-	public void renewTransactionTimeout(String seriesId, String processorId, String transactionId, Instant transactionTimeout) 
-			throws NotOwningTransactionException, IllegalTransactionStateException, NoSuchTransactionException {
+	public void updateTransaction(String seriesId, String processorId, String transactionId, String endPosition, Instant transactionTimeout, Serializable detail) 
+			throws NotOwningTransactionException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
-		Validate.notNull(transactionTimeout, "Transaction time out cannot be null");
+		Validate.isTrue(endPosition != null || transactionTimeout != null || detail != null, "End position, time out, and detail cannot all be null");
 
 		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
 		synchronized(transactions){
@@ -305,7 +306,22 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 				SimpleSequentialTransaction tx = matched.get();
 				if (tx.getProcessorId().equals(processorId)){
 					if (tx.isInProgress()){
-						tx.setTimeout(transactionTimeout);
+						if (transactionTimeout != null){
+							tx.setTimeout(transactionTimeout);
+						}
+						if (detail != null){
+							tx.setDetail(detail);
+						}
+						if (endPosition != null){
+							if (endPosition.equals(tx.getEndPosition())){
+								// do nothing
+							}else if (tx == transactions.getLast()){
+								tx.setEndPosition(endPosition);
+							}else{
+								// can't change the end position of a non-last transaction
+								throw new IllegalEndPositionException("Cannot change end position of transaction '" + transactionId + "' from '" + tx.getEndPosition() + "' to '" + endPosition + "' because it is not the last transaction");
+							}
+						}
 					}else{
 						throw new IllegalTransactionStateException("Transaction '" + transactionId + "' is currently in " + tx.getState() + " state and its timeout cannot be changed");
 					}
@@ -319,14 +335,14 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 	}
 
 	@Override
-	public void clear(String seriesId) throws InfrastructureErrorException {
+	public void clear(String seriesId) throws TransactionStorageInfrastructureException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 
 		this.transactionsByseriesId.remove(seriesId);
 	}
 
 	@Override
-	public void clearAll() throws InfrastructureErrorException {
+	public void clearAll() throws TransactionStorageInfrastructureException {
 		this.transactionsByseriesId.clear();
 	}
 

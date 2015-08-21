@@ -57,5 +57,21 @@ public interface SequentialTransaction extends ReadOnlySequentialTransaction{
 	 */
 	void setDetail(Serializable detail);
 	
+	
+	default void setStartPosition(Number pos){
+		setStartPosition(pos == null ? null : pos.toString());
+	}
 
+	default void setEndPosition(Number pos){
+		setEndPosition(pos == null ? null : pos.toString());
+	}
+
+	default void setEndPositionNull(){
+		setEndPosition((String)null);
+	}
+
+	default void setDetailNull(){
+		setDetail((Serializable)null);
+	}
+	
 }

@@ -13,7 +13,7 @@ import net.sf.jabb.seqtx.SequentialTransactionsCoordinator.TransactionCounts;
 import net.sf.jabb.seqtx.SimpleSequentialTransaction;
 import net.sf.jabb.seqtx.SequentialTransactionsCoordinator;
 import net.sf.jabb.seqtx.SequentialTransactionsCoordinatorTest;
-import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
+import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
 import net.sf.jabb.seqtx.mem.InMemSequentialTransactionsCoordinator;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
@@ -197,7 +197,7 @@ public class InMemSequentialTransactionsCoordinatorTest extends SequentialTransa
 
 
 	@Test
-	public void test00ClearAll() throws InfrastructureErrorException{
+	public void test00ClearAll() throws TransactionStorageInfrastructureException{
 		tracker.clearAll();
 	}
 

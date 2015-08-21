@@ -9,7 +9,7 @@ package net.sf.jabb.seqtx.ex;
  * @author James Hu
  *
  */
-public class NoSuchTransactionException extends SequentialTransactionException {
+public class NoSuchTransactionException extends SequentialTransactionsCoordinatorException {
 	private static final long serialVersionUID = 7074067223399365022L;
 
 	/**

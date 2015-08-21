@@ -3,6 +3,7 @@
  */
 package net.sf.jabb.seqtx;
 
+import java.io.Serializable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
@@ -13,11 +14,13 @@ import java.util.function.Predicate;
 import net.sf.jabb.seqtx.ex.DuplicatedTransactionIdException;
 import net.sf.jabb.seqtx.ex.IllegalEndPositionException;
 import net.sf.jabb.seqtx.ex.IllegalTransactionStateException;
-import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
+import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
 import net.sf.jabb.seqtx.ex.NoSuchTransactionException;
 import net.sf.jabb.seqtx.ex.NotOwningTransactionException;
 
 import org.apache.commons.lang3.Validate;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import com.google.common.base.Throwables;
 
@@ -57,46 +60,6 @@ import com.google.common.base.Throwables;
  *  <li>End position can be updated when finishing the transaction only if the transaction is the last one in the series</li>
  * </ul>
 
- * Usage example:
- * <pre>
- * {@code
- * 
- * while(runFlag.get()){
- * 	SequentialTransaction transaction = null;
- * 	try{
- * 		transaction = tracker.startTransaction(seriesId, processorId, TIMEOUT_DURATION, MAX_IN_PROGRESS_TRANSACTIONS, MAX_RETRYING_TRANSACTIONS);
- * 		while (transaction != null && !transaction.hasStarted()){  // we can start a new one
- * 			String previousId = transaction.getTransactionId();
- * 			String previousEndPosition = transaction.getStartPosition();
- * 			transaction.setTransactionId(null);   // let the coordinator to assign a unique id
- * 			int position = START_POSITION;
- * 			if (previousEndPosition != null){
- * 				position = findNextPosition(previousEndPosition);
- * 			}
- * 			if (position &gt; END_POSITION){
- * 				transaction = null;
- * 				break;
- * 			}
- * 			transaction.setStartPosition(String.valueOf(position));
- * 			transaction.setEndPosition(findAvaileEndPosition(position));
- * 			transaction.setTimeout(TIMEOUT_DURATION);
- * 			transaction = tracker.startTransaction(seriesId, previousId, transaction, MAX_IN_PROGRESS_TRANSACTIONS, MAX_RETRYING_TRANSACTIONS);
- * 		}
- * 	}catch(InfrastructureErrorException e){
- * 		e.printStackTrace();
- * 		Thread.sleep(60000L);  // infrastructure down? retry later
- * 	}catch(Exception e){
- * 		e.printStackTrace();
- * 	}
- * 	if (transaction != null){  // a previously failed one had been started for retrying, or a new one had been started
- * 		doTransaction(transaction);
- * 	}else{   // no work at the moment, have a short sleep
- * 		Thread.sleep(5000L);
- * 	}
- * }
- * 
- * }
- * </pre>
  * 
  * @author James Hu
  *
@@ -121,10 +84,10 @@ public interface SequentialTransactionsCoordinator {
 	 * @return Full information (hasStarted() returns true, transactionId is not null, startTime is not null) of a transaction 
 	 * 			(will always be a previously failed transaction) just started, 
 	 * 			or null if no more concurrent in-progress or retrying transaction is allowed.
-	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionStorageInfrastructureException if error in the underlying infrastructure happened
 	 */
 	default SequentialTransaction startAnyFailedTransaction(String seriesId, String processorId, Instant timeout, int maxInProgressTransacions, int maxRetryingTransactions)
-					throws InfrastructureErrorException{
+					throws TransactionStorageInfrastructureException{
 		SimpleSequentialTransaction transaction = new SimpleSequentialTransaction(processorId, timeout);
 		
 		SequentialTransaction tx = null;
@@ -159,11 +122,11 @@ public interface SequentialTransactionsCoordinator {
 	 * @return Full information (hasStarted() returns true, transactionId is not null, startTime is not null) of a transaction 
 	 * 			(will always be a previously failed transaction) just started, 
 	 * 			or null if no more concurrent in-progress or retrying transaction is allowed.
-	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionStorageInfrastructureException if error in the underlying infrastructure happened
 	 */
 	default SequentialTransaction startAnyFailedTransaction(String seriesId, String processorId, Duration timeoutDuration, int maxInProgressTransacions, int maxRetryingTransactions)
-					throws InfrastructureErrorException{
-		return startAnyFailedTransaction(seriesId, processorId, Instant.now().plus(timeoutDuration), maxInProgressTransacions, maxRetryingTransactions);
+					throws TransactionStorageInfrastructureException{
+		return startAnyFailedTransaction(seriesId, processorId, timeoutDuration == null ? null : Instant.now().plus(timeoutDuration), maxInProgressTransacions, maxRetryingTransactions);
 	}
 
 
@@ -207,11 +170,11 @@ public interface SequentialTransactionsCoordinator {
 	 * 			startTime is null, startPosition is the endPosition of the previous one or null if this is the very first one, 
 	 * 			endPosition is null) of a proposed transaction,
 	 * 			or null if no more concurrent transaction is allowed.
-	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionStorageInfrastructureException if error in the underlying infrastructure happened
 	 * @throws DuplicatedTransactionIdException if the transaction ID specified is duplicated
 	 */
 	SequentialTransaction startTransaction(String seriesId, String previousTransactionId, String previousTransactionEndPosition, ReadOnlySequentialTransaction transaction, int maxInProgressTransacions, int maxRetryingTransactions) 
-					throws InfrastructureErrorException, DuplicatedTransactionIdException;
+					throws TransactionStorageInfrastructureException, DuplicatedTransactionIdException;
 	
 	/**
 	 * Try to pick up a previously failed transaction to retry. If there is none available, request a skeleton for creating a new transaction.
@@ -235,10 +198,10 @@ public interface SequentialTransactionsCoordinator {
 	 * 			startTime is null, startPosition is the endPosition of the previous one or null if this is the very first one, 
 	 * 			endPosition is null) of a proposed transaction,
 	 * 			or null if no more concurrent in-progress or retrying transaction is allowed.
-	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionStorageInfrastructureException if error in the underlying infrastructure happened
 	 */
 	default SequentialTransaction startTransaction(String seriesId, String processorId, Instant timeout, int maxInProgressTransacions, int maxRetryingTransactions) 
-					throws InfrastructureErrorException{
+					throws TransactionStorageInfrastructureException{
 		try {
 			return startTransaction(seriesId, null, null, new SimpleSequentialTransaction(processorId, timeout), maxInProgressTransacions, maxRetryingTransactions);
 		} catch (DuplicatedTransactionIdException e) {
@@ -268,11 +231,11 @@ public interface SequentialTransactionsCoordinator {
 	 * 			startTime is null, startPosition is the endPosition of the previous one or null if this is the very first one, 
 	 * 			endPosition is null) of a proposed transaction,
 	 * 			or null if no more concurrent in-progress or retrying transaction is allowed.
-	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionStorageInfrastructureException if error in the underlying infrastructure happened
 	 */
 	default SequentialTransaction startTransaction(String seriesId, String processorId, Duration timeoutDuration, int maxInProgressTransacions, int maxRetryingTransactions) 
-					throws InfrastructureErrorException{
-		return startTransaction(seriesId, processorId, Instant.now().plus(timeoutDuration), maxInProgressTransacions, maxRetryingTransactions);
+					throws TransactionStorageInfrastructureException{
+		return startTransaction(seriesId, processorId, timeoutDuration == null ? null : Instant.now().plus(timeoutDuration), maxInProgressTransacions, maxRetryingTransactions);
 	}
 	
 	/**
@@ -292,11 +255,11 @@ public interface SequentialTransactionsCoordinator {
 	 * 											For example, if the transaction already timed out.
 	 * @throws IllegalEndPositionException 	if the updated end position creates gap between this and the next transaction, 
 	 * 										or if the end position is null.
-	 * @throws InfrastructureErrorException If error in the underlying infrastructure happened, in this case, usually
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
 	 * 										no immediate retry should be attempted.
 	 */
 	void finishTransaction(String seriesId, String processorId, String transactionId, String endPosition) 
-			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException;
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException;
 
 	/**
 	 * Finish a succeeded transaction. The end position of the transaction will not be updated.
@@ -314,11 +277,11 @@ public interface SequentialTransactionsCoordinator {
 	 * 											For example, if the transaction already timed out.
 	 * @throws IllegalEndPositionException 	if the updated end position creates gap between this and the next transaction, 
 	 * 										or if the end position is null.
-	 * @throws InfrastructureErrorException If error in the underlying infrastructure happened, in this case, usually
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
 	 * 										no immediate retry should be attempted.
 	 */
 	default void finishTransaction(String seriesId, String processorId, String transactionId)
-			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException{
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException{
 		finishTransaction(seriesId, processorId, transactionId, null);
 	}
 	
@@ -336,11 +299,88 @@ public interface SequentialTransactionsCoordinator {
 	 * 									get this exception because the transaction is then owned by processor B 
 	 * @throws IllegalTransactionStateException If the transaction is not currently in a state that can be finished.
 	 * 											For example, if the transaction already timed out.
-	 * @throws InfrastructureErrorException If error in the underlying infrastructure happened, in this case, usually
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
 	 * 										no immediate retry should be attempted.
 	 */
 	void abortTransaction(String seriesId, String processorId, String transactionId) 
-			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException;
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException;
+	
+	/**
+	 * Update the end position and time out of a transaction
+	 * @param seriesId			ID of the transaction series
+	 * @param processorId			ID of the processor which must currently own the transaction
+	 * @param transactionId			ID of the transaction
+	 * @param endPosition			the new end position. It can be null indicating that there is no need to change the end position.
+	 * 								Only the end position of the last transaction can be updated.
+	 * @param timeout				The new time that the transaction should time out. It can be null indicating that there is no need to change the timeout.
+	 * @param detail				Transaction detail to be updated. It can be null indicating that there is no need to update.
+	 * @throws NoSuchTransactionException  If the transaction does not exist in the list of recent transactions.
+	 * 									A transaction may be removed from the list when both itself and its next transaction
+	 * 									finished successfully, or when an open range transaction (which can only be the last one) failed (aborted or timed out).
+	 * @throws NotOwningTransactionException If the transaction is not currently owned by the processor.
+	 * 									For example, if a transaction previously owned by processor A timed out, it may be picked up by processor B
+	 * 									for retry. If after that the processor A wants to finish the transaction, it will
+	 * 									get this exception because the transaction is then owned by processor B 
+	 * @throws IllegalTransactionStateException If the transaction is not currently in a state that can be finished.
+	 * 											For example, if the transaction already timed out.
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
+	 * 										no immediate retry should be attempted.
+	 * @throws IllegalEndPositionException 	if the updated end position creates gap between this and the next transaction.
+	 */
+	void updateTransaction(String seriesId, String processorId, String transactionId, String endPosition, Instant timeout, Serializable detail) 
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException;
+	
+	/**
+	 * Update the end position and time out of a transaction
+	 * @param seriesId			ID of the transaction series
+	 * @param processorId			ID of the processor which must currently own the transaction
+	 * @param transactionId			ID of the transaction
+	 * @param endPosition			the new end position. It can be null indicating that there is no need to change the end position.
+	 * 								Only the end position of the last transaction can be updated.
+	 * @param timeoutDuration		The new duration after which the transaction should time out. It can be null indicating that there is no need to change the timeout.
+	 * @param detail				Transaction detail to be updated. It can be null indicating that there is no need to update.
+	 * @throws NoSuchTransactionException  If the transaction does not exist in the list of recent transactions.
+	 * 									A transaction may be removed from the list when both itself and its next transaction
+	 * 									finished successfully, or when an open range transaction (which can only be the last one) failed (aborted or timed out).
+	 * @throws NotOwningTransactionException If the transaction is not currently owned by the processor.
+	 * 									For example, if a transaction previously owned by processor A timed out, it may be picked up by processor B
+	 * 									for retry. If after that the processor A wants to finish the transaction, it will
+	 * 									get this exception because the transaction is then owned by processor B 
+	 * @throws IllegalTransactionStateException If the transaction is not currently in a state that can be finished.
+	 * 											For example, if the transaction already timed out.
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
+	 * 										no immediate retry should be attempted.
+	 * @throws IllegalEndPositionException 	if the updated end position creates gap between this and the next transaction.
+	 */
+	default void updateTransaction(String seriesId, String processorId, String transactionId, String endPosition, Duration timeoutDuration, Serializable detail) 
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException{
+		updateTransaction(seriesId, processorId, transactionId, endPosition, timeoutDuration == null ? null : Instant.now().plus(timeoutDuration), detail);
+	}
+	
+	/**
+	 * Update the end position of a transaction
+	 * @param seriesId			ID of the transaction series
+	 * @param processorId			ID of the processor which must currently own the transaction
+	 * @param transactionId			ID of the transaction
+	 * @param endPosition			the new end position. It can not be null.
+	 * @throws NoSuchTransactionException  If the transaction does not exist in the list of recent transactions.
+	 * 									A transaction may be removed from the list when both itself and its next transaction
+	 * 									finished successfully, or when an open range transaction (which can only be the last one) failed (aborted or timed out).
+	 * @throws NotOwningTransactionException If the transaction is not currently owned by the processor.
+	 * 									For example, if a transaction previously owned by processor A timed out, it may be picked up by processor B
+	 * 									for retry. If after that the processor A wants to finish the transaction, it will
+	 * 									get this exception because the transaction is then owned by processor B 
+	 * @throws IllegalTransactionStateException If the transaction is not currently in a state that can be finished.
+	 * 											For example, if the transaction already timed out.
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
+	 * 										no immediate retry should be attempted.
+	 * @throws IllegalEndPositionException 	if the updated end position creates gap between this and the next transaction.
+	 */
+	default void updateTransactionEndPosition(String seriesId, String processorId, String transactionId, String endPosition) 
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException{
+		Validate.notNull(endPosition, "end position cannot be null");
+		updateTransaction(seriesId, processorId, transactionId, endPosition, (Instant)null, null);
+	}
 	
 	/**
 	 * Update the time out of a transaction
@@ -357,11 +397,18 @@ public interface SequentialTransactionsCoordinator {
 	 * 									get this exception because the transaction is then owned by processor B 
 	 * @throws IllegalTransactionStateException If the transaction is not currently in a state that can be finished.
 	 * 											For example, if the transaction already timed out.
-	 * @throws InfrastructureErrorException If error in the underlying infrastructure happened, in this case, usually
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
 	 * 										no immediate retry should be attempted.
 	 */
-	void renewTransactionTimeout(String seriesId, String processorId, String transactionId, Instant timeout) 
-			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException;
+	default void renewTransactionTimeout(String seriesId, String processorId, String transactionId, Instant timeout) 
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException{
+		Validate.notNull(timeout, "Transaction time out cannot be null");
+		try {
+			updateTransaction(seriesId, processorId, transactionId, null, timeout, null);
+		} catch (IllegalEndPositionException e) {
+			throw Throwables.propagate(e); // should never reach here
+		} 
+	}
 	
 	/**
 	 * Update the time out of a transaction
@@ -378,11 +425,11 @@ public interface SequentialTransactionsCoordinator {
 	 * 									get this exception because the transaction is then owned by processor B 
 	 * @throws IllegalTransactionStateException If the transaction is not currently in a state that can be finished.
 	 * 											For example, if the transaction already timed out.
-	 * @throws InfrastructureErrorException If error in the underlying infrastructure happened, in this case, usually
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
 	 * 										no immediate retry should be attempted.
 	 */
 	default void renewTransactionTimeout(String seriesId, String processorId, String transactionId, Duration timeoutDuration) 
-			throws NotOwningTransactionException, InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException{
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException{
 		Validate.notNull(timeoutDuration, "Transaction time out duration cannot be null");
 		renewTransactionTimeout(seriesId, processorId, transactionId, Instant.now().plus(timeoutDuration));
 	}
@@ -396,10 +443,10 @@ public interface SequentialTransactionsCoordinator {
 	 * 				False if the transaction is in-progress, aborted, or just succeeded a extremely short while ago.
 	 * 									A transaction may be removed from the list when both itself and its next transaction
 	 * 									finished successfully, or when an open range transaction (which can only be the last one) failed (aborted or timed out).
-	 * @throws InfrastructureErrorException If error in the underlying infrastructure happened, in this case, usually
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
 	 * 										no immediate retry should be attempted.
 	 */
-	boolean isTransactionSuccessful(String seriesId, String transactionId, Instant beforeOrAtMoment) throws InfrastructureErrorException;
+	boolean isTransactionSuccessful(String seriesId, String transactionId, Instant beforeOrAtMoment) throws TransactionStorageInfrastructureException;
 	
 	/**
 	 * Check if a transaction has succeeded
@@ -409,10 +456,10 @@ public interface SequentialTransactionsCoordinator {
 	 * 				False if the transaction is in-progress, aborted, or just succeeded a extremely short while ago.
 	 * 									A transaction may be removed from the list when both itself and its next transaction
 	 * 									finished successfully, or when an open range transaction (which can only be the last one) failed (aborted or timed out).
-	 * @throws InfrastructureErrorException If error in the underlying infrastructure happened, in this case, usually
+	 * @throws TransactionStorageInfrastructureException If error in the underlying infrastructure happened, in this case, usually
 	 * 										no immediate retry should be attempted.
 	 */
-	default boolean isTransactionSuccessful(String seriesId, String transactionId) throws InfrastructureErrorException{
+	default boolean isTransactionSuccessful(String seriesId, String transactionId) throws TransactionStorageInfrastructureException{
 		return isTransactionSuccessful(seriesId, transactionId, Instant.now());
 	}
 
@@ -421,29 +468,29 @@ public interface SequentialTransactionsCoordinator {
 	 * @param seriesId	ID of the transaction series
 	 * @return				List of recent transactions, can be empty if there is no transaction at all. 
 	 * 						Head of the list is the last succeeded transaction, tail of the list is the most recent transaction.
-	 * @throws InfrastructureErrorException if error in the underlying infrastructure happened
+	 * @throws TransactionStorageInfrastructureException if error in the underlying infrastructure happened
 	 */
-	List<? extends ReadOnlySequentialTransaction> getRecentTransactions(String seriesId) throws InfrastructureErrorException;
+	List<? extends ReadOnlySequentialTransaction> getRecentTransactions(String seriesId) throws TransactionStorageInfrastructureException;
 
 	/**
 	 * Clear all the transactions of a progress. This method is not thread safe and should only be used for maintenance.
 	 * @param seriesId	ID of the transaction series
-	 * @throws InfrastructureErrorException	if error in the underlying infrastructure happened
+	 * @throws TransactionStorageInfrastructureException	if error in the underlying infrastructure happened
 	 */
-	void clear(String seriesId) throws InfrastructureErrorException;
+	void clear(String seriesId) throws TransactionStorageInfrastructureException;
 
 	/**
 	 * Clear all the transactions of all transactionsByseriesId. This method is not thread safe and should only be used for maintenance.
-	 * @throws InfrastructureErrorException	if error in the underlying infrastructure happened
+	 * @throws TransactionStorageInfrastructureException	if error in the underlying infrastructure happened
 	 */
-	void clearAll() throws InfrastructureErrorException;
+	void clearAll() throws TransactionStorageInfrastructureException;
 	
 	/**
 	 * From the list of recent transactions, find out the end position of the last finished transaction before which all transactions had succeeded.
 	 * @param transactions	list of transactions returned by {@link #getRecentTransactions(String seriesId)} method.
 	 * @return	the last finished position (all transactions before this position has succeeded), or null if there is no recent transaction
 	 */
-	static String getLastFinishedPosition(List<? extends ReadOnlySequentialTransaction> transactions){
+	static String getFinishedPosition(List<? extends ReadOnlySequentialTransaction> transactions){
 		if (transactions != null){
 			String position = null;
 			Iterator<? extends ReadOnlySequentialTransaction> iterator = transactions.iterator();
@@ -496,21 +543,27 @@ public interface SequentialTransactionsCoordinator {
 	 * @author James Hu
 	 *
 	 */
-	public static class TransactionCounts{
+	static class TransactionCounts{
 		private int retrying;
 		private int inProgress;
 		private int failed;
+		
+		TransactionCounts(int inProgress, int retrying, int failed){
+			this.inProgress = inProgress;
+			this.retrying = retrying;
+			this.failed = failed;
+		}
+		
+		@Override
+		public String toString(){
+			return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+		}
+		
 		/**
 		 * @return the retrying
 		 */
 		public int getRetrying() {
 			return retrying;
-		}
-		/**
-		 * @param retrying the retrying to set
-		 */
-		public void setRetrying(int retrying) {
-			this.retrying = retrying;
 		}
 		/**
 		 * @return the inProgress
@@ -519,22 +572,10 @@ public interface SequentialTransactionsCoordinator {
 			return inProgress;
 		}
 		/**
-		 * @param inProgress the inProgress to set
-		 */
-		public void setInProgress(int inProgress) {
-			this.inProgress = inProgress;
-		}
-		/**
 		 * @return the failed
 		 */
 		public int getFailed() {
 			return failed;
-		}
-		/**
-		 * @param failed the failed to set
-		 */
-		public void setFailed(int failed) {
-			this.failed = failed;
 		}
 	}
 	
@@ -544,24 +585,28 @@ public interface SequentialTransactionsCoordinator {
 	 * @return		counts
 	 */
 	static TransactionCounts getTransactionCounts(Collection<? extends ReadOnlySequentialTransaction> transactions){
-		TransactionCounts counts = new TransactionCounts();
+		int inProgress = 0;
+		int retrying = 0;
+		int failed = 0;
 		
-		for (ReadOnlySequentialTransaction tx: transactions){
-			switch(tx.getState()){
-				case IN_PROGRESS:
-					counts.inProgress ++;
-					if (tx.getAttempts() > 1){
-						counts.retrying ++;
-					}
-					break;
-				case FINISHED:
-					break;
-				default:	// failed
-					counts.failed ++;
-					break;
+		if (transactions != null && transactions.size() > 0){
+			for (ReadOnlySequentialTransaction tx: transactions){
+				switch(tx.getState()){
+					case IN_PROGRESS:
+						inProgress ++;
+						if (tx.getAttempts() > 1){
+							retrying ++;
+						}
+						break;
+					case FINISHED:
+						break;
+					default:	// failed
+						failed ++;
+						break;
+				}
 			}
 		}
-		return counts;
+		return new TransactionCounts(inProgress, retrying, failed);
 	}
 	
 

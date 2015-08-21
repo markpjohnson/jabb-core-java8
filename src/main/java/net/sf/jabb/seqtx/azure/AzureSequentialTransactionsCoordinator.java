@@ -3,6 +3,7 @@
  */
 package net.sf.jabb.seqtx.azure;
 
+import java.io.Serializable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -15,6 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import net.sf.jabb.azure.AzureStorageUtility;
@@ -26,7 +28,7 @@ import net.sf.jabb.seqtx.SimpleSequentialTransaction;
 import net.sf.jabb.seqtx.ex.DuplicatedTransactionIdException;
 import net.sf.jabb.seqtx.ex.IllegalEndPositionException;
 import net.sf.jabb.seqtx.ex.IllegalTransactionStateException;
-import net.sf.jabb.seqtx.ex.InfrastructureErrorException;
+import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
 import net.sf.jabb.seqtx.ex.NoSuchTransactionException;
 import net.sf.jabb.seqtx.ex.NotOwningTransactionException;
 import net.sf.jabb.util.attempt.AttemptStrategy;
@@ -65,12 +67,12 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	static private final Logger logger = LoggerFactory.getLogger(AzureSequentialTransactionsCoordinator.class);
 
 	/**
-	 * The default attempt strategy for Azure operations, with maximum 60 seconds allowed in total, and 0.5 to 10 seconds backoff interval 
+	 * The default attempt strategy for Azure operations, with maximum 90 seconds allowed in total, and 0.5 to 10 seconds backoff interval 
 	 * according to fibonacci series.
 	 */
 	static public final AttemptStrategy DEFAULT_ATTEMPT_STRATEGY = new AttemptStrategy()
 		.withWaitStrategy(WaitStrategies.threadSleepStrategy())
-		.withStopStrategy(StopStrategies.stopAfterTotalDuration(Duration.ofSeconds(60)))
+		.withStopStrategy(StopStrategies.stopAfterTotalDuration(Duration.ofSeconds(90)))
 		.withBackoffStrategy(BackoffStrategies.fibonacciBackoff(500L, 1000L * 10));
 	
 	public static final String DEFAULT_TABLE_NAME = "SequentialTransactionsCoordinator";
@@ -83,6 +85,28 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	protected volatile boolean tableExists = false;
 	
 	protected AttemptStrategy attemptStrategy = DEFAULT_ATTEMPT_STRATEGY;
+	
+	protected static final Predicate<Exception> ENTITY_HAS_BEEN_MODIFIED_BY_OTHERS = new Predicate<Exception>(){
+		@Override
+		public boolean test(Exception ex) {
+			if (ex instanceof StorageException){
+				StorageException e = (StorageException)ex;
+				return e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
+			}
+			return false;
+		}
+	};
+	
+	protected static final Predicate<Exception> ENTITY_HAS_BEEN_DELETED_OR_MODIFIED_BY_OTHERS = new Predicate<Exception>(){
+		@Override
+		public boolean test(Exception ex) {
+			if (ex instanceof StorageException){
+				StorageException e = (StorageException)ex;
+				return e.getHttpStatusCode() == 404 || e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
+			}
+			return false;
+		}
+	};
 	
 	public AzureSequentialTransactionsCoordinator(){
 		
@@ -155,7 +179,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			String previousTransactionId, String previousTransactionEndPosition,
 			ReadOnlySequentialTransaction transaction,
 			int maxInProgressTransacions, int maxRetryingTransactions)
-			throws InfrastructureErrorException,
+			throws TransactionStorageInfrastructureException,
 			DuplicatedTransactionIdException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(transaction.getProcessorId(), "Processor ID cannot be null");
@@ -164,12 +188,8 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			Validate.isTrue(null == transaction.getEndPosition(), "End position must be null when start position is null");
 		}
 		if (previousTransactionId != null){
-			Validate.notNull(previousTransactionEndPosition, "previousTransactionEndPosition cannot be null when previousTransactionId is not null");
+			Validate.notNull(previousTransactionEndPosition, "previousTransactionEndPosition cannot be null when previousTransactionId is not null: " + previousTransactionId);
 		}
-		/* in case the creation of the very first transaction
-		if (StringUtils.isNotEmpty(previousTransactionEndPosition)){
-			Validate.notNull(previousTransactionId, "previousTransactionId cannot be null when previousTransactionEndPosition has a value");
-		}*/
 		Validate.isTrue(maxInProgressTransacions > 0, "Maximum number of in-progress transactions must be greater than zero: %d", maxInProgressTransacions);
 		Validate.isTrue(maxRetryingTransactions > 0, "Maximum number of retrying transactions must be greater than zero: %d", maxRetryingTransactions);
 		Validate.isTrue(maxInProgressTransacions >= maxRetryingTransactions, "Maximum number of in-progress transactions must not be less than the maximum number of retrying transactions: %d, %d", maxInProgressTransacions, maxRetryingTransactions);
@@ -183,6 +203,9 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		
 		long finishStartAnyFailedTime = System.currentTimeMillis();
 		List<? extends ReadOnlySequentialTransaction> transactions = getRecentTransactionsIncludingDummy(seriesId);
+		if (transactions.size() > 0 && StringUtils.isNotEmpty(previousTransactionEndPosition)){
+			Validate.notNull(previousTransactionId, "previousTransactionId cannot be null when previousTransactionEndPosition has a value");
+		}
 		TransactionCounts counts = SequentialTransactionsCoordinator.getTransactionCounts(transactions);
 		ReadOnlySequentialTransaction last = transactions.size() > 0 ? transactions.get(transactions.size() - 1) : null;
 		long finishGetRecentTime = System.currentTimeMillis();
@@ -196,13 +219,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		}
 		
 		if (transaction.getStartPosition() == null){		// the client has nothing in mind, so propose a new one
-			SimpleSequentialTransaction tx;
-			if (last != null && last.getEndPosition() != null){
-				tx = new SimpleSequentialTransaction(last.getTransactionId(), transaction.getProcessorId(), last.getEndPosition(), transaction.getTimeout());
-			}else{
-				tx = new SimpleSequentialTransaction(null, transaction.getProcessorId(), null, transaction.getTimeout());
-			}
-			return tx;
+			return newNextTransaction(last, transaction.getProcessorId(), transaction.getTimeout());
 		}else{		// try to start the transaction requested by the client
 			if (last == null || last.getTransactionId().equals(previousTransactionId)){
 				// start the requested one
@@ -237,18 +254,50 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 					SequentialTransactionEntity latestLast = null;
 					try{
 						latestLast = fetchLastTransactionEntity(seriesId);
+						return newNextTransactionOrNull(latestLast, transaction.getProcessorId(), transaction.getTimeout());
 					}catch(Exception e1){
-						throw new InfrastructureErrorException("Failed to fetch latest last transaction in series '" + seriesId + "'", e1);
+						throw new TransactionStorageInfrastructureException("Failed to fetch latest last transaction in series '" + seriesId + "'", e1);
 					}
-					return (latestLast == null || latestLast.getEndPosition() == null) ? null 
-							: new SimpleSequentialTransaction(latestLast.getTransactionId(), transaction.getProcessorId(), latestLast.getEndPosition(), transaction.getTimeout());
 				} catch (StorageException e){
-					throw new InfrastructureErrorException("Failed to create after the last one with ID '" + previousTransactionId + "' a new transaction: " + newTrans, e);
+					throw new TransactionStorageInfrastructureException("Failed to create after the last one with ID '" + previousTransactionId + "' a new transaction: " + newTrans, e);
 				}
 			}else{
 				// propose a new one
-				return new SimpleSequentialTransaction(last.getTransactionId(), transaction.getProcessorId(), last.getEndPosition(), transaction.getTimeout());
+				return newNextTransaction(last, transaction.getProcessorId(), transaction.getTimeout());
 			}
+		}
+	}
+	
+	/**
+	 * Create an instance of SequentialTransaction that is the next to a specified one, or return null if it is not possible
+	 * @param previous			the previous transaction which should be the last in the series
+	 * @param processorId	ID of the processor
+	 * @param timeout		time out of the to be created transaction
+	 * @return		a new transaction, or null if previous is null or has a null end position
+	 */
+	protected SequentialTransaction newNextTransactionOrNull(ReadOnlySequentialTransaction previous, String processorId, Instant timeout){
+		if (previous == null || previous.getEndPosition() == null){
+			return null;
+		}else if (DUMMY_FIRST_TRANSACTION_ID.equals(previous.getTransactionId())){
+			return new SimpleSequentialTransaction(null, processorId, null, timeout);
+		}else{
+			return new SimpleSequentialTransaction(previous.getTransactionId(), processorId, previous.getEndPosition(), timeout);
+		}
+	}
+	
+	/**
+	 * Create an instance of SequentialTransaction that is the next to a specified one
+	 * @param previous			the previous transaction which should be the last in the series
+	 * @param processorId	ID of the processor
+	 * @param timeout		time out of the to be created transaction
+	 * @return		a new transaction
+	 */
+	protected SequentialTransaction newNextTransaction(ReadOnlySequentialTransaction previous, String processorId, Instant timeout){
+		if (previous == null || previous.getEndPosition() == null || 
+				DUMMY_FIRST_TRANSACTION_ID.equals(previous.getTransactionId())){
+			return new SimpleSequentialTransaction(null, processorId, null, timeout);
+		}else {
+			return new SimpleSequentialTransaction(previous.getTransactionId(), processorId, previous.getEndPosition(), timeout);
 		}
 	}
 	
@@ -262,9 +311,9 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * @return the transaction entity created
 	 * @throws IllegalStateException	if the last transaction is no longer the last
 	 * @throws StorageException			any error happened when updating the last and inserting the new one
-	 * @throws InfrastructureErrorException		if unable to get table reference
+	 * @throws TransactionStorageInfrastructureException		if unable to get table reference
 	 */
-	protected SequentialTransactionEntity createNewTransaction(String seriesId, String lastTransactionId, String previousTransactionEndPosition, SimpleSequentialTransaction newTrans) throws IllegalStateException, StorageException, InfrastructureErrorException{
+	protected SequentialTransactionEntity createNewTransaction(String seriesId, String lastTransactionId, String previousTransactionEndPosition, SimpleSequentialTransaction newTrans) throws IllegalStateException, StorageException, TransactionStorageInfrastructureException{
 		CloudTable table = getTableReference();
 		SequentialTransactionEntity last = null;
 		if (lastTransactionId == null){ // the first one
@@ -308,7 +357,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		try{
 			table.execute(batchOperation);
 		}catch(StorageException e){
-			if (e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode())){
+			if (ENTITY_HAS_BEEN_DELETED_OR_MODIFIED_BY_OTHERS.test(e)){
 				throw new IllegalStateException("The transaction is no longer the last one: " + last.keysToString());
 			}else{
 				throw e;
@@ -321,7 +370,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	
 	@Override
 	public SequentialTransaction startAnyFailedTransaction(String seriesId, String processorId, Instant timeout, int maxInProgressTransacions, int maxRetryingTransactions)
-			throws InfrastructureErrorException{
+			throws TransactionStorageInfrastructureException{
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.notNull(timeout, "Transaction time out cannot be null");
@@ -336,12 +385,12 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				.retryIfException(NoSuchTransactionException.class)
 				.callThrowingSuppressed(()->{return doStartAnyFailedTransaction(seriesId, processorId, timeout, maxInProgressTransacions, maxRetryingTransactions);});
 		}catch(Exception e){
-			throw new InfrastructureErrorException("Failed to start failed transaction for retrying: " + seriesId, e);
+			throw new TransactionStorageInfrastructureException("Failed to start failed transaction for retrying: " + seriesId, e);
 		}
 	}
 	
 	protected SequentialTransaction doStartAnyFailedTransaction(String seriesId, String processorId, Instant timeout, int maxInProgressTransacions, int maxRetryingTransactions)
-			throws InfrastructureErrorException, IllegalTransactionStateException, NoSuchTransactionException, Exception{
+			throws TransactionStorageInfrastructureException, IllegalTransactionStateException, NoSuchTransactionException, Exception{
 		List<? extends ReadOnlySequentialTransaction> transactions = getRecentTransactionsIncludingDummy(seriesId);
 		TransactionCounts counts = SequentialTransactionsCoordinator.getTransactionCounts(transactions);
 
@@ -358,7 +407,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				try {
 					new AttemptStrategy(attemptStrategy)
 						.overrideBackoffStrategy(BackoffStrategies.noBackoff())
-						.retryIfException(StorageException.class, e-> e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode()))
+						.retryIfException(ENTITY_HAS_BEEN_DELETED_OR_MODIFIED_BY_OTHERS)
 						.runThrowingSuppressed(()->modifyTransaction(seriesId, null, tx.getTransactionId(), 
 								entity->entity.retry(processorId, timeout), entity->{
 									CloudTable table = getTableReference();
@@ -366,12 +415,12 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 									startedTx.set(entity.toSequentialTransaction());
 								}));
 					return startedTx.get();
-				} catch (InfrastructureErrorException e){
+				} catch (TransactionStorageInfrastructureException e){
 					throw e;
 				} catch (IllegalTransactionStateException | NoSuchTransactionException e){ // picked up by someone else
 					continue; // try next one
 				} catch (Exception e){	// only possible: StorageException|RuntimeException
-					throw new InfrastructureErrorException("Failed to update transaction entity for retry: " + transactionKey, e);
+					throw new TransactionStorageInfrastructureException("Failed to update transaction entity for retry: " + transactionKey, e);
 				}
 			}
 		}
@@ -381,7 +430,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	@Override
 	public void finishTransaction(String seriesId, String processorId,
 			String transactionId, String endPosition) throws NotOwningTransactionException,
-			InfrastructureErrorException, IllegalTransactionStateException,
+			TransactionStorageInfrastructureException, IllegalTransactionStateException,
 			NoSuchTransactionException, IllegalEndPositionException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
@@ -392,7 +441,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			AtomicReference<String> updatedEndPosition = new AtomicReference<>(null);
 			new AttemptStrategy(attemptStrategy)
 				.overrideBackoffStrategy(BackoffStrategies.noBackoff())
-				.retryIfException(StorageException.class, e-> e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode()))
+				.retryIfException(ENTITY_HAS_BEEN_DELETED_OR_MODIFIED_BY_OTHERS)
 				.runThrowingSuppressed(()->modifyTransaction(seriesId, processorId, transactionId, 
 						entity->{
 							updatedEndPosition.set(entity.getEndPosition());
@@ -424,17 +473,17 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 								}
 							}
 						}));
-		} catch (NotOwningTransactionException | InfrastructureErrorException | IllegalTransactionStateException | IllegalEndPositionException | NoSuchTransactionException e){
+		} catch (NotOwningTransactionException | TransactionStorageInfrastructureException | IllegalTransactionStateException | IllegalEndPositionException | NoSuchTransactionException e){
 			throw e;
 		} catch (Exception e){	// only possible: StorageException|RuntimeException
-			throw new InfrastructureErrorException("Failed to update transaction entity state to " + SequentialTransactionState.FINISHED + ": " + transactionKey, e);
+			throw new TransactionStorageInfrastructureException("Failed to update transaction entity state to " + SequentialTransactionState.FINISHED + ": " + transactionKey, e);
 		}
 	}
 
 	@Override
 	public void abortTransaction(String seriesId, String processorId,
 			String transactionId) throws NotOwningTransactionException,
-			InfrastructureErrorException, IllegalTransactionStateException,
+			TransactionStorageInfrastructureException, IllegalTransactionStateException,
 			NoSuchTransactionException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
@@ -444,43 +493,58 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		try {
 			new AttemptStrategy(attemptStrategy)
 				.overrideBackoffStrategy(BackoffStrategies.noBackoff())
-				.retryIfException(StorageException.class, e-> e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode()))
+				.retryIfException(ENTITY_HAS_BEEN_DELETED_OR_MODIFIED_BY_OTHERS)
 				.runThrowingSuppressed(()->modifyTransaction(seriesId, processorId, transactionId, 
 						entity->entity.abort(), entity->{
 							CloudTable table = getTableReference();
 							table.execute(TableOperation.replace(entity));
 						}));
-		} catch (NotOwningTransactionException | InfrastructureErrorException | IllegalTransactionStateException | NoSuchTransactionException e){
+		} catch (NotOwningTransactionException | TransactionStorageInfrastructureException | IllegalTransactionStateException | NoSuchTransactionException e){
 			throw e;
 		} catch (Exception e){	// only possible: StorageException|RuntimeException
-			throw new InfrastructureErrorException("Failed to update transaction entity state to " + SequentialTransactionState.ABORTED + ": " + transactionKey, e);
+			throw new TransactionStorageInfrastructureException("Failed to update transaction entity state to " + SequentialTransactionState.ABORTED + ": " + transactionKey, e);
 		}
 	}
 
 	@Override
-	public void renewTransactionTimeout(String seriesId, String processorId,
-			String transactionId, Instant timeout)
-			throws NotOwningTransactionException, InfrastructureErrorException,
-			IllegalTransactionStateException, NoSuchTransactionException {
+	public void updateTransaction(String seriesId, String processorId,
+			String transactionId, String endPosition, Instant timeout, Serializable detail)
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException,
+			IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
-		Validate.notNull(timeout, "Transaction time out cannot be null");
+		Validate.isTrue(endPosition != null || timeout != null || detail != null, "End position, time out, and detail cannot all be null");
 
 		String transactionKey = AzureStorageUtility.keysToString(seriesId, transactionId);
 		try {
 			new AttemptStrategy(attemptStrategy)
 				.overrideBackoffStrategy(BackoffStrategies.noBackoff())
-				.retryIfException(StorageException.class, e-> e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode()))
+				.retryIfException(ENTITY_HAS_BEEN_DELETED_OR_MODIFIED_BY_OTHERS)
 				.runThrowingSuppressed(()->modifyTransaction(seriesId, processorId, transactionId, 
-						entity->entity.isInProgress(), entity->{
-							entity.setTimeout(timeout);
+						entity->entity.isInProgress(),
+						entity->{
+							if (endPosition != null){
+								if (endPosition.equals(entity.getEndPosition())){
+									// do nothing
+								}else if (entity.isLastTransaction()){
+									entity.setEndPosition(endPosition);
+								}else{
+									throw new IllegalEndPositionException("Cannot change transaction end position from '" + entity.getEndPosition() + "' to '" + endPosition + "' because it is not the last transaction: " + transactionKey);
+								}
+							}
+							if (timeout != null){
+								entity.setTimeout(timeout);
+							}
+							if (detail != null){
+								entity.setDetail(detail);
+							}
 							CloudTable table = getTableReference();
 							table.execute(TableOperation.replace(entity));
 						}));
-		} catch (NotOwningTransactionException | InfrastructureErrorException | IllegalTransactionStateException | NoSuchTransactionException e){
+		} catch (NotOwningTransactionException | TransactionStorageInfrastructureException | IllegalTransactionStateException | NoSuchTransactionException | IllegalEndPositionException e){
 			throw e;
 		} catch (Exception e){	// only possible: StorageException|RuntimeException
-			throw new InfrastructureErrorException("Failed to update timeout property for transaction entity with keys: " + transactionKey, e);
+			throw new TransactionStorageInfrastructureException("Failed to update transaction entity with keys: " + transactionKey, e);
 		}
 			
 	}
@@ -493,14 +557,14 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * @param stateChecker						lambda to check whether the transaction state is okay, returns true for ok false for throwing IllegalTransactionStateException
 	 * @param updater							lambda to perform the update, StorageException is the only unchecked exception allowed to be thrown
 	 * @throws NotOwningTransactionException		if the transaction is not currently owned by the process with specified processId
-	 * @throws InfrastructureErrorException			if failed to update the entity
+	 * @throws TransactionStorageInfrastructureException			if failed to update the entity
 	 * @throws IllegalTransactionStateException		if the state of the transaction is not IN_PROGRESS
 	 * @throws NoSuchTransactionException	if no such transaction can be found
 	 * @throws StorageException				if failed to replace the entity with updated values
 	 */
 	protected void modifyTransaction(String seriesId, String processorId, String transactionId, 
 			PredicateThrowsExceptions<SequentialTransactionEntity> stateChecker, ConsumerThrowsExceptions<SequentialTransactionEntity> updater)
-			throws NotOwningTransactionException, InfrastructureErrorException,
+			throws NotOwningTransactionException, TransactionStorageInfrastructureException,
 			IllegalTransactionStateException, NoSuchTransactionException, StorageException {
 		// update a single transaction
 		String transactionKey = AzureStorageUtility.keysToString(seriesId, transactionId);
@@ -508,7 +572,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		try {
 			entity = fetchEntity(seriesId, transactionId);
 		} catch (StorageException e) {
-			throw new InfrastructureErrorException("Failed to fetch transaction entity with keys: " + transactionKey, e);
+			throw new TransactionStorageInfrastructureException("Failed to fetch transaction entity with keys: " + transactionKey, e);
 		}
 		if (entity == null){
 			throw new NoSuchTransactionException("Transaction either does not exist or have succeeded and later been purged: " + transactionKey);
@@ -527,7 +591,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	@Override
 	public boolean isTransactionSuccessful(String seriesId,
 			String transactionId, Instant beforeWhen)
-			throws InfrastructureErrorException {
+			throws TransactionStorageInfrastructureException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(transactionId, "Transaction time out cannot be null");
 		Validate.notNull(beforeWhen, "Time cannot be null");
@@ -558,7 +622,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	}
 
 	protected List<? extends ReadOnlySequentialTransaction> getRecentTransactionsIncludingDummy(
-			String seriesId) throws InfrastructureErrorException {
+			String seriesId) throws TransactionStorageInfrastructureException {
 		LinkedList<SequentialTransactionWrapper> transactionEntities = new LinkedList<>();
 		//AtomicInteger attempts = new AtomicInteger(0);
 		try{
@@ -575,10 +639,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				// compact the list
 				return compact(transactionEntities);
 			});
-		}catch(InfrastructureErrorException e){
+		}catch(TransactionStorageInfrastructureException e){
 			throw e;
 		}catch(Exception e){
-			throw new InfrastructureErrorException("Failed to fetch recent transactions for series '" + seriesId + "'", e);
+			throw new TransactionStorageInfrastructureException("Failed to fetch recent transactions for series '" + seriesId + "'", e);
 		}
 		
 		//logger.debug("Attempted {} times for getting a consistent snapshot of recent transactions in series: {}", attempts.get(), seriesId);
@@ -587,7 +651,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 
 	@Override
 	public List<? extends ReadOnlySequentialTransaction> getRecentTransactions(
-			String seriesId) throws InfrastructureErrorException {
+			String seriesId) throws TransactionStorageInfrastructureException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		List<? extends ReadOnlySequentialTransaction> transactions = getRecentTransactionsIncludingDummy(seriesId);
 		if (transactions.size() > 0){
@@ -600,7 +664,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 
 
 	@Override
-	public void clear(String seriesId) throws InfrastructureErrorException {
+	public void clear(String seriesId) throws TransactionStorageInfrastructureException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		// delete entities by seriesId
 		try{
@@ -610,38 +674,38 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 							AzureStorageUtility.PARTITION_KEY, 
 							QueryComparisons.EQUAL,
 							seriesId));
-			logger.debug("Deleted all transactions in series '{}' in table {}", table == null ? null : table.getName()); 
+			logger.debug("Deleted all transactions in series '{}' in table: {}", seriesId, table == null ? null : table.getName()); 
 		}catch(Exception e){
-			throw new InfrastructureErrorException("Failed to delete entities belonging to series '" + seriesId + "' in table " + tableName, e);
+			throw new TransactionStorageInfrastructureException("Failed to delete entities belonging to series '" + seriesId + "' in table: " + tableName, e);
 		}
 	}
 
 	@Override
-	public void clearAll() throws InfrastructureErrorException {
+	public void clearAll() throws TransactionStorageInfrastructureException {
 		// delete all entities
 		try{
 			CloudTable table = getTableReference();
 			AzureStorageUtility.deleteEntitiesIfExist(table, (String)null);
-			logger.debug("Deleted all transactions in all series in table {}", table == null ? null : table.getName()); 
+			logger.debug("Deleted all transactions in all series in table: {}", table == null ? null : table.getName()); 
 		}catch(Exception e){
-			throw new InfrastructureErrorException("Failed to delete all entities in table " + tableName, e);
+			throw new TransactionStorageInfrastructureException("Failed to delete all entities in table: " + tableName, e);
 		}
 	}
 	
-	protected CloudTable getTableReference() throws InfrastructureErrorException{
+	protected CloudTable getTableReference() throws TransactionStorageInfrastructureException{
 		CloudTable table;
 		try {
 			table = tableClient.getTableReference(tableName);
 		} catch (Exception e) {
-			throw new InfrastructureErrorException("Failed to get reference for table '" + tableName + "'", e);
+			throw new TransactionStorageInfrastructureException("Failed to get reference for table: '" + tableName + "'", e);
 		}
 		if (!tableExists){
 			try {
 				if (AzureStorageUtility.createIfNotExist(tableClient, tableName)){
-					logger.debug("Created table {}", tableName); 
+					logger.debug("Created table: {}", tableName); 
 				}
 			} catch (Exception e) {
-				throw new InfrastructureErrorException("Failed to ensure the existence of table '" + tableName + "'", e);
+				throw new TransactionStorageInfrastructureException("Failed to ensure the existence of table: '" + tableName + "'", e);
 			}
 			tableExists = true;
 		}
@@ -654,9 +718,9 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * and remove the last transaction if it is a failed one with a null end position.
 	 * @return true if data is consistent, false if data needs to be reloaded due to concurrency
 	 * @param transactionEntities	 The list of transaction entities. The list may be changed inside this method.
-	 * @throws InfrastructureErrorException 	if failed to update entities during the compact process
+	 * @throws TransactionStorageInfrastructureException 	if failed to update entities during the compact process
 	 */
-	protected boolean compact(LinkedList<SequentialTransactionWrapper> transactionEntities) throws InfrastructureErrorException{
+	protected boolean compact(LinkedList<SequentialTransactionWrapper> transactionEntities) throws TransactionStorageInfrastructureException{
 		// remove finished historical transactions and leave only one of them
 		int finished = 0; 		// 0 - no successful; 1 - one successful; 2 - two successful; ...
 		Iterator<SequentialTransactionWrapper> iterator = transactionEntities.iterator();
@@ -703,7 +767,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 					transactionEntities.removeFirst();
 					break;
 				}
-				throw new InfrastructureErrorException("Failed to remove succeeded transaction entity with keys '" + first.entityKeysToString() 
+				throw new TransactionStorageInfrastructureException("Failed to remove succeeded transaction entity with keys '" + first.entityKeysToString() 
 						+ "' and make the next entity with keys '" + second.entityKeysToString() 
 						+ "' the new first one.", e);
 			}
@@ -718,7 +782,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 					alreadyDeleted.add(wrapper);
 				}
 			}catch(StorageException e){
-				throw new InfrastructureErrorException("Failed to update timed out transaction entity with keys '" + wrapper.entityKeysToString() 
+				throw new TransactionStorageInfrastructureException("Failed to update timed out transaction entity with keys '" + wrapper.entityKeysToString() 
 						+ "', probably it has been modified by another client.", e);
 			}
 		}
@@ -751,7 +815,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 					table.execute(batchOperation);
 				} catch (StorageException e) {
 					if (e.getHttpStatusCode() != 404){  // ignore if someone already did the job
-						throw new InfrastructureErrorException("Failed to delete failed open range transaction entity with keys '" + wrapper.entityKeysToString() 
+						throw new TransactionStorageInfrastructureException("Failed to delete failed open range transaction entity with keys '" + wrapper.entityKeysToString() 
 								+ "', probably it has been modified by another client.", e);
 					}
 				}
@@ -768,9 +832,9 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * @return				true if done successfully, false if the underlying entity had been deleted
 	 * @throws StorageException				error when updating the entity
 	 * @throws IllegalStateException		the transactions state changed and cannot be timed out
-	 * @throws InfrastructureErrorException	error when getting table reference
+	 * @throws TransactionStorageInfrastructureException	error when getting table reference
 	 */
-	protected boolean applyTimeout(SequentialTransactionWrapper wrapper) throws StorageException, IllegalStateException, InfrastructureErrorException{
+	protected boolean applyTimeout(SequentialTransactionWrapper wrapper) throws StorageException, IllegalStateException, TransactionStorageInfrastructureException{
 		CloudTable table = getTableReference();
 		
 		AtomicBoolean needsReload = new AtomicBoolean(false);
@@ -778,7 +842,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			return new AttemptStrategy(attemptStrategy)
 				.overrideBackoffStrategy(BackoffStrategies.noBackoff())
 				.retryIfException(StorageException.class, e-> {
-					if (e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode())){
+					if (ENTITY_HAS_BEEN_MODIFIED_BY_OTHERS.test(e)){
 						needsReload.set(true);
 						return true;
 					}else{
@@ -823,10 +887,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * @param seriesId			the ID of the series that the transaction belongs to
 	 * @param transactionId		the ID of the transaction
 	 * @return					the transaction entity or null if not found
-	 * @throws InfrastructureErrorException		if failed to get table reference
+	 * @throws TransactionStorageInfrastructureException		if failed to get table reference
 	 * @throws StorageException					if other underlying error happened
 	 */
-	protected SequentialTransactionEntity fetchEntity(String seriesId, String transactionId) throws InfrastructureErrorException, StorageException{
+	protected SequentialTransactionEntity fetchEntity(String seriesId, String transactionId) throws TransactionStorageInfrastructureException, StorageException{
 		CloudTable table = getTableReference();
 		SequentialTransactionEntity entity = null;
 		try{
@@ -844,10 +908,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * @param seriesId			the ID of the series that the transaction belongs to
 	 * @param transactionId		the ID of the transaction
 	 * @return					the transaction entity as DynamicTableEntity or null if not found
-	 * @throws InfrastructureErrorException		if failed to get table reference
+	 * @throws TransactionStorageInfrastructureException		if failed to get table reference
 	 * @throws StorageException					if other underlying error happened
 	 */
-	protected DynamicTableEntity fetchDynamicEntity(String seriesId, String transactionId) throws InfrastructureErrorException, StorageException{
+	protected DynamicTableEntity fetchDynamicEntity(String seriesId, String transactionId) throws TransactionStorageInfrastructureException, StorageException{
 		CloudTable table = getTableReference();
 		DynamicTableEntity entity = null;
 		try{
@@ -860,7 +924,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		return entity;
 	}
 	
-	protected SequentialTransactionEntity fetchLastTransactionEntity(String seriesId) throws InfrastructureErrorException, StorageException{
+	protected SequentialTransactionEntity fetchLastTransactionEntity(String seriesId) throws TransactionStorageInfrastructureException, StorageException{
 		CloudTable table = getTableReference();
 		SequentialTransactionEntity result = null;
 		TableQuery<SequentialTransactionEntity> query = TableQuery.from(SequentialTransactionEntity.class).
@@ -877,10 +941,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 						));
 		for (SequentialTransactionEntity entity: table.execute(query)){
 			if (result != null){
-				throw new InfrastructureErrorException("Corrupted data for series '" + seriesId + "' in table " + tableName 
+				throw new TransactionStorageInfrastructureException("Corrupted data for series '" + seriesId + "' in table " + tableName 
 						+ ", there are at least two last transactions: " + result.keysToString() + ", " + entity.keysToString());
 			}
-			return result = entity;
+			result = entity;
 		}
 		return result;
 	}
@@ -894,9 +958,9 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * 												and the value will be the wrapper of the first transaction.
 	 * @return		a map of SequentialTransactionEntityWrapper indexed by transaction ID, if putAdditionalFirstTransactionEntry argument is true
 	 * 				there will be one more additional entry for the first transaction.
-	 * @throws InfrastructureErrorException		if failed to fetch entities
+	 * @throws TransactionStorageInfrastructureException		if failed to fetch entities
 	 */
-	protected Map<String, SequentialTransactionWrapper> fetchEntities(String seriesId, boolean putAdditionalFirstTransactionEntry) throws InfrastructureErrorException{
+	protected Map<String, SequentialTransactionWrapper> fetchEntities(String seriesId, boolean putAdditionalFirstTransactionEntry) throws TransactionStorageInfrastructureException{
 		// fetch entities by seriesId
 		Map<String, SequentialTransactionWrapper> map = new HashMap<>();
 
@@ -919,7 +983,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				map.put(wrapper.getEntity().getRowKey(), wrapper);		// indexed by transaction id
 			}
 		}catch(Exception e){
-			throw new InfrastructureErrorException("Failed to fetch entities belonging to series '" + seriesId + "' in table " + tableName, e);
+			throw new TransactionStorageInfrastructureException("Failed to fetch entities belonging to series '" + seriesId + "' in table " + tableName, e);
 		}
 		
 		// sanity check
@@ -934,8 +998,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			}
 		}
 		if (!(numFirst == 0 && numLast == 0 || numFirst == 1 && numLast == 1)){
-			throw new InfrastructureErrorException("Corrupted data for series '" + seriesId + "' in table " + tableName 
-					+ ", number of first transaction(s): " + numFirst + ", number of last transaction(s): " + numLast);
+			String errorMsg = "Corrupted data for series '" + seriesId + "' in table " + tableName 
+					+ ", number of first transaction(s): " + numFirst + ", number of last transaction(s): " + numLast;
+			logger.error(errorMsg + ", transactions: {}", toList(map));
+			throw new TransactionStorageInfrastructureException(errorMsg);
 		}
 
 		// link them up, with sanity check
@@ -947,7 +1013,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				String previousId = wrapper.getPreviousTransactionId();
 				SequentialTransactionWrapper previous = map.get(previousId);
 				if (previous == null){
-					throw new InfrastructureErrorException("Corrupted data for series '" + seriesId + "' in table " + tableName
+					throw new TransactionStorageInfrastructureException("Corrupted data for series '" + seriesId + "' in table " + tableName
 							+ ", previous transaction ID '" + previousId + "' of transaction '" + wrapper.getEntity().getRowKey() + "' cannot be found");
 				}
 				wrapper.setPrevious(previous);
@@ -956,7 +1022,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				String nextId = wrapper.getNextTransactionId();
 				SequentialTransactionWrapper next = map.get(nextId);
 				if (next == null){
-					throw new InfrastructureErrorException("Corrupted data for series '" + seriesId + "' in table " + tableName
+					throw new TransactionStorageInfrastructureException("Corrupted data for series '" + seriesId + "' in table " + tableName
 							+ ", next transaction ID '" + nextId + "' of transaction '" + wrapper.getEntity().getRowKey() + "' cannot be found");
 				}
 				wrapper.setNext(next);
