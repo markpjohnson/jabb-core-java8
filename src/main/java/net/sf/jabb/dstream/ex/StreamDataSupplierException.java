@@ -1,22 +1,22 @@
 /**
  * 
  */
-package net.sf.jabb.seqtx.ex;
+package net.sf.jabb.dstream.ex;
 
 /**
- * The ancestor of all the exception types generated in TransactionalProgressTracker.
+ * The ancestor of all the exception types generated in StreamDataSupplier.
  * @author James Hu
  *
  */
-public class SequentialTransactionException extends Exception {
-	private static final long serialVersionUID = 2599608512784761265L;
+public class StreamDataSupplierException extends Exception {
+	private static final long serialVersionUID = 472173725675532151L;
 
-    /**
+	/**
      * Constructs a new exception with {@code null} as its detail message.
      * The cause is not initialized, and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
-    public SequentialTransactionException() {
+    public StreamDataSupplierException() {
         super();
     }
 
@@ -28,7 +28,7 @@ public class SequentialTransactionException extends Exception {
      * @param   message   the detail message. The detail message is saved for
      *          later retrieval by the {@link #getMessage()} method.
      */
-    public SequentialTransactionException(String message) {
+    public StreamDataSupplierException(String message) {
         super(message);
     }
 
@@ -45,7 +45,7 @@ public class SequentialTransactionException extends Exception {
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public SequentialTransactionException(String message, Throwable cause) {
+    public StreamDataSupplierException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -62,7 +62,7 @@ public class SequentialTransactionException extends Exception {
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public SequentialTransactionException(Throwable cause) {
+    public StreamDataSupplierException(Throwable cause) {
         super(cause);
     }
 
@@ -79,7 +79,7 @@ public class SequentialTransactionException extends Exception {
      * @param writableStackTrace whether or not the stack trace should
      *                           be writable
      */
-    protected SequentialTransactionException(String message, Throwable cause,
+    protected StreamDataSupplierException(String message, Throwable cause,
                         boolean enableSuppression,
                         boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);

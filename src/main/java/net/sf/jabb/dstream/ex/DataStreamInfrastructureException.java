@@ -1,23 +1,22 @@
 /**
  * 
  */
-package net.sf.jabb.seqtx.ex;
-
+package net.sf.jabb.dstream.ex;
 
 /**
- * The exception thrown in the situation that there is an unrecoverable exception in underlying infrastructure 
+ * Exception thrown in case of any error happened in the infrastructure
  * @author James Hu
  *
  */
-public class InfrastructureErrorException extends SequentialTransactionException {
-	private static final long serialVersionUID = -7568820798616959336L;
-	
-    /**
+public class DataStreamInfrastructureException extends StreamDataSupplierException {
+	private static final long serialVersionUID = 7333553354551248623L;
+
+	/**
      * Constructs a new exception with {@code null} as its detail message.
      * The cause is not initialized, and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
-    public InfrastructureErrorException() {
+    public DataStreamInfrastructureException() {
         super();
     }
 
@@ -29,7 +28,7 @@ public class InfrastructureErrorException extends SequentialTransactionException
      * @param   message   the detail message. The detail message is saved for
      *          later retrieval by the {@link #getMessage()} method.
      */
-    public InfrastructureErrorException(String message) {
+    public DataStreamInfrastructureException(String message) {
         super(message);
     }
 
@@ -46,7 +45,7 @@ public class InfrastructureErrorException extends SequentialTransactionException
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public InfrastructureErrorException(String message, Throwable cause) {
+    public DataStreamInfrastructureException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -63,7 +62,7 @@ public class InfrastructureErrorException extends SequentialTransactionException
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public InfrastructureErrorException(Throwable cause) {
+    public DataStreamInfrastructureException(Throwable cause) {
         super(cause);
     }
 
@@ -80,10 +79,9 @@ public class InfrastructureErrorException extends SequentialTransactionException
      * @param writableStackTrace whether or not the stack trace should
      *                           be writable
      */
-    protected InfrastructureErrorException(String message, Throwable cause,
+    protected DataStreamInfrastructureException(String message, Throwable cause,
                         boolean enableSuppression,
                         boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }
-
 }

@@ -4,12 +4,12 @@
 package net.sf.jabb.seqtx.azure;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.Validate;
-import org.apache.commons.lang3.builder.CompareToBuilder;
 
 import net.sf.jabb.seqtx.ReadOnlySequentialTransaction;
 import net.sf.jabb.seqtx.SequentialTransaction;
@@ -28,7 +28,7 @@ import com.microsoft.azure.storage.table.TableServiceEntity;
  * @author James Hu
  *
  */
-public class SequentialTransactionEntity extends TableServiceEntity {
+public class SequentialTransactionEntity extends TableServiceEntity implements ReadOnlySequentialTransaction{
 	static public final int MAX_BINARY_LENGTH = 64*1024;
 	
 	protected String processorId;
@@ -78,18 +78,22 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 		return tx;
 	}
 	
+	@Override
 	public boolean isInProgress(){
 		return SequentialTransactionState.IN_PROGRESS.name().equals(state);
 	}
 	
+	@Override
 	public boolean isFinished(){
 		return SequentialTransactionState.FINISHED.name().equals(state);
 	}
 	
+	@Override
 	public boolean isFailed(){
 		return SequentialTransactionState.ABORTED.name().equals(state) || SequentialTransactionState.TIMED_OUT.name().equals(state);
 	}
 	
+	@Override
 	public boolean hasStarted(){
 		return startTime != null;
 	}
@@ -147,6 +151,7 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public void setTimeout(Instant timeout){
 		this.timeout = timeout == null ? null : Date.from(timeout);
 	}
+	@Override
 	@Ignore
 	public Instant getTimeout(){
 		return timeout == null ? null : timeout.toInstant();
@@ -155,6 +160,7 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public void setStartTime(Instant startTime){
 		this.startTime = startTime == null ? null : Date.from(startTime);
 	}
+	@Override
 	@Ignore
 	public Instant getStartTime(){
 		return startTime == null ? null : startTime.toInstant();
@@ -163,6 +169,7 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public void setFinishTime(Instant finishTime){
 		this.finishTime = finishTime == null ? null : Date.from(finishTime);
 	}
+	@Override
 	@Ignore
 	public Instant getFinishTime(){
 		return finishTime == null ? null : finishTime.toInstant();
@@ -171,20 +178,26 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public void setState(SequentialTransactionState state){
 		this.state = state == null ? null : state.name();
 	}
+	@Override
 	@Ignore
 	public SequentialTransactionState getState(){
 		return state == null ? null : SequentialTransactionState.valueOf(state);
 	}
 	@Ignore
 	public void setDetail(Serializable detail){
-		this.serializedDetail = SerializationUtils.serialize(detail);
-		Validate.isTrue(this.serializedDetail.length <= MAX_BINARY_LENGTH, 
-				"Serialized transaction detail must not exceed %d bytes, that's the limitation of Azure table storage."
-				, MAX_BINARY_LENGTH);
+		if (detail == null){
+			this.serializedDetail = null;
+		}else{
+			this.serializedDetail = SerializationUtils.serialize(detail);
+			Validate.isTrue(this.serializedDetail.length <= MAX_BINARY_LENGTH, 
+					"Serialized transaction detail must not exceed %d bytes, that's the limitation of Azure table storage."
+					, MAX_BINARY_LENGTH);
+		}
 	}
+	@Override
 	@Ignore
 	public Serializable getDetail(){
-		return (Serializable) SerializationUtils.deserialize(this.serializedDetail);
+		return this.serializedDetail == null ? null : (Serializable) SerializationUtils.deserialize(this.serializedDetail);
 	}
 	
 
@@ -196,6 +209,7 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public void setSeriesId(String seriesId) {
 		this.setPartitionKey(seriesId);
 	}
+	@Override
 	@Ignore
 	public String getTransactionId() {
 		return this.getRowKey();
@@ -205,18 +219,21 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 		this.setRowKey(transactionId);
 	}
 	
+	@Override
 	public String getProcessorId() {
 		return processorId;
 	}
 	public void setProcessorId(String processorId) {
 		this.processorId = processorId;
 	}
+	@Override
 	public String getStartPosition() {
 		return startPosition;
 	}
 	public void setStartPosition(String startPosition) {
 		this.startPosition = startPosition;
 	}
+	@Override
 	public String getEndPosition() {
 		return endPosition;
 	}
@@ -279,6 +296,7 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public void setSerializedDetail(byte[] serializedDetail) {
 		this.serializedDetail = serializedDetail;
 	}
+	@Override
 	public int getAttempts() {
 		return attempts;
 	}
@@ -326,4 +344,5 @@ public class SequentialTransactionEntity extends TableServiceEntity {
 	public boolean isLastTransaction(){
 		return nextTransactionId == null || nextTransactionId.length() == 0;
 	}
+	
 }

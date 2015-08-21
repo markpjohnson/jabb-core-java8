@@ -9,7 +9,7 @@ package net.sf.jabb.seqtx.ex;
  * @author James Hu
  *
  */
-public class DuplicatedTransactionIdException extends SequentialTransactionException {
+public class DuplicatedTransactionIdException extends SequentialTransactionsCoordinatorException {
 	private static final long serialVersionUID = 735554272315512893L;
 
 	/**

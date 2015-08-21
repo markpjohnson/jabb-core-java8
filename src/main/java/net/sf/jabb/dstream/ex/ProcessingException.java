@@ -1,24 +1,22 @@
 /**
  * 
  */
-package net.sf.jabb.seqtx.ex;
-
+package net.sf.jabb.dstream.ex;
 
 /**
- * The exception thrown in the situation that the processor tries to finish a transaction 
- * with a null end position, or to finish a non-last transaction with an updated end position. 
+ * Exception thrown in case of any error happened during the processing of data
  * @author James Hu
  *
  */
-public class IllegalEndPositionException extends SequentialTransactionsCoordinatorException {
-	private static final long serialVersionUID = 616754725828783475L;
+public class ProcessingException extends StreamDataSupplierException {
+	private static final long serialVersionUID = -3784298896213634441L;
 
 	/**
      * Constructs a new exception with {@code null} as its detail message.
      * The cause is not initialized, and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
-    public IllegalEndPositionException() {
+    public ProcessingException() {
         super();
     }
 
@@ -30,7 +28,7 @@ public class IllegalEndPositionException extends SequentialTransactionsCoordinat
      * @param   message   the detail message. The detail message is saved for
      *          later retrieval by the {@link #getMessage()} method.
      */
-    public IllegalEndPositionException(String message) {
+    public ProcessingException(String message) {
         super(message);
     }
 
@@ -47,7 +45,7 @@ public class IllegalEndPositionException extends SequentialTransactionsCoordinat
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public IllegalEndPositionException(String message, Throwable cause) {
+    public ProcessingException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -64,7 +62,7 @@ public class IllegalEndPositionException extends SequentialTransactionsCoordinat
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public IllegalEndPositionException(Throwable cause) {
+    public ProcessingException(Throwable cause) {
         super(cause);
     }
 
@@ -81,10 +79,9 @@ public class IllegalEndPositionException extends SequentialTransactionsCoordinat
      * @param writableStackTrace whether or not the stack trace should
      *                           be writable
      */
-    protected IllegalEndPositionException(String message, Throwable cause,
+    protected ProcessingException(String message, Throwable cause,
                         boolean enableSuppression,
                         boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }
-
 }

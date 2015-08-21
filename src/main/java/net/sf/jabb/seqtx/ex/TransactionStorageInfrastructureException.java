@@ -5,20 +5,19 @@ package net.sf.jabb.seqtx.ex;
 
 
 /**
- * The exception thrown in the situation that the processor tries to finish a transaction 
- * with a null end position, or to finish a non-last transaction with an updated end position. 
+ * The exception thrown in the situation that there is an unrecoverable exception in underlying transaction storage infrastructure 
  * @author James Hu
  *
  */
-public class IllegalEndPositionException extends SequentialTransactionsCoordinatorException {
-	private static final long serialVersionUID = 616754725828783475L;
-
-	/**
+public class TransactionStorageInfrastructureException extends SequentialTransactionsCoordinatorException {
+	private static final long serialVersionUID = -7568820798616959336L;
+	
+    /**
      * Constructs a new exception with {@code null} as its detail message.
      * The cause is not initialized, and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
-    public IllegalEndPositionException() {
+    public TransactionStorageInfrastructureException() {
         super();
     }
 
@@ -30,7 +29,7 @@ public class IllegalEndPositionException extends SequentialTransactionsCoordinat
      * @param   message   the detail message. The detail message is saved for
      *          later retrieval by the {@link #getMessage()} method.
      */
-    public IllegalEndPositionException(String message) {
+    public TransactionStorageInfrastructureException(String message) {
         super(message);
     }
 
@@ -47,7 +46,7 @@ public class IllegalEndPositionException extends SequentialTransactionsCoordinat
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public IllegalEndPositionException(String message, Throwable cause) {
+    public TransactionStorageInfrastructureException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -64,7 +63,7 @@ public class IllegalEndPositionException extends SequentialTransactionsCoordinat
      *         permitted, and indicates that the cause is nonexistent or
      *         unknown.)
      */
-    public IllegalEndPositionException(Throwable cause) {
+    public TransactionStorageInfrastructureException(Throwable cause) {
         super(cause);
     }
 
@@ -81,7 +80,7 @@ public class IllegalEndPositionException extends SequentialTransactionsCoordinat
      * @param writableStackTrace whether or not the stack trace should
      *                           be writable
      */
-    protected IllegalEndPositionException(String message, Throwable cause,
+    protected TransactionStorageInfrastructureException(String message, Throwable cause,
                         boolean enableSuppression,
                         boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);

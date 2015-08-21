@@ -9,6 +9,8 @@ import java.util.Date;
 
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.Validate;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import com.microsoft.azure.storage.table.DynamicTableEntity;
 import com.microsoft.azure.storage.table.EntityProperty;
@@ -64,6 +66,19 @@ public class SequentialTransactionWrapper {
 	 */
 	public SequentialTransactionWrapper(SimpleSequentialTransaction transaction){
 		this.transaction = transaction;
+	}
+	
+	@Override
+	public String toString(){
+		return new ToStringBuilder(ToStringStyle.SHORT_PREFIX_STYLE)
+			.append("transactionId", this.getEntityTransactionId())
+			.append("processorId", this.getTransactionNotNull().getProcessorId())
+			.append("state", this.getTransactionNotNull().getState())
+			.append("startPosition", this.getTransactionNotNull().getStartPosition())
+			.append("endPosition", this.getTransactionNotNull().getEndPosition())
+			.append("previous", this.getEntity().getProperties().get("Previous").getValueAsString())
+			.append("next", this.getEntity().getProperties().get("Next").getValueAsString())
+			.toString();
 	}
 	
 	public void updateFromEntity(){
