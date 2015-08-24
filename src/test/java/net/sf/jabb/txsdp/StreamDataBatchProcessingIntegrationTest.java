@@ -26,6 +26,7 @@ import net.sf.jabb.seqtx.azure.AzureSequentialTransactionsCoordinator;
 import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
 import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.Options;
 import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.Status;
+import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.StreamStatus;
 import net.sf.jabb.util.attempt.AttemptStrategy;
 import net.sf.jabb.util.attempt.StopStrategies;
 import net.sf.jabb.util.parallel.WaitStrategies;
@@ -123,26 +124,26 @@ public class StreamDataBatchProcessingIntegrationTest {
 					}
 				}
 				return true;
-		}, 3000, Duration.ofSeconds(60), Duration.ofSeconds(5),
+		}, 3000, Duration.ofSeconds(60), Duration.ofSeconds(10),
 		suppliersWithIdAndRange);
 		
 		ExecutorService threadPool = Executors.newCachedThreadPool();
 		for (int i = 0; i < NUM_PROCESSORS; i ++){
-			Runnable runnable = job.createRunnalbe(String.valueOf(i));
+			Runnable runnable = job.createProcessor(String.valueOf(i));
 			threadPool.execute(runnable);
 		}
 		
 		logger.info("Starting {} processors in their threads", NUM_PROCESSORS);
-		job.start();
+		job.startAll();
 		
 		for (int i = Integer.MAX_VALUE; i >= 0; i --){
 			Thread.sleep(Duration.ofMinutes(1).toMillis());
 			try{
-				LinkedHashMap<String, Status> status = job.getStatus();
+				Status status = job.getStatus();
 				logger.info("Status: {}", status);
 				
 				Instant recent = Instant.now().minus(Duration.ofMinutes(2));
-				if (status.values().stream()
+				if (status.getStreamStatus().values().stream()
 					.filter(s -> s.getFinishedEnqueuedTime() == null || s.getFinishedEnqueuedTime().isBefore(recent))
 					.count() == 0){
 					logger.info("Caught up with the stream");
@@ -158,7 +159,8 @@ public class StreamDataBatchProcessingIntegrationTest {
 		
 		
 		logger.info("Stopping {} processors", NUM_PROCESSORS);
-		job.stop();
+		job.stopAll();
+		Thread.sleep(30*1000L);
 		
 		for (StreamDataSupplierWithIdAndRange<String> supplierWithIdAndRange: suppliersWithIdAndRange){
 			supplierWithIdAndRange.getSupplier().stop();
