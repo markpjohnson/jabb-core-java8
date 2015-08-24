@@ -277,7 +277,7 @@ class AttemptStrategyImpl {
     }
 
     protected AttemptStrategyImpl retryIfException() {
-        return retryIfAttemptHasException(X->true);
+        return retryIfAttemptHasException(x->true);
     }
 
     private static final class ExceptionClassPredicate implements Predicate<Attempt<Void>> {

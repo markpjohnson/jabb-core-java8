@@ -24,7 +24,7 @@ import com.google.common.util.concurrent.MoreExecutors;
  * @param <I>	type of input
  * @param <O>	type of output
  */
-public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
+public class RecursivePipelineImpl<I, O> implements Pipeline<I, O>{
 	ExecutorService executor;
 	Function<I, Future<O>> feedFunction;
 	
@@ -34,8 +34,8 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	 * @param <O> type of output
 	 * @return	a new pipeline that you can prepend stages
 	 */
-	public static <O> PipelineRecursiveImpl<O, O> outputTo(Collection<O> outputCollection){
-		return new PipelineRecursiveImpl<O, O>(MoreExecutors.newDirectExecutorService(), input -> {
+	public static <O> RecursivePipelineImpl<O, O> outputTo(Collection<O> outputCollection){
+		return new RecursivePipelineImpl<O, O>(MoreExecutors.newDirectExecutorService(), input -> {
 			outputCollection.add(input);
 			return input;
 		});
@@ -49,8 +49,8 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	 * @param <O2> type of the output of the downstream pipeline
 	 * @return	a new pipeline that you can prepend stages
 	 */
-	public static <O, O2> PipelineRecursiveImpl<O, Pipeline.IntermediateOutput<O, O2>> outputTo(Pipeline<O, O2> downstreamPipeline){
-		return new PipelineRecursiveImpl<O, Pipeline.IntermediateOutput<O, O2>>(MoreExecutors.newDirectExecutorService(), input -> {
+	public static <O, O2> RecursivePipelineImpl<O, Pipeline.IntermediateOutput<O, O2>> outputTo(Pipeline<O, O2> downstreamPipeline){
+		return new RecursivePipelineImpl<O, Pipeline.IntermediateOutput<O, O2>>(MoreExecutors.newDirectExecutorService(), input -> {
 			Future<O2> future = downstreamPipeline.feed(input);
 			Pipeline.IntermediateOutput<O, O2> intermediateOutput = new Pipeline.IntermediateOutput<O, O2>(input, future);
 			return intermediateOutput;
@@ -63,12 +63,12 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	 * @param <O> type of the output
 	 * @return a pipeline that does not output to anywhere
 	 */
-	public static <O> PipelineRecursiveImpl<O, O> noOutput(){
-		return new PipelineRecursiveImpl<O, O>(MoreExecutors.newDirectExecutorService(), input -> input);
+	public static <O> RecursivePipelineImpl<O, O> noOutput(){
+		return new RecursivePipelineImpl<O, O>(MoreExecutors.newDirectExecutorService(), input -> input);
 	}
 
 
-	private PipelineRecursiveImpl(ExecutorService executor, Function<I, O> function){
+	private RecursivePipelineImpl(ExecutorService executor, Function<I, O> function){
 		this.executor = executor;
 		this.feedFunction = input -> {
 			O output = function.apply(input);
@@ -106,7 +106,7 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 		};
 	}
 	
-	private <OI> PipelineRecursiveImpl(ExecutorService executor, Function<I, OI> function, PipelineRecursiveImpl<OI, O> downstream){
+	private <OI> RecursivePipelineImpl(ExecutorService executor, Function<I, OI> function, RecursivePipelineImpl<OI, O> downstream){
 		this.executor = executor;
 		this.feedFunction = input -> {
 			OI intermediate = function.apply(input);
@@ -122,8 +122,8 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	 * @param <I0> type of the new input
 	 * @return		the new pipeline with the stage prepended
 	 */
-	public <I0> PipelineRecursiveImpl<I0, O> prepend(ExecutorService executor, Function<I0, I> function){
-		return new PipelineRecursiveImpl<I0, O>(executor, function, this);
+	public <I0> RecursivePipelineImpl<I0, O> prepend(ExecutorService executor, Function<I0, I> function){
+		return new RecursivePipelineImpl<I0, O>(executor, function, this);
 	}
 	
 	/**
@@ -134,9 +134,9 @@ public class PipelineRecursiveImpl<I, O> implements Pipeline<I, O>{
 	 * @param <I0> type of the new input
 	 * @return		the new pipeline with the stage prepended
 	 */
-	public <I0> PipelineRecursiveImpl<I0, O> prepend(int fixedThreadPoolSize, Function<I0, I> function){
+	public <I0> RecursivePipelineImpl<I0, O> prepend(int fixedThreadPoolSize, Function<I0, I> function){
 		ExecutorService executor = Executors.newFixedThreadPool(fixedThreadPoolSize);
-		return new PipelineRecursiveImpl<I0, O>(executor, function, this);
+		return new RecursivePipelineImpl<I0, O>(executor, function, this);
 	}
 	
 	@Override
