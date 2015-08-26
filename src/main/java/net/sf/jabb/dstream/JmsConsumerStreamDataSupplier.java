@@ -4,6 +4,7 @@
 package net.sf.jabb.dstream;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import javax.jms.Connection;
 import javax.jms.JMSException;
@@ -25,6 +27,7 @@ import javax.jms.Session;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 import net.sf.jabb.util.bean.DoubleValueBean;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility.ConsumerThrowsExceptions;
+import net.sf.jabb.util.ex.ExceptionUncheckUtility.FunctionThrowsExceptions;
 import net.sf.jabb.util.jms.JmsUtility;
 
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
@@ -58,16 +61,16 @@ abstract public class JmsConsumerStreamDataSupplier<M> implements StreamDataSupp
 
 	abstract protected Connection getConnection();
 	abstract protected String messageSelector(String startPosition);
+	abstract protected String messageSelector(Instant startEnqueuedTime);
 	abstract protected M convert(Message message);
 	abstract protected String position(Message message);
+	abstract protected Instant enqueuedTime(Message message);
 	
-	protected String fetch(List<? super M> list, Duration timeoutDuration, ConsumerThrowsExceptions<java.util.Queue<Message>> fetcher)  throws DataStreamInfrastructureException, InterruptedException{
+	protected ReceiveStatus fetch(List<? super M> list, Duration timeoutDuration, FunctionThrowsExceptions<java.util.Queue<Message>, Boolean> fetcher)  throws DataStreamInfrastructureException, InterruptedException{
 		ConcurrentLinkedQueue<Message> fetched = new ConcurrentLinkedQueue<>();
+		boolean outOfRangeReached = false;
 		try{
-			//timeLimiter.callWithTimeout(()->{
-				fetcher.accept(fetched);
-			//	return null;
-			//}, timeoutDuration.toMillis(), TimeUnit.MILLISECONDS, true);
+			outOfRangeReached = fetcher.apply(fetched);
 		}catch(TimeoutException|UncheckedTimeoutException e){
 			// do nothing
 		}catch(InterruptedException e){
@@ -85,29 +88,30 @@ abstract public class JmsConsumerStreamDataSupplier<M> implements StreamDataSupp
 				msg = fetched.remove();
 				list.add(convert(msg));
 			}
-			return position(msg);
+			return new SimpleReceiveStatus(position(msg), enqueuedTime(msg), outOfRangeReached);
 		}else{
-			return null;
+			return new SimpleReceiveStatus(null, null, outOfRangeReached);
 		}
 	}
 	
-	@Override
-	public String fetch(List<? super M> list, String startPosition, String endPosition, int maxItems, Duration timeoutDuration) throws DataStreamInfrastructureException, InterruptedException {
+	protected ReceiveStatus fetch(List<? super M> list, String messageSelector, Predicate<Message> outOfRangeCheck, int maxItems, Duration timeoutDuration) throws DataStreamInfrastructureException, InterruptedException {
 		return fetch(list, timeoutDuration, fetched->{
 			long timeoutNano = System.nanoTime() + timeoutDuration.toNanos();
 			long timeoutLeftMillis = (timeoutNano - System.nanoTime())/1000000;
 			Session session = null;
 			MessageConsumer consumer = null;
+			boolean outOfRangeReached = false;
 			try{
 				session = getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
-				consumer = session.createConsumer(destination, messageSelector(startPosition));
+				consumer = session.createConsumer(destination, messageSelector);
 				
 				int count = 0;
 				Message message = null;
 				while (++count <= maxItems && timeoutLeftMillis > 0){
 					message = consumer.receive(timeoutLeftMillis);
 					if (message != null){
-						if (endPosition != null && !isInRange(position(message), endPosition)){
+						if (outOfRangeCheck.test(message)){
+							outOfRangeReached = true;
 							break;
 						}
 						fetched.add(message);
@@ -117,11 +121,32 @@ abstract public class JmsConsumerStreamDataSupplier<M> implements StreamDataSupp
 			}finally{
 				JmsUtility.closeSilently(consumer, session);
 			}
+			return outOfRangeReached;
 		});
 	}
 
 	@Override
-	public String startAsyncReceiving(Consumer<M> objConsumer, String startPosition) throws DataStreamInfrastructureException {
+	public ReceiveStatus fetch(List<? super M> list, String startPosition, String endPosition, int maxItems, Duration timeoutDuration) throws DataStreamInfrastructureException, InterruptedException {
+		return fetch(list, messageSelector(startPosition), 
+				message -> endPosition != null && !isInRange(position(message), endPosition),
+				maxItems, timeoutDuration);
+	}
+	
+	@Override
+	public ReceiveStatus fetch(List<? super M> list, Instant startEnqueuedTime, Instant endEnqueuedTime, int maxItems, Duration timeoutDuration) throws DataStreamInfrastructureException, InterruptedException {
+		return fetch(list, messageSelector(startEnqueuedTime), 
+				message -> endEnqueuedTime != null && !isInRange(enqueuedTime(message), endEnqueuedTime),
+				maxItems, timeoutDuration);
+	}
+	
+	@Override
+	public ReceiveStatus fetch(List<? super M> list, String startPosition, Instant endEnqueuedTime, int maxItems, Duration timeoutDuration) throws DataStreamInfrastructureException, InterruptedException {
+		return fetch(list, messageSelector(startPosition), 
+				message -> endEnqueuedTime != null && !isInRange(enqueuedTime(message), endEnqueuedTime),
+				maxItems, timeoutDuration);
+	}
+	
+	protected String doStartAsyncReceiving(Consumer<M> objConsumer, String messageSelector) throws DataStreamInfrastructureException {
 		String receivingConsumerId = UUID.randomUUID().toString();
 		
 		try{
@@ -129,7 +154,7 @@ abstract public class JmsConsumerStreamDataSupplier<M> implements StreamDataSupp
 			connection.stop();
 			try{
 				Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-				MessageConsumer consumer = session.createConsumer(destination, messageSelector(startPosition));
+				MessageConsumer consumer = session.createConsumer(destination, messageSelector);
 				consumer.setMessageListener(message -> objConsumer.accept(convert(message)));
 				receivingConsumers.put(receivingConsumerId, new DoubleValueBean<>(session, consumer));
 			}finally{
@@ -142,6 +167,18 @@ abstract public class JmsConsumerStreamDataSupplier<M> implements StreamDataSupp
 		}
 	}
 
+
+
+	@Override
+	public String startAsyncReceiving(Consumer<M> objConsumer, String startPosition) throws DataStreamInfrastructureException {
+		return doStartAsyncReceiving(objConsumer, messageSelector(startPosition));
+	}
+
+	@Override
+	public String startAsyncReceiving(Consumer<M> objConsumer, Instant startEnqueuedTime) throws DataStreamInfrastructureException {
+		return doStartAsyncReceiving(objConsumer, messageSelector(startEnqueuedTime));
+	}
+
 	@Override
 	public void stopAsyncReceiving(String id) {
 		DoubleValueBean<Session, MessageConsumer> receivingConsumer = receivingConsumers.remove(id);
@@ -150,14 +187,14 @@ abstract public class JmsConsumerStreamDataSupplier<M> implements StreamDataSupp
 		}
 	}
 	
-	@Override
-	public String receive(Function<M, Long> receiver, String startPosition, String endPosition) 
+	protected ReceiveStatus receive(Function<M, Long> receiver, String messageSelector, Predicate<Message> outOfRangeCheck) 
 			throws DataStreamInfrastructureException{
 		Session session = null;
 		MessageConsumer consumer = null;
+		boolean outOfRangeReached = false;
 		try{
 			session = getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
-			consumer = session.createConsumer(destination, messageSelector(startPosition));
+			consumer = session.createConsumer(destination, messageSelector);
 			
 			long receiveTimeoutMillis = receiver.apply(null);
 			Message message = null;
@@ -165,7 +202,8 @@ abstract public class JmsConsumerStreamDataSupplier<M> implements StreamDataSupp
 			while (receiveTimeoutMillis > 0){
 				message = consumer.receive(receiveTimeoutMillis);
 				if (message != null){
-					if (endPosition != null && !isInRange(position(message), endPosition)){
+					if (outOfRangeCheck.test(message)){
+						outOfRangeReached = true;
 						break;
 					}
 					receiveTimeoutMillis = receiver.apply(convert(message));
@@ -174,12 +212,37 @@ abstract public class JmsConsumerStreamDataSupplier<M> implements StreamDataSupp
 					receiveTimeoutMillis = receiver.apply(null);
 				}
 			}
-			return lastMessage == null ? null : position(lastMessage);
+			if (lastMessage != null){
+				return new SimpleReceiveStatus(position(lastMessage), enqueuedTime(lastMessage), outOfRangeReached);
+			}else{
+				return new SimpleReceiveStatus(null, null, outOfRangeReached);
+			}
 		}catch(JMSException e){
 			throw new DataStreamInfrastructureException(e);
 		}finally{
 			JmsUtility.closeSilently(consumer, session);
 		}
+	}
+	
+	@Override
+	public ReceiveStatus receive(Function<M, Long> receiver, String startPosition, String endPosition) 
+			throws DataStreamInfrastructureException{
+		return receive(receiver, messageSelector(startPosition), 
+				message -> endPosition != null && !isInRange(position(message), endPosition));
+	}
+
+	@Override
+	public ReceiveStatus receive(Function<M, Long> receiver, Instant startEnqueuedTime, Instant endEnqueuedTime) 
+			throws DataStreamInfrastructureException{
+		return receive(receiver, messageSelector(startEnqueuedTime), 
+				message -> endEnqueuedTime != null && !isInRange(enqueuedTime(message), endEnqueuedTime));
+	}
+
+	@Override
+	public ReceiveStatus receive(Function<M, Long> receiver, String startPosition, Instant endEnqueuedTime) 
+			throws DataStreamInfrastructureException{
+		return receive(receiver, messageSelector(startPosition), 
+				message -> endEnqueuedTime != null && !isInRange(enqueuedTime(message), endEnqueuedTime));
 	}
 
 }

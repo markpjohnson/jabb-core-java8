@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 
@@ -83,17 +82,25 @@ public interface StreamDataSupplier<M> {
 	boolean isInRange(String position, String endPosition);
 	
 	/**
+	 * Check if an enqueued time is within the range defined by an end enqueued time
+	 * @param enqueuedTime		the enqueued time to be checked
+	 * @param endEnqueuedTime	the end enqueued time
+	 * @return	true if in range, false otherwise
+	 */
+	boolean isInRange(Instant enqueuedTime, Instant endEnqueuedTime);
+	
+	/**
 	 * Fetch the data/messages in the range specified by start and end positions.
 	 * @param list		list into which the data/messages found within the range will be added
 	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
 	 * @param endPosition		the end position, inclusive/exclusive defined by the implementation
 	 * @param maxItems			maximum number of items that will be fetched and added into the list
 	 * @param timeoutDuration	maximum total duration allowed for fetch those data
-	 * @return	end position of the last message added into the list, or null if no message had been added
+	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
 	 * @throws  InterruptedException if the thread is interrupted
 	 * @throws  DataStreamInfrastructureException  when error happened
 	 */
-	String fetch(List<? super M> list, String startPosition, String endPosition, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException;
+	ReceiveStatus fetch(List<? super M> list, String startPosition, String endPosition, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException;
 
 	/**
 	 * Fetch the data/messages in the range specified by start and end positions, allowing fetching as much data as possible.
@@ -101,11 +108,11 @@ public interface StreamDataSupplier<M> {
 	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
 	 * @param endPosition		the end position, inclusive/exclusive defined by the implementation
 	 * @param timeoutDuration	maximum total duration allowed for fetch those data
-	 * @return	end position of the last message added into the list, or null if no message had been added
+	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
 	 * @throws  InterruptedException if the thread is interrupted
 	 * @throws  DataStreamInfrastructureException  when error happened
 	 */
-	default String fetch(List<? super M> list, String startPosition, String endPosition, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
+	default ReceiveStatus fetch(List<? super M> list, String startPosition, String endPosition, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
 		return fetch(list, startPosition, endPosition, Integer.MAX_VALUE, timeoutDuration);
 	}
 
@@ -115,13 +122,83 @@ public interface StreamDataSupplier<M> {
 	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
 	 * @param maxItems			maximum number of items that will be fetched and added into the list
 	 * @param timeoutDuration	maximum total duration allowed for fetch those data
-	 * @return	end position of the last message added into the list, or null if no message had been added
+	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
 	 * @throws  InterruptedException if the thread is interrupted
 	 * @throws  DataStreamInfrastructureException  when error happened
 	 */
-	default String fetch(List<? super M> list, String startPosition, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
-		return fetch(list, startPosition, null, maxItems, timeoutDuration);
+	default ReceiveStatus fetch(List<? super M> list, String startPosition, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
+		return fetch(list, startPosition, (String)null, maxItems, timeoutDuration);
 	}
+	
+	/**
+	 * Fetch the data/messages in the range specified by start and end enqueued time.
+	 * @param list		list into which the data/messages found within the range will be added
+	 * @param startEnqueuedTime		the start enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param maxItems			maximum number of items that will be fetched and added into the list
+	 * @param timeoutDuration	maximum total duration allowed for fetch those data
+	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened
+	 */
+	ReceiveStatus fetch(List<? super M> list, Instant startEnqueuedTime, Instant endEnqueuedTime, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException;
+
+	/**
+	 * Fetch the data/messages in the range specified by start and end positions, allowing fetching as much data as possible.
+	 * @param list		list into which the data/messages found within the range will be added
+	 * @param startEnqueuedTime		the start enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param timeoutDuration	maximum total duration allowed for fetch those data
+	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened
+	 */
+	default ReceiveStatus fetch(List<? super M> list, Instant startEnqueuedTime, Instant endEnqueuedTime, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
+		return fetch(list, startEnqueuedTime, endEnqueuedTime, Integer.MAX_VALUE, timeoutDuration);
+	}
+
+	/**
+	 * Fetch the data/messages starting from a position
+	 * @param list				list into which the data/messages will be added
+	 * @param startEnqueuedTime		the start enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param timeoutDuration	maximum total duration allowed for fetch those data
+	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened
+	 */
+	default ReceiveStatus fetch(List<? super M> list, Instant startEnqueuedTime, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
+		return fetch(list, startEnqueuedTime, null, maxItems, timeoutDuration);
+	}
+	
+	/**
+	 * Fetch the data/messages in the range specified by start position and end enqueued time.
+	 * @param list		list into which the data/messages found within the range will be added
+	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param maxItems			maximum number of items that will be fetched and added into the list
+	 * @param timeoutDuration	maximum total duration allowed for fetch those data
+	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened
+	 */
+	ReceiveStatus fetch(List<? super M> list, String startPosition, Instant endEnqueuedTime, int maxItems, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException;
+
+	/**
+	 * Fetch the data/messages in the range specified by start position and end positions, allowing fetching as much data as possible.
+	 * @param list		list into which the data/messages found within the range will be added
+	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param timeoutDuration	maximum total duration allowed for fetch those data
+	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
+	 * @throws  InterruptedException if the thread is interrupted
+	 * @throws  DataStreamInfrastructureException  when error happened
+	 */
+	default ReceiveStatus fetch(List<? super M> list, String startPosition, Instant endEnqueuedTime, Duration timeoutDuration) throws InterruptedException, DataStreamInfrastructureException{
+		return fetch(list, startPosition, endEnqueuedTime, Integer.MAX_VALUE, timeoutDuration);
+	}
+
+
 	
 	/**
 	 * Start receiving data/messages starting from a position asynchronously. 
@@ -134,22 +211,56 @@ public interface StreamDataSupplier<M> {
 	String startAsyncReceiving(Consumer<M> receiver, String startPosition) throws DataStreamInfrastructureException;
 	
 	/**
+	 * Start receiving data/messages starting from an enqueued time asynchronously. 
+	 * The method of the receiver will be called from a background thread, rather than the calling thread of this method.
+	 * @param receiver			the receiver of the data/messages
+	 * @param startEnqueuedTime		the start enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @return				an ID for this receiving session
+	 * @throws DataStreamInfrastructureException 	any exception
+	 */
+	String startAsyncReceiving(Consumer<M> receiver, Instant startEnqueuedTime) throws DataStreamInfrastructureException;
+	
+	/**
 	 * Stop asynchronous receiving
 	 * @param id			ID of the receiving session
 	 */
 	void stopAsyncReceiving(String id);
 	
 	/**
-	 * Synchronously receive data/messages starting from a position.
+	 * Synchronously receive data/messages starting from a position and ending before another position.
 	 * The method of the receiver will be called from the calling thread of this method.
 	 * @param receiver			The receiver which accepts one message each time and return number of milliseconds left for receiving remaining next message
 	 * 							If the receiver receives a null as input, it should ignore it but still return the correct number of milliseconds left.
 	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
 	 * @param endPosition		the end position, inclusive/exclusive defined by the implementation
-	 * @return	end position of the last message received, or null if no message had been received
+	 * @return	ReceiveStatus with position of the last message received or null if no message had been received
 	 * @throws DataStreamInfrastructureException	if any error happened
 	 */
-	String receive(Function<M, Long> receiver, String startPosition, String endPosition) throws DataStreamInfrastructureException;
+	ReceiveStatus receive(Function<M, Long> receiver, String startPosition, String endPosition) throws DataStreamInfrastructureException;
+	
+	/**
+	 * Synchronously receive data/messages starting from an enqueued time and ending before another enqueued time.
+	 * The method of the receiver will be called from the calling thread of this method.
+	 * @param receiver			The receiver which accepts one message each time and return number of milliseconds left for receiving remaining next message
+	 * 							If the receiver receives a null as input, it should ignore it but still return the correct number of milliseconds left.
+	 * @param startEnqueuedTime		the start enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedTime		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @return	ReceiveStatus with position of the last message received or null if no message had been received
+	 * @throws DataStreamInfrastructureException	if any error happened
+	 */
+	ReceiveStatus receive(Function<M, Long> receiver, Instant startEnqueuedTime, Instant endEnqueuedTime) throws DataStreamInfrastructureException;
+	
+	/**
+	 * Synchronously receive data/messages starting from a position and ending before another enqueued time.
+	 * The method of the receiver will be called from the calling thread of this method.
+	 * @param receiver			The receiver which accepts one message each time and return number of milliseconds left for receiving remaining next message
+	 * 							If the receiver receives a null as input, it should ignore it but still return the correct number of milliseconds left.
+	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedTime		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @return	ReceiveStatus with position of the last message received or null if no message had been received
+	 * @throws DataStreamInfrastructureException	if any error happened
+	 */
+	ReceiveStatus receive(Function<M, Long> receiver, String startPosition, Instant endEnqueuedTime) throws DataStreamInfrastructureException;
 	
 	/**
 	 * Start/activate/connect to the data stream
@@ -171,4 +282,5 @@ public interface StreamDataSupplier<M> {
 	default StreamDataSupplierWithId<M> withId(String id){
 		return new StreamDataSupplierWithId<>(id, this);
 	}
+	
 }

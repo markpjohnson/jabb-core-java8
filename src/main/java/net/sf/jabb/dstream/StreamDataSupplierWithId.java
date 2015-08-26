@@ -30,100 +30,18 @@ public class StreamDataSupplierWithId<M> {
 		this.supplier = supplier;
 	}
 	
-	public StreamDataSupplierWithIdAndRange<M> withRange(String fromPosition, String toPosition){
-		return new StreamDataSupplierWithIdAndRange<>(id, supplier, fromPosition, toPosition);
+	public StreamDataSupplierWithIdAndPositionRange<M> withRange(String fromPosition, String toPosition){
+		if (fromPosition != null && toPosition != null){
+			Validate.isTrue(supplier.isInRange(fromPosition, toPosition), "fromPosition cannot be after toPosition");
+		}
+		return new StreamDataSupplierWithIdAndPositionRange<>(id, supplier, fromPosition, toPosition);
 	}
 	
-	public StreamDataSupplierWithIdAndRange<M> withRange(Instant fromTime, Instant toTime, Duration waitForArrival) throws InterruptedException, DataStreamInfrastructureException{
+	public StreamDataSupplierWithIdAndEnqueuedTimeRange<M> withRange(Instant fromTime, Instant toTime){
 		if (fromTime != null && toTime != null){
-			Validate.isTrue(!fromTime.isAfter(toTime), "fromTime cannot be after toTime");
+			Validate.isTrue(supplier.isInRange(fromTime, toTime), "fromTime cannot be after toTime");
 		}
-		StreamDataSupplierWithIdAndRange<M> result = new StreamDataSupplierWithIdAndRange<>(id, supplier);
-		if (fromTime == null && toTime == null){
-			return result;
-		}else{
-			String firstPosition;
-			Instant firstTime;
-			String lastPosition;
-			Instant lastTime;
-			if (fromTime != null){
-				String fromPosition = supplier.firstPosition(fromTime, waitForArrival);
-				if (fromPosition != null){
-					result.setFromPosition(fromPosition);
-					if (toTime == null){
-						return result;
-					}else{
-						String toPosition = supplier.firstPosition(toTime, waitForArrival);
-						if (toPosition != null){
-							result.setToPosition(toPosition);
-							return result;
-						}else{
-							// assume toTime < now
-							lastPosition = supplier.lastPosition();	// must not be null
-							result.setToPosition(lastPosition);
-							return result;
-						}
-					}
-				}else{
-					lastPosition = supplier.lastPosition();
-					if (lastPosition != null){
-						lastTime = supplier.enqueuedTime(lastPosition);
-						firstPosition = supplier.firstPosition(Instant.EPOCH, waitForArrival);
-						firstTime = supplier.enqueuedTime(firstPosition);
-						if (fromTime.isBefore(firstTime)){   // ( , firstTime)
-							result.setFromPosition(supplier.firstPosition());
-							if (toTime == null){
-								return result;
-							}else{
-								String toPosition = supplier.firstPosition(toTime, waitForArrival);
-								if (toPosition != null){
-									result.setToPosition(toPosition);
-									return result;
-								}else{
-									if (toTime.isBefore(lastTime)){
-										throw new IllegalStateException("Failed to get the position corresponding to toTime '" + toTime + "'");
-									}else{
-										result.setToPosition(lastPosition);
-										return result;
-									}
-								}
-							}
-						}else if (fromTime.isBefore(lastTime)){  // [firstTime, lastTime)
-							throw new IllegalStateException("Failed to get the position corresponding to fromTime '" + fromTime + "'");
-						}else{  // [lastTime, )
-							if (toTime == null){	// all in the future
-								result.setFromPosition(lastPosition);
-								return result;
-							}else{
-								return null;  // nothing (assuming toTime < now)
-							}
-						}
-					}else{		// no message in the queue
-						return null;
-					}
-				}
-			}else{ //fromTime == null
-				result.setFromPosition(supplier.firstPosition());
-				String toPosition = supplier.firstPosition(toTime, waitForArrival);
-				if (toPosition != null){
-					result.setToPosition(toPosition);
-					return result;
-				}else{
-					lastPosition = supplier.lastPosition();
-					if (lastPosition != null){
-						lastTime = supplier.enqueuedTime(lastPosition);
-						if (toTime.isBefore(lastTime)){
-							throw new IllegalStateException("Failed to get the position corresponding to toTime '" + toTime + "'");
-						}else{
-							result.setToPosition(lastPosition);
-							return result;
-						}
-					}else{
-						return null;	// no message
-					}
-				}
-			}
-		}
+		return new StreamDataSupplierWithIdAndEnqueuedTimeRange<>(id, supplier, fromTime, toTime);
 	}
 	
 	public String getId() {

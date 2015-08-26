@@ -173,6 +173,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	public void setTableClient(AttemptStrategy attemptStrategy) {
 		this.attemptStrategy = attemptStrategy;
 	}
+	
+	protected String newUniqueTransactionId(){
+		return UUID.randomUUID().toString();
+	}
 
 	@Override
 	public SequentialTransaction startTransaction(String seriesId,
@@ -221,7 +225,8 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		if (transaction.getStartPosition() == null){		// the client has nothing in mind, so propose a new one
 			return newNextTransaction(last, transaction.getProcessorId(), transaction.getTimeout());
 		}else{		// try to start the transaction requested by the client
-			if (last == null || last.getTransactionId().equals(previousTransactionId)){
+			if (last == null || last.getTransactionId().equals(previousTransactionId)
+					|| previousTransactionId == null && DUMMY_FIRST_TRANSACTION_ID.equals(last.getTransactionId())  ){
 				// start the requested one
 				SimpleSequentialTransaction newTrans = SimpleSequentialTransaction.copyOf(transaction);
 				newTrans.setAttempts(1);
@@ -230,7 +235,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				newTrans.setState(SequentialTransactionState.IN_PROGRESS);
 				String transactionId = newTrans.getTransactionId();
 				if (transactionId == null){
-					newTrans.setTransactionId(UUID.randomUUID().toString());
+					newTrans.setTransactionId(newUniqueTransactionId());
 				}else{
 					Validate.notBlank(transactionId, "Transaction ID cannot be blank: %s", transactionId);
 					if (transactions.stream().anyMatch(t->t.getTransactionId().equals(transactionId))){
@@ -317,22 +322,29 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		CloudTable table = getTableReference();
 		SequentialTransactionEntity last = null;
 		if (lastTransactionId == null){ // the first one
-			// we must create a dummy last one for concurrency control
-			last = new SequentialTransactionEntity();
-			last.setSeriesId(seriesId);
-			last.setTransactionId(DUMMY_FIRST_TRANSACTION_ID);
-			last.setFirstTransaction();
-			last.setLastTransaction();
-			last.setState(SequentialTransactionState.FINISHED);
-			last.setStartTime(Instant.ofEpochMilli(0));
-			last.setFinishTime(Instant.ofEpochMilli(0));
-			try{
-				table.execute(TableOperation.insert(last));
-			}catch(StorageException e){
-				if (e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.ENTITY_ALREADY_EXISTS.equals(e.getErrorCode())){	// someone is faster
-					throw new IllegalStateException("A new transaction is now the last one");
-				}else{
-					throw e;
+			last = fetchEntity(seriesId, DUMMY_FIRST_TRANSACTION_ID);
+			if (last == null){  // the actual first
+				// we must create a dummy last one for concurrency control
+				last = new SequentialTransactionEntity();
+				last.setSeriesId(seriesId);
+				last.setTransactionId(DUMMY_FIRST_TRANSACTION_ID);
+				last.setFirstTransaction();
+				last.setLastTransaction();
+				last.setState(SequentialTransactionState.FINISHED);
+				last.setStartTime(Instant.ofEpochMilli(0));
+				last.setFinishTime(Instant.ofEpochMilli(0));
+				try{
+					table.execute(TableOperation.insert(last));
+				}catch(StorageException e){
+					if (e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.ENTITY_ALREADY_EXISTS.equals(e.getErrorCode())){	// someone is faster
+						throw new IllegalStateException("A new transaction is now the last one");
+					}else{
+						throw e;
+					}
+				}
+			}else{  // previously a first transaction aborted, left the dummy first one there
+				if (!last.isLastTransaction()){
+					throw new IllegalStateException("The transaction in series '" + seriesId + "' is no longer the last one: " + lastTransactionId);
 				}
 			}
 		}else{

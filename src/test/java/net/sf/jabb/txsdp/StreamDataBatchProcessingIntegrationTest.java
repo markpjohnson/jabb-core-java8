@@ -4,16 +4,18 @@
 package net.sf.jabb.txsdp;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.LinkedHashMap;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -25,11 +27,12 @@ import net.sf.jabb.dstream.StreamDataSupplierWithIdAndRange;
 import net.sf.jabb.seqtx.azure.AzureSequentialTransactionsCoordinator;
 import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
 import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.Options;
+import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.State;
 import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.Status;
-import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.StreamStatus;
-import net.sf.jabb.util.attempt.AttemptStrategy;
-import net.sf.jabb.util.attempt.StopStrategies;
+import net.sf.jabb.util.bean.TripleValueBean;
+import net.sf.jabb.util.col.PutIfAbsentMap;
 import net.sf.jabb.util.parallel.WaitStrategies;
+import net.sf.jabb.util.stat.ConcurrentLongStatistics;
 
 import org.apache.qpid.amqp_1_0.jms.impl.MessageImpl;
 import org.junit.Test;
@@ -45,7 +48,7 @@ import com.microsoft.azure.storage.CloudStorageAccount;
 public class StreamDataBatchProcessingIntegrationTest {
 	static private final Logger logger = LoggerFactory.getLogger(StreamDataBatchProcessingIntegrationTest.class);
 	
-	static final int NUM_PROCESSORS = 10;
+	static final int NUM_PROCESSORS = 6;
 	
 	static protected AzureSequentialTransactionsCoordinator createCoordinator()  throws InvalidKeyException, URISyntaxException, TransactionStorageInfrastructureException{
 		String connectionString = System.getenv("SYSTEM_DEFAULT_AZURE_STORAGE_CONNECTION");
@@ -55,35 +58,46 @@ public class StreamDataBatchProcessingIntegrationTest {
 		return tracker;
 	}
 
+	@Test
+	public void test1OnlyOnePartition() throws Exception{
+		doTest(1);
+	}
 
 	@Test
-	public void test() throws Exception {
-		List<StreamDataSupplierWithId<String>> suppliersWithId = AzureEventHubUtility.createStreamDataSuppliers(
+	public void test2AllPartitions() throws Exception {
+		doTest(null);
+	}
+	
+	protected void doTest(Integer numPartitions) throws Exception {
+		List<StreamDataSupplierWithId<TripleValueBean<String, Long, String>>> suppliersWithId = AzureEventHubUtility.createStreamDataSuppliers(
 				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_HOST"),
 				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_RECEIVE_USER_NAME"),
 				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_RECEIVE_USER_PASSWORD"),
 				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_NAME"),
 				AzureEventHubUtility.DEFAULT_CONSUMER_GROUP,
 				msg -> {
-					String json = "";
+					TripleValueBean<String, Long, String> bean = new TripleValueBean<>();
 					try {
-						json = msg.getStringProperty(MessageImpl.JMS_AMQP_MESSAGE_ANNOTATIONS);
+						String queue = ((org.apache.qpid.amqp_1_0.jms.Destination)msg.getJMSDestination()).getAddress();
+						Long sequence = AzureEventHubUtility.getEventHubAnnotations(msg).getSequenceNumber();
+						String json = msg.getStringProperty(MessageImpl.JMS_AMQP_MESSAGE_ANNOTATIONS);
+						bean.setValue1(queue);
+						bean.setValue2(sequence);
+						bean.setValue3(json);
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
-					return json;
+					return bean;
 				});
 		assertTrue(suppliersWithId.size() >= 4);
 		
-		List<StreamDataSupplierWithIdAndRange<String>> suppliersWithIdAndRange = suppliersWithId.stream()
+		Instant rangeFrom = Instant.now().minus(Duration.ofMinutes(50));
+		Instant rangeTo = Instant.now().minus(Duration.ofMinutes(10));
+		List<StreamDataSupplierWithIdAndRange<TripleValueBean<String, Long, String>, ?>> suppliersWithIdAndRange = suppliersWithId.stream()
 				.map(s->{
 					try {
 						s.getSupplier().start();
-						StreamDataSupplierWithIdAndRange<String> result = AttemptStrategy.create().withStopStrategy(StopStrategies.stopAfterTotalAttempts(3))
-								.retryIfException()
-								.retryIfResult((StreamDataSupplierWithIdAndRange<String> r) -> r == null || r.getFromPosition() == null)
-								.call(()->s.withRange(Instant.now().minus(Duration.ofMinutes(30)), null, Duration.ofSeconds(30)));
-						return result;
+						return s.withRange(rangeFrom, rangeTo);
 					} catch (Exception e) {
 						return null;
 					}
@@ -92,10 +106,16 @@ public class StreamDataBatchProcessingIntegrationTest {
 				.collect(Collectors.toList());
 		assertEquals(suppliersWithId.size(), suppliersWithIdAndRange.size());
 		
-		for (StreamDataSupplierWithIdAndRange<String> supplierWithIdAndRange: suppliersWithIdAndRange){
-			logger.info("Range to be processed in {}: ({} - {}]", supplierWithIdAndRange.getId(), supplierWithIdAndRange.getFromPosition(), supplierWithIdAndRange.getToPosition());
-			assertNotNull(supplierWithIdAndRange.getFromPosition());
-			assertNull(supplierWithIdAndRange.getToPosition());
+		if (numPartitions != null){
+			while(suppliersWithIdAndRange.size() > numPartitions){
+				suppliersWithIdAndRange.remove(0);
+			}
+		}
+		
+		for (StreamDataSupplierWithIdAndRange<TripleValueBean<String, Long, String>, ?> supplierWithIdAndRange: suppliersWithIdAndRange){
+			logger.info("Range to be processed in {}: ({} - {}]", supplierWithIdAndRange.getId(), supplierWithIdAndRange.getFrom(), supplierWithIdAndRange.getTo());
+			assertEquals(rangeFrom, supplierWithIdAndRange.getFrom());
+			assertEquals(rangeTo, supplierWithIdAndRange.getTo());
 		}
 
 		
@@ -103,16 +123,29 @@ public class StreamDataBatchProcessingIntegrationTest {
 			.withInitialTransactionTimeoutDuration(Duration.ofMinutes(1))
 			.withMaxInProgressTransactions(10)
 			.withMaxRetringTransactions(10)
-			.withTransactionAcquisitionDelay(Duration.ofSeconds(30))
+			.withTransactionAcquisitionDelay(Duration.ofSeconds(10))
 			.withWaitStrategy(WaitStrategies.threadSleepStrategy());
 		
-		TransactionalStreamDataBatchProcessing<String> job = new TransactionalStreamDataBatchProcessing<>("TestJob", options, createCoordinator(), 
+		Map<String, Set<Long>> logMap = new PutIfAbsentMap<String, Set<Long>>(new HashMap<String, Set<Long>>(), k->Collections.newSetFromMap(new ConcurrentHashMap<Long, Boolean>()));
+		
+		TransactionalStreamDataBatchProcessing<TripleValueBean<String, Long, String>> processing = new TransactionalStreamDataBatchProcessing<>("TestJob", options, createCoordinator(), 
 			(context, data) -> {
 				if (data.size() > 0){
-					String first = data.get(0);
-					String last = data.get(data.size() - 1);
+					String first = data.get(0).getValue3();
+					String last = data.get(data.size() - 1).getValue3();
 					logger.info("[{} {}] Processing {} items: {} - {}", context.getTransactionSeriesId(), context.getProcessorId(),
 							data.size(), new EventHubAnnotations(first), new EventHubAnnotations(last));
+					
+					for (TripleValueBean<String, Long, String> bean: data){
+						String queue = bean.getValue1();
+						Long sequence = bean.getValue2();
+						if (!logMap.get(queue).add(sequence)){
+							if (numPartitions != null && numPartitions == 1){
+								System.err.println("### (maybe) duplicated sequence number received in message: " + bean.getValue3());
+							}
+						}
+					}
+					
 					try {
 						long sleepTime = 100*data.size();
 						if (sleepTime > 2*1000L){
@@ -124,32 +157,28 @@ public class StreamDataBatchProcessingIntegrationTest {
 					}
 				}
 				return true;
-		}, 3000, Duration.ofSeconds(60), Duration.ofSeconds(10),
+		}, 3000, Duration.ofSeconds(60), Duration.ofSeconds(25),
 		suppliersWithIdAndRange);
 		
 		ExecutorService threadPool = Executors.newCachedThreadPool();
 		for (int i = 0; i < NUM_PROCESSORS; i ++){
-			Runnable runnable = job.createProcessor(String.valueOf(i));
+			Runnable runnable = processing.createProcessor(String.valueOf(i));
 			threadPool.execute(runnable);
 		}
 		
 		logger.info("Starting {} processors in their threads", NUM_PROCESSORS);
-		job.startAll();
+		processing.startAll();
 		
 		for (int i = Integer.MAX_VALUE; i >= 0; i --){
-			Thread.sleep(Duration.ofMinutes(1).toMillis());
+			Thread.sleep(Duration.ofSeconds(30).toMillis());
 			try{
-				Status status = job.getStatus();
+				Status status = processing.getStatus();
 				logger.info("Status: {}", status);
 				
-				Instant recent = Instant.now().minus(Duration.ofMinutes(2));
-				if (status.getStreamStatus().values().stream()
-					.filter(s -> s.getFinishedEnqueuedTime() == null || s.getFinishedEnqueuedTime().isBefore(recent))
-					.count() == 0){
-					logger.info("Caught up with the stream");
-					if (i > 1){
-						i = 1;
-					}
+				if (status.getProcessorStatus().values().stream().filter(s->s.getState() == State.FINISHED)
+					.count() == NUM_PROCESSORS){
+					logger.info("All finished");
+					break;
 				}
 				
 			}catch(Exception e){
@@ -157,16 +186,25 @@ public class StreamDataBatchProcessingIntegrationTest {
 			}
 		}
 		
-		
-		logger.info("Stopping {} processors", NUM_PROCESSORS);
-		job.stopAll();
-		Thread.sleep(30*1000L);
-		
-		for (StreamDataSupplierWithIdAndRange<String> supplierWithIdAndRange: suppliersWithIdAndRange){
+		for (StreamDataSupplierWithIdAndRange<TripleValueBean<String, Long, String>, ?> supplierWithIdAndRange: suppliersWithIdAndRange){
 			supplierWithIdAndRange.getSupplier().stop();
 		}
 		
 		threadPool.shutdown();
+		
+		if (numPartitions != null && numPartitions == 1){
+			for (Map.Entry<String, Set<Long>> entry: logMap.entrySet()){
+				String queue = entry.getKey();
+				Set<Long> seqs = entry.getValue();
+				int size = seqs.size();
+				ConcurrentLongStatistics stats = new ConcurrentLongStatistics();
+				for (Long s: seqs){
+					stats.evaluate(s);
+				}
+				System.out.println("Processed " + size + " messages in: " + queue);
+				assertEquals(size, stats.getMax() - stats.getMin() + 1);
+			}
+		}
 	}
 
 }

@@ -19,10 +19,8 @@ import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
 import javax.jms.JMSException;
-import javax.jms.MapMessage;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
-import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.QueueBrowser;
 import javax.jms.Session;
@@ -42,7 +40,6 @@ import net.sf.jabb.util.text.DurationFormatter;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
-import org.apache.qpid.amqp_1_0.jms.impl.MessageImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -467,12 +464,14 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 		return wrappedConnection;
 	}
 
-	/* (non-Javadoc)
-	 * @see net.sf.jabb.stream.AbstractJmsDataStreamProvider#messageSelector(java.lang.String)
-	 */
 	@Override
 	protected String messageSelector(String startPosition) {
 		return "amqp.annotation.x-opt-offset > '" + startPosition + "'";
+	}
+
+	@Override
+	protected String messageSelector(Instant startEnqueuedTime) {
+		return "amqp.annotation.x-opt-enqueued-time > '" + startEnqueuedTime.toEpochMilli() + "'";
 	}
 
 	@Override
@@ -484,6 +483,17 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 			return Long.parseLong(position) <= Long.parseLong(endPosition);
 		}
 	}
+	
+	@Override
+	public boolean isInRange(Instant enqueuedTime, Instant endEnqueuedTime) {
+		Validate.isTrue(enqueuedTime != null, "enqueuedTime cannot be null");
+		if (endEnqueuedTime == null){
+			return true;
+		}else{
+			return !enqueuedTime.isAfter(endEnqueuedTime);
+		}
+	}
+
 
 	/* (non-Javadoc)
 	 * @see net.sf.jabb.stream.AbstractJmsDataStreamProvider#convert(javax.jms.Message)
@@ -501,6 +511,11 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 		return String.valueOf(AzureEventHubUtility.getEventHubAnnotations(message).getOffset());
 	}
 	
+	@Override
+	protected Instant enqueuedTime(Message message) {
+		return AzureEventHubUtility.getEventHubAnnotations(message).getEnqueuedTime();
+	}
+
 	@Override
 	public void start() throws Exception {
 		long opStartTime = System.currentTimeMillis();

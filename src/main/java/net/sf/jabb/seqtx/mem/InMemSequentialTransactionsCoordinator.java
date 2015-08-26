@@ -91,6 +91,9 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		return SequentialTransactionsCoordinator.getTransactionCounts(transactions);
 	}
 
+	protected String newUniqueTransactionId(){
+		return UUID.randomUUID().toString();
+	}
 
 	@Override
 	public SequentialTransaction startTransaction(String seriesId, String previousTransactionId, String previousTransactionEndPosition, 
@@ -153,7 +156,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 					newTrans.setState(SequentialTransactionState.IN_PROGRESS);
 					String transactionId = newTrans.getTransactionId();
 					if (transactionId == null){
-						newTrans.setTransactionId(UUID.randomUUID().toString());
+						newTrans.setTransactionId(newUniqueTransactionId());
 					}else{
 						Validate.notBlank(transactionId, "Transaction ID cannot be blank: %s", transactionId);
 						if (transactions.stream().anyMatch(t->t.getTransactionId().equals(transactionId))){
