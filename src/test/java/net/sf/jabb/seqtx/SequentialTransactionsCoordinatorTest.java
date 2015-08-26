@@ -87,6 +87,10 @@ public abstract class SequentialTransactionsCoordinatorTest {
 	@Test
 	public void test09ClearTransactions() throws TransactionStorageInfrastructureException{
 		tracker.clear(seriesId);
+		List<? extends ReadOnlySequentialTransaction> transactions = tracker.getRecentTransactions(seriesId);
+		assertNotNull(transactions);
+		assertEquals(0, transactions.size());
+
 	}
 	
 	@Test
@@ -398,6 +402,43 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		assertEquals(0, SequentialTransactionsCoordinator.getTransactionCount(transactions, tx->tx.isInProgress()));
 		assertEquals(0, SequentialTransactionsCoordinator.getTransactionCount(transactions, tx->tx.isFailed()));
 
+	}
+	
+	@Test
+	public void test12AbortFirstOpenRange() throws TransactionStorageInfrastructureException, DuplicatedTransactionIdException, NotOwningTransactionException, IllegalTransactionStateException, NoSuchTransactionException{
+		tracker.clear(seriesId);
+		
+		// start a new one
+		SequentialTransaction transaction = tracker.startTransaction(seriesId, processorId, Duration.ofMinutes(2), 5, 5);
+		assertNotNull(transaction);
+		assertFalse(transaction.hasStarted());
+		String previousId = transaction.getTransactionId();
+		assertNull(previousId);
+		
+		transaction.setTransactionId(null);
+		transaction.setStartPosition("1");
+		transaction.setEndPositionNull();
+		transaction = tracker.startTransaction(seriesId, null, null, transaction, 5, 5);
+		assertNotNull(transaction);
+		assertTrue(transaction.hasStarted());
+		tracker.abortTransaction(seriesId, processorId, transaction.getTransactionId());
+		
+		List<? extends ReadOnlySequentialTransaction> transactions = tracker.getRecentTransactions(seriesId);
+		assertEquals(0, transactions.size());
+		
+		transaction.setTransactionId(null);
+		transaction.setStartPosition("1");
+		transaction.setEndPositionNull();
+		transaction = tracker.startTransaction(seriesId, null, null, transaction, 5, 5);
+		assertNotNull(transaction);
+		assertTrue(transaction.hasStarted());
+		
+		transactions = tracker.getRecentTransactions(seriesId);
+		assertEquals(1, transactions.size());
+		
+		tracker.abortTransaction(seriesId, processorId, transaction.getTransactionId());
+		transactions = tracker.getRecentTransactions(seriesId);
+		assertEquals(0, transactions.size());
 	}
 	
 	@Test(expected = IllegalEndPositionException.class)

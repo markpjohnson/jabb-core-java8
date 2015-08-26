@@ -378,7 +378,7 @@ public class EventHubTransactionalConsumptionIntegrationTest {
 		
 		List<String> messages = new ArrayList<>(BATCH_SIZE);
 		try{
-			endPosition = dstreams.get(partition).fetch(messages, startPosition, BATCH_SIZE, BATCH_FETCH_DURATION);
+			endPosition = dstreams.get(partition).fetch(messages, startPosition, BATCH_SIZE, BATCH_FETCH_DURATION).getLastPosition();
 			if (endPosition != null){
 				logger.debug("Fetched " + messages.size() + " messages by " + processorId + " from partition " + seriesId + ": (" + startPosition + ", " + endPosition + "]");
 				Integer lastMessageId = Integer.valueOf(messages.get(messages.size() - 1));

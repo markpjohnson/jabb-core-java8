@@ -284,6 +284,10 @@ public class WrappedJmsConnection implements Connection {
 	 */
 	@Override
 	public Session createSession(boolean transacted, int acknowledgeMode) throws JMSException {
+		Connection conn = getConnection();
+		if (conn == null){
+			establishConnection(false);
+		}
 		try{
 			return getConnection().createSession(transacted, acknowledgeMode);
 		}catch(JMSException e){

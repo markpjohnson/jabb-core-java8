@@ -12,7 +12,7 @@ import org.junit.Test;
  * @author James Hu
  *
  */
-public class EventHubQpidDataStreamProviderTest {
+public class EventHubQpidStreamDataSupplierTest {
 	private static final String ANNOTATION_STRING = "{ \"x-opt-sequence-number\" : { \"long\" : 19650 }, \"x-opt-offset\" : \"4302249320\", \"x-opt-enqueued-time\" : { \"timestamp\" : 1438740137186 } }";
 
 	@Test

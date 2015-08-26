@@ -16,7 +16,10 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import net.sf.jabb.dstream.ReceiveStatus;
 import net.sf.jabb.dstream.StreamDataSupplier;
+import net.sf.jabb.dstream.StreamDataSupplierWithId;
+import net.sf.jabb.dstream.StreamDataSupplierWithIdAndPositionRange;
 import net.sf.jabb.dstream.StreamDataSupplierWithIdAndRange;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 import net.sf.jabb.seqtx.ReadOnlySequentialTransaction;
@@ -28,6 +31,7 @@ import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
 import net.sf.jabb.util.parallel.WaitStrategy;
 import net.sf.jabb.util.text.DurationFormatter;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -47,13 +51,13 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	
 	protected String id;
 	protected FlexibleBatchProcessor<M> batchProcessor;
-	protected List<StreamDataSupplierWithIdAndRange<M>> suppliers;
+	protected List<StreamDataSupplierWithIdAndRange<M, ?>> suppliers;
 	protected SequentialTransactionsCoordinator txCoordinator;
 	
 	protected Options processorOptions;
 	
 	public static enum State{
-		READY, STOPPED, PAUSED, RUNNING;
+		READY, STOPPED, PAUSED, RUNNING, FINISHED;
 	}
 	
 	protected Map<String, Processor> processors = new HashMap<>();
@@ -67,7 +71,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * @param suppliers			stream data suppliers
 	 */
 	public TransactionalStreamDataBatchProcessing(String id, Options processorOptions, SequentialTransactionsCoordinator txCoordinator, 
-			FlexibleBatchProcessor<M> processor, List<StreamDataSupplierWithIdAndRange<M>> suppliers){
+			FlexibleBatchProcessor<M> processor, List<StreamDataSupplierWithIdAndRange<M, ?>> suppliers){
 		this.id = id;
 		this.processorOptions = new Options(processorOptions);
 		this.txCoordinator = txCoordinator;
@@ -87,7 +91,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 */
 	@SafeVarargs
 	public TransactionalStreamDataBatchProcessing(String id, Options processorOptions, SequentialTransactionsCoordinator txCoordinator, 
-			FlexibleBatchProcessor<M> processor, StreamDataSupplierWithIdAndRange<M>... suppliers){
+			FlexibleBatchProcessor<M> processor, StreamDataSupplierWithIdAndRange<M, ?>... suppliers){
 		this(id, processorOptions, txCoordinator, processor, Arrays.asList(suppliers));
 	}
 	
@@ -115,7 +119,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 */
 	public TransactionalStreamDataBatchProcessing(String id, Options processorOptions, SequentialTransactionsCoordinator txCoordinator, 
 			SimpleBatchProcessor<M> processor, int maxBatchSize, Duration receiveTimeout, Duration receiveTimeoutForOpenRange,
-			List<StreamDataSupplierWithIdAndRange<M>> suppliers){
+			List<StreamDataSupplierWithIdAndRange<M, ?>> suppliers){
 		this(id, processorOptions, txCoordinator, 
 				new SimpleFlexibleBatchProcessor<M>(processor, maxBatchSize, receiveTimeout, receiveTimeoutForOpenRange), 
 				suppliers);
@@ -146,7 +150,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	@SafeVarargs
 	public TransactionalStreamDataBatchProcessing(String id, Options processorOptions, SequentialTransactionsCoordinator txCoordinator, 
 			SimpleBatchProcessor<M> processor, int maxBatchSize, Duration receiveTimeout, Duration receiveTimeoutForOpenRange,
-			StreamDataSupplierWithIdAndRange<M>... suppliers){
+			StreamDataSupplierWithIdAndPositionRange<M>... suppliers){
 		this(id, processorOptions, txCoordinator, processor, maxBatchSize, receiveTimeout, receiveTimeoutForOpenRange, Arrays.asList(suppliers));
 	}
 	
@@ -258,8 +262,8 @@ public class TransactionalStreamDataBatchProcessing<M> {
 		}
 	}
 	
-	protected String seriesId(StreamDataSupplierWithIdAndRange<M> supplierWithIdAndRange){
-		return id + "-" + supplierWithIdAndRange.getId();
+	protected String seriesId(StreamDataSupplierWithIdAndRange<M, ?> supplierWithId){
+		return id + "-" + supplierWithId.getId();
 	}
 
 	class Processor implements Runnable{
@@ -279,8 +283,18 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			}
 		}
 		
+		private boolean allProcessed(boolean[] outOfRangeReached){
+			for (boolean b: outOfRangeReached){
+				if (!b){
+					return false;
+				}
+			}
+			return true;
+		}
+		
 		@Override
 		public void run() {
+			boolean[] outOfRangeReached = new boolean[suppliers.size()];
 			// make sure we start from a random partition, and then do a round robin afterwards
 			Random random = new Random(System.currentTimeMillis());
 			int partition = random.nextInt(suppliers.size()) - 1;
@@ -290,15 +304,24 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			
 			while(state.get() != State.STOPPED){
 				while(state.get() == State.RUNNING){
+					if (allProcessed(outOfRangeReached)){
+						state.set(State.FINISHED);
+						break;
+					}
+					
 					long startTime = System.currentTimeMillis();
 					int attempts = 0;
 					SequentialTransaction transaction = null;
 					String seriesId = null;
-					StreamDataSupplierWithIdAndRange<M> supplierWithIdAndRange;
+					StreamDataSupplierWithIdAndRange<M, ?> supplierWithIdAndRange = null;
 					StreamDataSupplier<M> supplier = null;
 					try{
 						do{
 							partition = (partition+1) % suppliers.size();
+							if (outOfRangeReached[partition]){
+								break;
+							}
+							
 							supplierWithIdAndRange = suppliers.get(partition);
 							supplier = supplierWithIdAndRange.getSupplier();
 							attempts++;
@@ -318,20 +341,14 @@ public class TransactionalStreamDataBatchProcessing<M> {
 							String previousTransactionId = transaction.getTransactionId();
 							String previousEndPosition = transaction.getStartPosition();
 							transaction.setTransactionId(null);
+							
 							String startPosition = null;
 							if (previousEndPosition == null){
-								startPosition = supplierWithIdAndRange.getFromPosition();
-								if (startPosition == null){
-									startPosition = supplier.firstPosition();
-								}
+								startPosition = "";	// the beginning of the range
 							}else{
 								startPosition = supplier.nextStartPosition(previousEndPosition);
 							}
-							if (!supplier.isInRange(startPosition, supplierWithIdAndRange.getToPosition())){
-								transaction = null;
-								break;
-							}
-							transaction.setStartPosition(startPosition.toString());
+							transaction.setStartPosition(startPosition);
 							transaction.setEndPositionNull();	// for an open range transaction
 							transaction.setTimeout(processorOptions.getInitialTransactionTimeoutDuration());
 							attempts++;
@@ -353,9 +370,20 @@ public class TransactionalStreamDataBatchProcessing<M> {
 								transaction.getStartPosition(), transaction.getEndPosition(),
 								attempts,
 								DurationFormatter.formatSince(startTime));
-						doTransaction(context.withSeriesId(seriesId).withTransaction(transaction), supplier);
+						if (doTransaction(context.withSeriesId(seriesId).withTransaction(transaction), supplierWithIdAndRange)){
+							String finishedPosition;
+							try {
+								finishedPosition = SequentialTransactionsCoordinator.getFinishedPosition(txCoordinator.getRecentTransactions(seriesId));
+								if (finishedPosition != null && 
+										(finishedPosition.equals(transaction.getStartPosition()) || finishedPosition.equals(transaction.getEndPosition()))){
+									outOfRangeReached[partition] = true;
+								}
+							} catch (Exception e) {
+								logger.warn("[{}] Failed to get recent transactions", seriesId, e);
+							}
+						}
 					}else{
-						if (state.get() == State.RUNNING){
+						if (state.get() == State.RUNNING && !outOfRangeReached[partition]){
 							await();
 						}
 					}
@@ -364,22 +392,31 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			} // jobState.get() != STATE_STOPPED
 		}
 
-		protected void doTransaction(ProcessingContextImpl context, StreamDataSupplier<M> supplier) {
+		/**
+		 * perform a batch processing transaction
+		 * @param context	the processing context
+		 * @param supplierWithIdAndRange	the stream data supplier
+		 * @return	true if out of range message had reached which means probably we should stop processing
+		 */
+		protected boolean doTransaction(ProcessingContextImpl context, StreamDataSupplierWithIdAndRange<M, ?> supplierWithIdAndRange) {
 			String seriesId = context.seriesId;
 			SequentialTransaction transaction = context.transaction;
 			
 			boolean succeeded = false;
 			String fetchedLastPosition = null;
+			ReceiveStatus receiveStatus = null;
 			try{
 				if (!batchProcessor.initialize(context)){
 					throw new Exception("Unable to initilize processor");
 				}
 				long receiveTimeoutMillis = batchProcessor.receive(context, null);	// keep it for logging
-				fetchedLastPosition = supplier.receive(msg->batchProcessor.receive(context, msg), transaction.getStartPosition(), transaction.getEndPosition());
+				receiveStatus = supplierWithIdAndRange.receiveInRange(msg->batchProcessor.receive(context, msg), transaction.getStartPosition());
+				fetchedLastPosition = receiveStatus.getLastPosition();
 				if (fetchedLastPosition != null){
 					if (transaction.getEndPosition() == null){  // we need to close the open range
 						try{
 							txCoordinator.updateTransactionEndPosition(seriesId, processorId, transaction.getTransactionId(), fetchedLastPosition);
+							transaction.setEndPosition(fetchedLastPosition);
 						}catch(Exception e){
 							throw new Exception("Unable to update end position in open range transaction", e);
 						}
@@ -419,6 +456,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					}
 				}
 			}
+			return receiveStatus == null ? false : receiveStatus.isOutOfRangeReached();
 		}
 		
 		protected void logDebugInTransaction(String message, ProcessingContextImpl context, String fetchedLastPosition, Exception e){
@@ -488,7 +526,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 */
 	public LinkedHashMap<String, StreamStatus> getStreamStatus() throws TransactionStorageInfrastructureException, DataStreamInfrastructureException{
 		LinkedHashMap<String, StreamStatus> result = new LinkedHashMap<>(suppliers.size());
-		for (StreamDataSupplierWithIdAndRange<M> supplier: suppliers){
+		for (StreamDataSupplierWithIdAndRange<M, ?> supplier: suppliers){
 			String seriesId = seriesId(supplier);
 			List<? extends ReadOnlySequentialTransaction> transactions = txCoordinator.getRecentTransactions(seriesId);
 			
@@ -504,10 +542,10 @@ public class TransactionalStreamDataBatchProcessing<M> {
 				if (tx.isInProgress()){
 					lastUnfinishedStartPosition = tx.getStartPosition();
 					lastUnfinishedEndPosition = tx.getEndPosition();
-					if (lastUnfinishedStartPosition != null){
+					if (StringUtils.isNotBlank(lastUnfinishedStartPosition)){
 						lastUnfinishedStartEnqueuedTime = supplier.getSupplier().enqueuedTime(lastUnfinishedStartPosition);
 					}
-					if (lastUnfinishedEndPosition != null){
+					if (StringUtils.isNotBlank(lastUnfinishedEndPosition)){
 						lastUnfinishedEndEnqueuedTime = supplier.getSupplier().enqueuedTime(lastUnfinishedEndPosition);
 					}
 				}

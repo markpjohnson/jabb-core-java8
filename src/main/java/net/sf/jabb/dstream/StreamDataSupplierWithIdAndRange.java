@@ -3,62 +3,46 @@
  */
 package net.sf.jabb.dstream;
 
+import java.util.function.Function;
+
+import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
+
 /**
- * Data structure for a StreamDataSupplier, an ID, a from position, and a to position.
- * The the from and to positions can be inclusive or exclusive, depending on the upper level application.
  * @author James Hu
- * 
- * @param <M> type of the message object
- *
+ * @param <M> type of the message
+ * @param <R> type of the range
  */
-public class StreamDataSupplierWithIdAndRange<M> extends StreamDataSupplierWithId<M> {
-	protected String fromPosition;
-	protected String toPosition;
+public interface StreamDataSupplierWithIdAndRange<M, R> {
+	/**
+	 * Get the ID of the stream+range. Useful for logging
+	 * @return	the ID
+	 */
+	String getId();
 	
-	public StreamDataSupplierWithIdAndRange(){
-		super();
-	}
+	/**
+	 * Get the stream data supplier
+	 * @return	the stream data supplier
+	 */
+	StreamDataSupplier<M> getSupplier();
 	
-	public StreamDataSupplierWithIdAndRange(String id, StreamDataSupplier<M> supplier){
-		super(id, supplier);
-	}
-	
-	public StreamDataSupplierWithIdAndRange(String id, StreamDataSupplier<M> supplier, String fromPosition, String toPosition){
-		super(id, supplier);
-		this.fromPosition = fromPosition;
-		this.toPosition = toPosition;
-	}
-	
+	/**
+	 * Receive data from the supplier within range. Reference: {@link StreamDataSupplier#receive(Function, String, java.time.Instant)}
+	 * @param receiver	the receiver
+	 * @param startPosition	the start position for the receiving, if it is null or empty string then the from position of the range will be used
+	 * @return	the receive status
+	 * @throws DataStreamInfrastructureException  if exception happens in the infrastructure
+	 */
+	ReceiveStatus receiveInRange(Function<M, Long> receiver, String startPosition) throws DataStreamInfrastructureException;
 
 	/**
-	 * Get the from position
-	 * @return	the from position, can be null
+	 * Get the from 
+	 * @return the from
 	 */
-	public String getFromPosition() {
-		return fromPosition;
-	}
+	R getFrom();
 	
 	/**
-	 * Set the from position
-	 * @param fromPosition		the from position, can be null
+	 * Get the to
+	 * @return the to
 	 */
-	public void setFromPosition(String fromPosition) {
-		this.fromPosition = fromPosition;
-	}
-	
-	/**
-	 * Get the to position
-	 * @return	the to position, can be null
-	 */
-	public String getToPosition() {
-		return toPosition;
-	}
-	
-	/**
-	 * Set the to position
-	 * @param toPosition	the to position, can be null
-	 */
-	public void setToPosition(String toPosition) {
-		this.toPosition = toPosition;
-	}
+	R getTo();
 }

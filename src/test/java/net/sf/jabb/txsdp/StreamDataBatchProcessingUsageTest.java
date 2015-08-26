@@ -3,8 +3,6 @@
  */
 package net.sf.jabb.txsdp;
 
-import static org.junit.Assert.*;
-
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -21,13 +19,12 @@ import javax.jms.JMSException;
 
 import net.sf.jabb.azure.AzureEventHubUtility;
 import net.sf.jabb.dstream.StreamDataSupplierWithId;
+import net.sf.jabb.dstream.StreamDataSupplierWithIdAndPositionRange;
 import net.sf.jabb.dstream.StreamDataSupplierWithIdAndRange;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 import net.sf.jabb.seqtx.SequentialTransactionsCoordinator;
 import net.sf.jabb.seqtx.azure.AzureSequentialTransactionsCoordinator;
 import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
-import net.sf.jabb.util.attempt.AttemptStrategy;
-import net.sf.jabb.util.attempt.StopStrategies;
 import net.sf.jabb.util.parallel.WaitStrategies;
 
 import org.junit.Test;
@@ -65,15 +62,12 @@ List<StreamDataSupplierWithId<String>> suppliersWithId =
 
 public void specifyRanges(List<StreamDataSupplierWithId<String>> suppliersWithId){
 	
-List<StreamDataSupplierWithIdAndRange<String>> suppliersWithIdAndRange = suppliersWithId.stream()
+Instant now = Instant.now();
+List<StreamDataSupplierWithIdAndRange<String, ?>> suppliersWithIdAndRange = suppliersWithId.stream()
     .map(s->{
         try {
             s.getSupplier().start();
-            StreamDataSupplierWithIdAndRange<String> result = AttemptStrategy.create()
-                .withStopStrategy(StopStrategies.stopAfterTotalAttempts(3))
-                .retryIfException()
-                .retryIfResult((StreamDataSupplierWithIdAndRange<String> r) -> r == null || r.getFromPosition() == null)
-                .call(()->s.withRange(Instant.now().minus(Duration.ofMinutes(30)), null, Duration.ofSeconds(30)));
+            StreamDataSupplierWithIdAndRange<String, ?> result = s.withRange(now.minus(Duration.ofMinutes(30)), null);
             return result;
         } catch (Exception e) {
             return null;
@@ -98,7 +92,7 @@ TransactionalStreamDataBatchProcessing.Options options =
 }
 
 
-public void initializeProcessing(TransactionalStreamDataBatchProcessing.Options options, SequentialTransactionsCoordinator txCoordinator, List<StreamDataSupplierWithIdAndRange<String>> suppliersWithIdAndRange){
+public void initializeProcessing(TransactionalStreamDataBatchProcessing.Options options, SequentialTransactionsCoordinator txCoordinator, List<StreamDataSupplierWithIdAndRange<String, ?>> suppliersWithIdAndRange){
 	
 TransactionalStreamDataBatchProcessing<String> processing = 
 	new TransactionalStreamDataBatchProcessing<>(
