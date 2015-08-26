@@ -134,7 +134,7 @@ public interface StreamDataSupplier<M> {
 	 * Fetch the data/messages in the range specified by start and end enqueued time.
 	 * @param list		list into which the data/messages found within the range will be added
 	 * @param startEnqueuedTime		the start enqueued time of the message/data, inclusive/exclusive defined by the implementation
-	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedTime		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
 	 * @param maxItems			maximum number of items that will be fetched and added into the list
 	 * @param timeoutDuration	maximum total duration allowed for fetch those data
 	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
@@ -147,7 +147,7 @@ public interface StreamDataSupplier<M> {
 	 * Fetch the data/messages in the range specified by start and end positions, allowing fetching as much data as possible.
 	 * @param list		list into which the data/messages found within the range will be added
 	 * @param startEnqueuedTime		the start enqueued time of the message/data, inclusive/exclusive defined by the implementation
-	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedTime		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
 	 * @param timeoutDuration	maximum total duration allowed for fetch those data
 	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
 	 * @throws  InterruptedException if the thread is interrupted
@@ -161,7 +161,7 @@ public interface StreamDataSupplier<M> {
 	 * Fetch the data/messages starting from a position
 	 * @param list				list into which the data/messages will be added
 	 * @param startEnqueuedTime		the start enqueued time of the message/data, inclusive/exclusive defined by the implementation
-	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param maxItems			maximum number of items that will be fetched and added into the list
 	 * @param timeoutDuration	maximum total duration allowed for fetch those data
 	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
 	 * @throws  InterruptedException if the thread is interrupted
@@ -175,7 +175,7 @@ public interface StreamDataSupplier<M> {
 	 * Fetch the data/messages in the range specified by start position and end enqueued time.
 	 * @param list		list into which the data/messages found within the range will be added
 	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
-	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedTime		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
 	 * @param maxItems			maximum number of items that will be fetched and added into the list
 	 * @param timeoutDuration	maximum total duration allowed for fetch those data
 	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
@@ -188,7 +188,7 @@ public interface StreamDataSupplier<M> {
 	 * Fetch the data/messages in the range specified by start position and end positions, allowing fetching as much data as possible.
 	 * @param list		list into which the data/messages found within the range will be added
 	 * @param startPosition		the start position, inclusive/exclusive defined by the implementation
-	 * @param endEnqueuedPosition		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
+	 * @param endEnqueuedTime		the end enqueued time of the message/data, inclusive/exclusive defined by the implementation
 	 * @param timeoutDuration	maximum total duration allowed for fetch those data
 	 * @return	ReceiveStatus with position of the last message added into the list or null if no message had been added
 	 * @throws  InterruptedException if the thread is interrupted
