@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import net.sf.jabb.util.attempt.AttemptStrategy;
@@ -19,6 +20,7 @@ import net.sf.jabb.util.parallel.BackoffStrategies;
 import net.sf.jabb.util.parallel.WaitStrategies;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,6 +67,96 @@ public class AzureStorageUtility {
     static public final String TIMESTAMP = "Timestamp";
     
 	static public String[] COLUMNS_WITH_ONLY_KEYS = new String[0];
+
+	public static boolean isNotFoundOrUpdateConditionNotSatisfied(StorageException e){
+		return e.getHttpStatusCode() == 404 || e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
+	}
+	
+	public static boolean isNotFound(StorageException e){
+		return e.getHttpStatusCode() == 404;
+	}
+	
+	public static boolean isUpdateConditionNotSatisfied(StorageException e){
+		return e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
+	}
+	
+	public static boolean isNotFoundOrUpdateConditionNotSatisfied(Exception ex){
+		if (ex instanceof StorageException){
+			StorageException e = (StorageException)ex;
+			return e.getHttpStatusCode() == 404 || e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
+		}
+		return false;
+	}
+	
+	public static boolean isUpdateConditionNotSatisfied(Exception ex){
+		if (ex instanceof StorageException){
+			StorageException e = (StorageException)ex;
+			return e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
+		}
+		return false;
+	}
+	
+	public static boolean isNotFound(Exception ex){
+		if (ex instanceof StorageException){
+			StorageException e = (StorageException)ex;
+			return e.getHttpStatusCode() == 404;
+		}
+		return false;
+	}
+	
+	public static String combineTableQueryFilters(String operator, String filter1, String filter2, String... filters){
+		String combined = TableQuery.combineFilters(filter1, operator, filter2);
+		for (String filter: filters){
+			combined = TableQuery.combineFilters(combined, operator, filter);
+		}
+		return combined;
+	}
+	
+	/**
+	 * Generate a filter condition for string start with a prefix by checking if
+	 * the value is &gt;= prefix and &lt;= prefix + suffix
+	 * @param property		name of the property
+	 * @param prefix		the prefix that the filter condition requires
+	 * @param suffix		the maximal (inclusive) allowed characters after the prefix
+	 * @return	the filter condition string
+	 */
+	public static String generateStartWithFilterCondition(String property, String prefix, String suffix){
+		return TableQuery.combineFilters(
+				TableQuery.generateFilterCondition(property, QueryComparisons.GREATER_THAN_OR_EQUAL, prefix),
+				TableQuery.Operators.AND,
+				TableQuery.generateFilterCondition(property, QueryComparisons.LESS_THAN_OR_EQUAL, prefix + suffix)
+				);
+	}
+	
+	/**
+	 * Generate a filter condition for string start with a prefix by checking if
+	 * the value is &gt;= prefix and &lt;= prefix + "\uFFFF"
+	 * @param property		name of the property
+	 * @param prefix		the prefix that the filter condition requires
+	 * @return	the filter condition string
+	 */
+	public static String generateStartWithFilterCondition(String property, String prefix){
+		return generateStartWithFilterCondition(property, prefix, "\uFFFF");
+	}
+	
+	/**
+	 * Validate that all characters in the specified string are allowed in Azure table storage key fields.
+	 * @param key	the key string to be validated
+	 * @throws NullPointerException if the key string is null
+	 * @throws IllegalArgumentException if any of the characters in the key string is not valid
+	 */
+	static public void validateCharactersInKey(String key){
+		Validate.notNull(key);
+		for (int i = 0; i < key.length(); i ++){
+			char c = key.charAt(i);
+			Validate.isTrue(c != '/', "The forward slash (/) character is not allowed: {}", key);
+			Validate.isTrue(c != '\\', "The backslash (/) character is not allowed: {}", key);
+			Validate.isTrue(c != '#', "The number sign (#) character is not allowed: {}", key);
+			Validate.isTrue(c != '?', "The question mark (?) character is not allowed: {}", key);
+			Validate.isTrue(! (c <= '\u001F' || c >= '\u007F' && c <= '\u009F'), "Control characters from U+0000 to U+001F and from U+007F to U+009F are not allowed: {}", key);
+		}
+	}
+	
 
 	
 	/**
