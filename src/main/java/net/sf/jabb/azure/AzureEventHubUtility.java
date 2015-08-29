@@ -6,6 +6,7 @@ package net.sf.jabb.azure;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
@@ -23,6 +24,9 @@ import net.sf.jabb.util.jms.JmsUtility;
 import org.apache.qpid.amqp_1_0.jms.impl.MessageImpl;
 
 import com.google.common.base.Throwables;
+import com.microsoft.azure.storage.StorageErrorCodeStrings;
+import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.table.TableQuery;
 
 /**
  * Utility methods for Azure Event Hub.

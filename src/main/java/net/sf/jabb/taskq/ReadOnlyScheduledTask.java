@@ -1,17 +1,17 @@
 /**
  * 
  */
-package net.sf.jabb.taskqueues;
+package net.sf.jabb.taskq;
 
 import java.io.Serializable;
 import java.time.Instant;
 
 /**
- * The task that had been put into a queue
+ * Read-only version of a task that is scheduled to be executed at a specific time.
  * @author James Hu
  *
  */
-public interface QueuedTask {
+public interface ReadOnlyScheduledTask {
 	/**
 	 * Get the time that this task is expected to be executed
 	 * @return	On client side, the result is always the time that this task is expected to be executed.
@@ -21,7 +21,8 @@ public interface QueuedTask {
 	Instant getExpectedExecutionTime();
 	
 	/**
-	 * Get the ID of the task that this task must run after its finish
+	 * Get the ID of the task that this task must run after it finishes. 
+	 * If the predecessor cannot be found in the task queues, it is considered as already finished.
 	 * @return	the ID of the predecessor task, or null if there is no predecessor.
 	 */
 	String getPredecessorId();
@@ -33,27 +34,16 @@ public interface QueuedTask {
 	Serializable getDetail();
 	
 	/**
-	 * Get the time that this task was put into the queue
-	 * @return the time that this task was put into the queue
+	 * Get the number of times that this task had been dequeued/attempted
+	 * @return the dequeue/attempt count
 	 */
-	Instant getInsertionTime();
+	int getAttempts();
+	
 	
 	/**
-	 * Get the number of times that this task had been dequeued
-	 * @return the dequeue count
+	 * Get the ID of this task
+	 * @return	the ID of this task
 	 */
-	int getDequeueCount();
+	String getTaskId();
 	
-	/**
-	 * Get the ID of the consumer that last dequeued this task
-	 * @return ID of the last consumer
-	 */
-	String getLastConsumer();
-	
-	/**
-	 * Get the ID of this enqueued task
-	 * @return	the ID
-	 */
-	String getId();
-
 }
