@@ -80,17 +80,17 @@ public class SequentialTransactionEntity extends TableServiceEntity implements R
 	
 	@Override
 	public boolean isInProgress(){
-		return SequentialTransactionState.IN_PROGRESS.name().equals(state);
+		return SequentialTransactionState.IN_PROGRESS == state;
 	}
 	
 	@Override
 	public boolean isFinished(){
-		return SequentialTransactionState.FINISHED.name().equals(state);
+		return SequentialTransactionState.FINISHED == state;
 	}
 	
 	@Override
 	public boolean isFailed(){
-		return SequentialTransactionState.ABORTED.name().equals(state) || SequentialTransactionState.TIMED_OUT.name().equals(state);
+		return SequentialTransactionState.ABORTED == state || SequentialTransactionState.TIMED_OUT == state;
 	}
 	
 	@Override

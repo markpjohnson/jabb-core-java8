@@ -80,6 +80,10 @@ public class AzureStorageUtility {
 		return e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
 	}
 	
+	public static boolean isEntityAlreadyExists(StorageException e){
+		return e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.ENTITY_ALREADY_EXISTS.equals(e.getErrorCode());
+	}
+	
 	public static boolean isNotFoundOrUpdateConditionNotSatisfied(Exception ex){
 		if (ex instanceof StorageException){
 			StorageException e = (StorageException)ex;
@@ -92,6 +96,14 @@ public class AzureStorageUtility {
 		if (ex instanceof StorageException){
 			StorageException e = (StorageException)ex;
 			return e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
+		}
+		return false;
+	}
+	
+	public static boolean isEntityAlreadyExists(Exception ex){
+		if (ex instanceof StorageException){
+			StorageException e = (StorageException)ex;
+			return e.getHttpStatusCode() == 409 && StorageErrorCodeStrings.ENTITY_ALREADY_EXISTS.equals(e.getErrorCode());
 		}
 		return false;
 	}

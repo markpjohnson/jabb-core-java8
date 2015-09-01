@@ -30,7 +30,7 @@ public interface ScheduledTaskQueues {
 	 * Put a task into the queue.
 	 * @param queue		id/name of the queue
 	 * @param detail		the detail
-	 * @param nextVisibleTime		the time that the task needs to be executed
+	 * @param expectedExecutionTime		the time that the task needs to be executed
 	 * @param predecessorId				ID of the predecessor task. This task will not be visible until the predecessor task has been deleted.
 	 * @return	ID of the just enqueued task
 	 * @throws TaskQueueStorageInfrastructureException if an exception in the underlying infrastructure happened
@@ -54,7 +54,7 @@ public interface ScheduledTaskQueues {
 	 * Put a task into the queue. The task has no predecessor thus its predecessorId will be set to null.
 	 * @param queue		id/name of the queue
 	 * @param detail		the detail
-	 * @param nextVisibleTime		the time that the task needs to be executed
+	 * @param expectedExecutionTime		the time that the task needs to be executed
 	 * @return	ID of the just enqueued task
 	 * @throws TaskQueueStorageInfrastructureException  if an exception in the underlying infrastructure happened
 	 */
@@ -100,7 +100,7 @@ public interface ScheduledTaskQueues {
 	/**
 	 * Get tasks from the queue.
 	 * @param queue	The queue in which tasks will be retrieved
-	 * @param nextVisibleTime		All returned tasks must have an expected execution time no later than this parameter
+	 * @param expectedExecutionTime		All returned tasks must have an expected execution time no later than this parameter
 	 * @param maxNumOfTasks		the maximum number of tasks to be returned
 	 * @param processorId	The ID of the processor. This ID will be used to update the task meta data
 	 * @param timeout		The time after which the execution of the task will time out and the task will be visible/dequeue-able again.
@@ -114,7 +114,7 @@ public interface ScheduledTaskQueues {
 	/**
 	 * Get tasks from the queue.
 	 * @param queue	The queue in which tasks will be retrieved
-	 * @param nextVisibleTime		All returned tasks must have an expected execution time no later than this parameter
+	 * @param expectedExecutionTime		All returned tasks must have an expected execution time no later than this parameter
 	 * @param maxNumOfTasks		the maximum number of tasks to be returned
 	 * @param processorId	The ID of the processor. This ID will be used to update the task meta data
 	 * @param timeoutDuration		The duration for this task to be kept invisible in the queue
@@ -151,6 +151,18 @@ public interface ScheduledTaskQueues {
 	// The effect is deleting: where id = :id and processorId = :processorId and nextVisibleTime > now()
 	
 	/**
+	 * Finish the task, so that it will be removed from the queue. 
+	 * @param task			the task
+	 * @param processorId 	ID of the processor
+	 * @throws NotOwningTaskException	if the task is not currently owned by the processor
+	 * @throws NoSuchTaskException		if the task cannot be found
+	 * @throws TaskQueueStorageInfrastructureException if an exception in the underlying infrastructure happened
+	 */
+	default void finish(ReadOnlyScheduledTask task, String processorId) throws NotOwningTaskException, NoSuchTaskException, TaskQueueStorageInfrastructureException{
+		finish(task.getTaskId(), processorId);
+	}
+
+	/**
 	 * Abort the task, so that it will be visible in the queue again. 
 	 * @param id	ID of the task
 	 * @param processorId 	ID of the processor
@@ -161,6 +173,19 @@ public interface ScheduledTaskQueues {
 	void abort(String id, String processorId) throws NotOwningTaskException, NoSuchTaskException, TaskQueueStorageInfrastructureException;
 	// The effect is updating: set nextVisibleTime = now() where id = :id and processorId = :processorId
 	
+
+	/**
+	 * Abort the task, so that it will be visible in the queue again. 
+	 * @param task			the task
+	 * @param processorId 	ID of the processor
+	 * @throws NotOwningTaskException	if the task is not currently owned by the processor
+	 * @throws NoSuchTaskException		if the task cannot be found
+	 * @throws TaskQueueStorageInfrastructureException if an exception in the underlying infrastructure happened
+	 */
+	default void abort(ReadOnlyScheduledTask task, String processorId) throws NotOwningTaskException, NoSuchTaskException, TaskQueueStorageInfrastructureException{
+		abort(task.getTaskId(), processorId);
+	}
+
 	/**
 	 * Update the timeout.
 	 * @param id			ID of the task
@@ -185,6 +210,32 @@ public interface ScheduledTaskQueues {
 	 */
 	default void renewTimeout(String id, String processorId, Duration newTimeoutDuration) throws NotOwningTaskException, NoSuchTaskException, TaskQueueStorageInfrastructureException{
 		renewTimeout(id, processorId, Instant.now().plus(newTimeoutDuration));
+	}
+
+	/**
+	 * Update the timeout.
+	 * @param task			the task
+	 * @param processorId	ID of the processor
+	 * @param newTimeout	the new time out
+	 * @throws NotOwningTaskException	if the task is not currently owned by the processor
+	 * @throws NoSuchTaskException		if the task cannot be found
+	 * @throws TaskQueueStorageInfrastructureException if an exception in the underlying infrastructure happened
+	 */
+	default void renewTimeout(ReadOnlyScheduledTask task, String processorId, Instant newTimeout) throws NotOwningTaskException, NoSuchTaskException, TaskQueueStorageInfrastructureException{
+		renewTimeout(task.getTaskId(), processorId, newTimeout);
+	}
+
+	/**
+	 * Update the timeout.
+	 * @param task			the task
+	 * @param processorId	ID of the processor
+	 * @param newTimeoutDuration	the new duration after which the task execution will time out
+	 * @throws NotOwningTaskException	if the task is not currently owned by the processor
+	 * @throws NoSuchTaskException		if the task cannot be found
+	 * @throws TaskQueueStorageInfrastructureException if an exception in the underlying infrastructure happened
+	 */
+	default void renewTimeout(ReadOnlyScheduledTask task, String processorId, Duration newTimeoutDuration) throws NotOwningTaskException, NoSuchTaskException, TaskQueueStorageInfrastructureException{
+		renewTimeout(task.getTaskId(), processorId, newTimeoutDuration);
 	}
 
 	/**

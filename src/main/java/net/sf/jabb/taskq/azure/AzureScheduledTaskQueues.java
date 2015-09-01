@@ -64,16 +64,21 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 	protected volatile boolean tableExists = false;
 	
 	protected AttemptStrategy attemptStrategy = DEFAULT_ATTEMPT_STRATEGY;
+	
+	protected int taskIdLengthInPartitionKey = 2;
 
 
 	public AzureScheduledTaskQueues(){
 		
 	}
 	
-	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount, String tableName, AttemptStrategy attemptStrategy, Consumer<TableRequestOptions> defaultOptionsConfigurer){
+	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount, String tableName, Integer taskIdLengthInPartitionKey, AttemptStrategy attemptStrategy, Consumer<TableRequestOptions> defaultOptionsConfigurer){
 		this();
 		if (tableName != null){
 			this.tableName = tableName;
+		}
+		if (taskIdLengthInPartitionKey != null){
+			this.taskIdLengthInPartitionKey = taskIdLengthInPartitionKey;
 		}
 		if (attemptStrategy != null){
 			this.attemptStrategy = attemptStrategy;
@@ -84,26 +89,33 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 		}
 	}
 	
-	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount, String tableName, AttemptStrategy attemptStrategy){
-		this(storageAccount, tableName, attemptStrategy, null);
+	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount, String tableName, Integer taskIdLengthInPartitionKey, AttemptStrategy attemptStrategy){
+		this(storageAccount, tableName, taskIdLengthInPartitionKey, attemptStrategy, null);
+	}
+
+	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount, String tableName, Integer taskIdLengthInPartitionKey){
+		this(storageAccount, tableName, taskIdLengthInPartitionKey, null, null);
 	}
 
 	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount, String tableName){
-		this(storageAccount, tableName, null, null);
+		this(storageAccount, tableName, null, null, null);
 	}
 
-	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount, Consumer<TableRequestOptions> defaultOptionsConfigurer){
-		this(storageAccount, null, null, defaultOptionsConfigurer);
+	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount, Integer taskIdLengthInPartitionKey, Consumer<TableRequestOptions> defaultOptionsConfigurer){
+		this(storageAccount, null, null, null, defaultOptionsConfigurer);
 	}
 
 	public AzureScheduledTaskQueues(CloudStorageAccount storageAccount){
 		this(storageAccount, null, null, null);
 	}
 	
-	public AzureScheduledTaskQueues(CloudTableClient tableClient, String tableName, AttemptStrategy attemptStrategy){
+	public AzureScheduledTaskQueues(CloudTableClient tableClient, String tableName, Integer taskIdLengthInPartitionKey, AttemptStrategy attemptStrategy){
 		this();
 		if (tableName != null){
 			this.tableName = tableName;
+		}
+		if (taskIdLengthInPartitionKey != null){
+			this.taskIdLengthInPartitionKey = taskIdLengthInPartitionKey;
 		}
 		this.tableClient = tableClient;
 		if (attemptStrategy != null){
@@ -112,11 +124,11 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 	}
 
 	public AzureScheduledTaskQueues(CloudTableClient tableClient, AttemptStrategy attemptStrategy){
-		this(tableClient, null, attemptStrategy);
+		this(tableClient, null, null, attemptStrategy);
 	}
 
 	public AzureScheduledTaskQueues(CloudTableClient tableClient){
-		this(tableClient, null, null);
+		this(tableClient, null, null, null);
 	}
 
 
@@ -132,6 +144,13 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 		this.attemptStrategy = attemptStrategy;
 	}
 	
+	/**
+	 * @param taskIdLengthInPartitionKey the taskIdLengthInPartitionKey to set
+	 */
+	public void setTaskIdLengthInPartitionKey(int taskIdLengthInPartitionKey) {
+		this.taskIdLengthInPartitionKey = taskIdLengthInPartitionKey;
+	}
+
 	protected String newUniqueTaskId(){
 		return UUID.randomUUID().toString();
 	}
@@ -141,14 +160,17 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 	@Override
 	public String put(String queue, Serializable detail, Instant expectedExecutionTime, String predecessorId)
 			throws TaskQueueStorageInfrastructureException {
+		Validate.notNull(queue, "Queue name cannot be null");
+		Validate.notNull(expectedExecutionTime, "expected execution time cannot be null");
+
 		String taskIdInQueue = newUniqueTaskId();
-		TaskEntity task = new TaskEntity(queue, taskIdInQueue, detail, expectedExecutionTime, predecessorId);
+		TaskEntity task = new TaskEntity(queue, taskIdInQueue, detail, expectedExecutionTime, predecessorId, taskIdLengthInPartitionKey);
 		CloudTable table = null;
 		table = getTableReference();
 		try {
 			table.execute(TableOperation.insert(task));
 		} catch (StorageException e) {
-			if (e.getHttpStatusCode() != 409){		// if it is 409 then the insertion actually succeeded
+			if (!AzureStorageUtility.isEntityAlreadyExists(e)){		// if it is 409 then the insertion actually succeeded
 				throw new TaskQueueStorageInfrastructureException("Insersion of new entity was not successful", e);
 			}
 		}
@@ -159,6 +181,12 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 	@Override
 	public List<ReadOnlyScheduledTask> get(String queue, Instant expectedExecutionTime, int maxNumOfTasks, String processorId, Instant timeout)
 			throws TaskQueueStorageInfrastructureException {
+		Validate.notNull(queue, "Queue name cannot be null");
+		Validate.notNull(expectedExecutionTime, "expected execution time cannot be null");
+		Validate.isTrue(maxNumOfTasks > 0, "Maximum number of tasks must be greater than zero");
+		Validate.notNull(processorId, "Processor ID cannot be null");
+		Validate.notNull(timeout, "Timeout time cannot be null");
+		
 		Map<String, Boolean> predecessorExistenceCache = new HashMap<>();
 		List<ReadOnlyScheduledTask> result = new ArrayList<>(maxNumOfTasks);
 		CloudTable table = null;
@@ -180,21 +208,12 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 				}else if (predecessorExistenceCache.containsKey(predecessorId)){
 					predecessorExists = predecessorExistenceCache.get(predecessorId);
 				}else{
-					String[] predecessorKeys = TaskEntity.partitionAndRowKeys(predecessorId);
-					try{
-						@SuppressWarnings("unused")
-						DynamicTableEntity predecessor = table.execute(
-								TableOperation.retrieve(predecessorKeys[0], predecessorKeys[1], DynamicTableEntity.class)
-								).getResultAsType();
-						predecessorExistenceCache.put(predecessorId, true);
-					}catch(StorageException e){
-						if (e.getHttpStatusCode() == 404){
-							predecessorExists = false;
-							predecessorExistenceCache.put(predecessorId, false);
-						}else{
-							throw e;
-						}
-					}
+					String[] predecessorKeys = TaskEntity.partitionAndRowKeys(predecessorId, taskIdLengthInPartitionKey);
+					DynamicTableEntity predecessor = table.execute(
+							TableOperation.retrieve(predecessorKeys[0], predecessorKeys[1], DynamicTableEntity.class)
+							).getResultAsType();
+					predecessorExistenceCache.put(predecessorId, predecessor != null);
+					predecessorExists = predecessor != null;
 				}
 				
 				if (!predecessorExists){
@@ -224,30 +243,29 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 	}
 	
 	protected void update(String id, String processorId, BiConsumerThrowsExceptions<CloudTable, TaskEntity> operation) throws NotOwningTaskException, NoSuchTaskException, TaskQueueStorageInfrastructureException{
+		Validate.notNull(id, "Task ID cannot be null");
+		Validate.notNull(processorId, "Processor ID cannot be null");
+
 		CloudTable table = getTableReference();
 		try {
-			String[] keys = TaskEntity.partitionAndRowKeys(id);
+			String[] keys = TaskEntity.partitionAndRowKeys(id, taskIdLengthInPartitionKey);
 			new AttemptStrategy(attemptStrategy)
 				.retryIfException(AzureStorageUtility::isNotFoundOrUpdateConditionNotSatisfied)
 				.run(()->{
-					TaskEntity task = null;
-					try{
-						task = table.execute(
-								TableOperation.retrieve(keys[0], keys[1], TaskEntity.class)
-								).getResultAsType();
-						if (!StringUtils.equals(processorId, task.getProcessorId())
+					TaskEntity task = table.execute(
+							TableOperation.retrieve(keys[0], keys[1], TaskEntity.class)
+							).getResultAsType();
+					if (task == null){
+						throw new NoSuchTaskException("No task with ID '" + id + "' can be found");
+					}
+					if (!StringUtils.equals(processorId, task.getProcessorId())
 								|| task.getVisibleTime().isBefore(Instant.now())){
 							throw new NotOwningTaskException("Task with ID '" + id + "' is not currently owned by processor with ID '" + processorId + "'");
 						}
-					}catch(StorageException e){
-						if (AzureStorageUtility.isNotFound(e)){
-							throw new NoSuchTaskException("No task with ID '" + id + "' can be found");
-						}else{
-							throw e; // cannot be isNotFoundOrUpdateConditionNotSatisfied
-						}
-					}
 					operation.accept(table, task);  // may throw isNotFoundOrUpdateConditionNotSatisfied
 				});
+		}catch(NotOwningTaskException | NoSuchTaskException | TaskQueueStorageInfrastructureException e){
+			throw e;
 		}catch(Exception e){
 			throw new TaskQueueStorageInfrastructureException("Updating of task entity specified by ID '" + id + "' by processor with ID '" + processorId + "' was not successful", e);
 		}
@@ -272,6 +290,8 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 	@Override
 	public void renewTimeout(String id, String processorId, Instant newTimeout) throws NotOwningTaskException, NoSuchTaskException,
 			TaskQueueStorageInfrastructureException {
+		Validate.notNull(newTimeout, "New timeout time cannot be null");
+
 		update(id, processorId, (table, task) -> {
 			task.setVisibleTime(newTimeout);
 			table.execute(TableOperation.replace(task));
@@ -280,7 +300,7 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 
 	@Override
 	public void clear(String queue) throws TaskQueueStorageInfrastructureException {
-		Validate.notNull(queue, "Series ID cannot be null");
+		Validate.notNull(queue, "Queue name cannot be null");
 		// delete entities by seriesId
 		try{
 			CloudTable table = getTableReference();

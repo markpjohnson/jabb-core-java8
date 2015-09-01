@@ -26,8 +26,7 @@ import com.microsoft.azure.storage.table.TableServiceEntity;
  * @author James Hu
  *
  */
-class TaskEntity extends TableServiceEntity implements ReadOnlyScheduledTask{
-	static private final int TASK_ID_LENGTH_IN_PARTITION_KEY = 2;
+public class TaskEntity extends TableServiceEntity implements ReadOnlyScheduledTask{
 	static public final int MAX_BINARY_LENGTH = 64*1024;
 	static private final String DELIMITER_IN_FULL_TASK_ID = "/";
 	static private final String DELIMITER_IN_PARTITION_KEY = "^";
@@ -51,24 +50,24 @@ class TaskEntity extends TableServiceEntity implements ReadOnlyScheduledTask{
 		
 	}
 
-	public TaskEntity(String queueName, String taskId){
+	public TaskEntity(String queueName, String taskId, int taskIdLengthInPartitionKey){
 		AzureStorageUtility.validateCharactersInKey(queueName);
 		AzureStorageUtility.validateCharactersInKey(taskId);
 		Validate.isTrue(!queueName.contains(DELIMITER_IN_PARTITION_KEY), "Character sequence '{}' is not allowed in queue name: {}", DELIMITER_IN_PARTITION_KEY, queueName);
 		Validate.isTrue(!taskId.contains(DELIMITER_IN_PARTITION_KEY), "Character sequence '{}' is not allowed in task ID: {}", DELIMITER_IN_PARTITION_KEY, taskId);
 		this.rowKey = taskId;
-		this.partitionKey = partitionKey(queueName, taskId);
+		this.partitionKey = partitionKey(queueName, taskId, taskIdLengthInPartitionKey);
 	}
 	
-	public TaskEntity(String queueName, String taskId, Serializable detail, Instant expectedExecutionTime){
-		this(queueName, taskId);
+	public TaskEntity(String queueName, String taskId, Serializable detail, Instant expectedExecutionTime, int taskIdLengthInPartitionKey){
+		this(queueName, taskId, taskIdLengthInPartitionKey);
 		this.detail = detail;
 		this.expectedExecutionTime = expectedExecutionTime;
 		this.visibleTime = expectedExecutionTime;
 	}
 	
-	public TaskEntity(String queueName, String taskId, Serializable detail, Instant expectedExecutionTime, String predecessorId){
-		this(queueName, taskId, detail, expectedExecutionTime);
+	public TaskEntity(String queueName, String taskId, Serializable detail, Instant expectedExecutionTime, String predecessorId, int taskIdLengthInPartitionKey){
+		this(queueName, taskId, detail, expectedExecutionTime, taskIdLengthInPartitionKey);
 		this.predecessorId = predecessorId;
 	}
 	
@@ -77,7 +76,9 @@ class TaskEntity extends TableServiceEntity implements ReadOnlyScheduledTask{
 	 * @return	the copy of this object
 	 */
 	public TaskEntity copy(){
-		TaskEntity that = new TaskEntity(this.getQueueName(), this.getTaskId());
+		TaskEntity that = new TaskEntity();
+		that.partitionKey = this.partitionKey;
+		that.rowKey = this.rowKey;
 		that.predecessorId = this.predecessorId;
 		that.processorId = this.processorId;
 		that.expectedExecutionTime = this.expectedExecutionTime;
@@ -91,10 +92,11 @@ class TaskEntity extends TableServiceEntity implements ReadOnlyScheduledTask{
 	 * Determine the partition key from queue name and task id.
 	 * @param queueName		name of the queue
 	 * @param taskIdInQueue		id of the task in queue
+	 * @param taskIdLengthInPartitionKey length of taskId rear part to be put into partition key
 	 * @return		partition key of the entity representing the task
 	 */
-	static public String partitionKey(String queueName, String taskIdInQueue){
-		return queueName + DELIMITER_IN_PARTITION_KEY + taskIdInQueue.substring(taskIdInQueue.length() - TASK_ID_LENGTH_IN_PARTITION_KEY);
+	static public String partitionKey(String queueName, String taskIdInQueue, int taskIdLengthInPartitionKey){
+		return queueName + DELIMITER_IN_PARTITION_KEY + taskIdInQueue.substring(taskIdInQueue.length() - taskIdLengthInPartitionKey);
 	}
 	
 	/**
@@ -110,15 +112,16 @@ class TaskEntity extends TableServiceEntity implements ReadOnlyScheduledTask{
 	/**
 	 * Determine the partition and row keys from full task id
 	 * @param fullTaskId	the full task id
+	 * @param taskIdLengthInPartitionKey length of taskId rear part to be put into partition key
 	 * @return	a 2-element array containing partition key and row key of the entity representing the task
 	 */
-	static public String[] partitionAndRowKeys(String fullTaskId){
+	static public String[] partitionAndRowKeys(String fullTaskId, int taskIdLengthInPartitionKey){
 		Validate.notNull(fullTaskId);
 		int i = fullTaskId.indexOf(DELIMITER_IN_FULL_TASK_ID);
 		Validate.isTrue(i >= 0, "Delimiter '{}' must exist in the full task ID: {}", DELIMITER_IN_FULL_TASK_ID, fullTaskId);
 		String queueName = fullTaskId.substring(0, i);
 		String taskId = fullTaskId.substring(i + DELIMITER_IN_FULL_TASK_ID.length());
-		return new String[]{partitionKey(queueName, taskId), rowKey(queueName, taskId)};
+		return new String[]{partitionKey(queueName, taskId, taskIdLengthInPartitionKey), rowKey(queueName, taskId)};
 	}
 	
 	/**
@@ -239,7 +242,7 @@ class TaskEntity extends TableServiceEntity implements ReadOnlyScheduledTask{
 	
 	@Ignore
 	public String getQueueName(){
-		return this.partitionKey.substring(0, partitionKey.length() - TASK_ID_LENGTH_IN_PARTITION_KEY - 1);
+		return this.partitionKey.substring(0, partitionKey.indexOf(DELIMITER_IN_PARTITION_KEY));
 	}
 	
 	/**
@@ -255,7 +258,7 @@ class TaskEntity extends TableServiceEntity implements ReadOnlyScheduledTask{
 	 */
 	@StoreAs(name="V")
 	public void setVisibleTimeAsDate(Date visibleTimeAsDate) {
-		this.expectedExecutionTime = visibleTimeAsDate == null ? null : visibleTimeAsDate.toInstant();
+		this.visibleTime = visibleTimeAsDate == null ? null : visibleTimeAsDate.toInstant();
 	}
 
 	@Ignore
