@@ -13,6 +13,11 @@ import java.util.function.Supplier;
 public class ExceptionUncheckUtility {
 
 	@FunctionalInterface
+	public interface BiConsumerThrowsExceptions<T, U> {
+		void accept(T t, U u) throws Exception;
+	}
+
+	@FunctionalInterface
 	public interface ConsumerThrowsExceptions<T> {
 		void accept(T t) throws Exception;
 	}

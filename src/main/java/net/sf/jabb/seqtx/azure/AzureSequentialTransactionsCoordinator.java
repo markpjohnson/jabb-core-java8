@@ -86,27 +86,9 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	
 	protected AttemptStrategy attemptStrategy = DEFAULT_ATTEMPT_STRATEGY;
 	
-	protected static final Predicate<Exception> ENTITY_HAS_BEEN_MODIFIED_BY_OTHERS = new Predicate<Exception>(){
-		@Override
-		public boolean test(Exception ex) {
-			if (ex instanceof StorageException){
-				StorageException e = (StorageException)ex;
-				return e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
-			}
-			return false;
-		}
-	};
+	protected static final Predicate<Exception> ENTITY_HAS_BEEN_MODIFIED_BY_OTHERS = AzureStorageUtility::isUpdateConditionNotSatisfied;
 	
-	protected static final Predicate<Exception> ENTITY_HAS_BEEN_DELETED_OR_MODIFIED_BY_OTHERS = new Predicate<Exception>(){
-		@Override
-		public boolean test(Exception ex) {
-			if (ex instanceof StorageException){
-				StorageException e = (StorageException)ex;
-				return e.getHttpStatusCode() == 404 || e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
-			}
-			return false;
-		}
-	};
+	protected static final Predicate<Exception> ENTITY_HAS_BEEN_DELETED_OR_MODIFIED_BY_OTHERS = AzureStorageUtility::isNotFoundOrUpdateConditionNotSatisfied;
 	
 	public AzureSequentialTransactionsCoordinator(){
 		

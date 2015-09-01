@@ -59,7 +59,8 @@ import com.google.common.base.Throwables;
  *  	removed therefore cannot be retried.</li>
  *  <li>End position can be updated when finishing the transaction only if the transaction is the last one in the series</li>
  * </ul>
-
+ * 
+ * Each processor must have a unique ID of its own.
  * 
  * @author James Hu
  *
