@@ -45,7 +45,7 @@ public class AzureStorageUtilityTest {
 		
 		// one successful
 		when(table.createIfNotExists()).thenReturn(true);
-		boolean result = AzureStorageUtility.createIfNotExist(tableClient, tableName);
+		boolean result = AzureStorageUtility.createIfNotExists(tableClient, tableName);
 		verify(table, times(1)).createIfNotExists();
 		assertTrue(result);
 	}
@@ -68,7 +68,7 @@ public class AzureStorageUtilityTest {
 				throw e;
 			}
 		});
-		boolean result = AzureStorageUtility.createIfNotExist(tableClient, tableName);
+		boolean result = AzureStorageUtility.createIfNotExists(tableClient, tableName);
 		verify(table, times(3)).createIfNotExists();
 		assertTrue(result);
 	}
@@ -91,7 +91,7 @@ public class AzureStorageUtilityTest {
 				throw e;
 			}
 		});
-		boolean result = AzureStorageUtility.createIfNotExist(tableClient, tableName);
+		boolean result = AzureStorageUtility.createIfNotExists(tableClient, tableName);
 		verify(table, times(3)).createIfNotExists();
 		assertFalse(result);
 	}
@@ -107,7 +107,7 @@ public class AzureStorageUtilityTest {
 		// two failed followed by one successful
 		when(table.createIfNotExists()).thenThrow(new StorageException(StorageErrorCodeStrings.TABLE_BEING_DELETED, "", 409, null, null));
 		try{
-			AzureStorageUtility.createIfNotExist(tableClient, tableName, new AttemptStrategy().withStopStrategy(StopStrategies.stopAfterTotalAttempts(4)));
+			AzureStorageUtility.createIfNotExists(tableClient, tableName, new AttemptStrategy().withStopStrategy(StopStrategies.stopAfterTotalAttempts(4)));
 			fail("should have exception thrown");
 		}catch(StorageException e){
 			Throwable[] suppressed = e.getSuppressed();
@@ -129,7 +129,7 @@ public class AzureStorageUtilityTest {
 		
 		// one successful
 		when(queue.createIfNotExists()).thenReturn(true);
-		boolean result = AzureStorageUtility.createIfNotExist(queueClient, queueName);
+		boolean result = AzureStorageUtility.createIfNotExists(queueClient, queueName);
 		verify(queue, times(1)).createIfNotExists();
 		assertTrue(result);
 	}
@@ -152,7 +152,7 @@ public class AzureStorageUtilityTest {
 				throw e;
 			}
 		});
-		boolean result = AzureStorageUtility.createIfNotExist(queueClient, queueName);
+		boolean result = AzureStorageUtility.createIfNotExists(queueClient, queueName);
 		verify(queue, times(3)).createIfNotExists();
 		assertTrue(result);
 	}

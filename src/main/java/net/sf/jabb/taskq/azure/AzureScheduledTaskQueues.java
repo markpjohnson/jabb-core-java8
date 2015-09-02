@@ -304,7 +304,7 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 		// delete entities by seriesId
 		try{
 			CloudTable table = getTableReference();
-			AzureStorageUtility.deleteEntitiesIfExist(table, 
+			AzureStorageUtility.deleteEntitiesIfExists(table, 
 					TaskEntity.filterByQueueName(queue));
 			logger.debug("Deleted all tasks in queue '{}' in table: {}", queue, table == null ? null : table.getName()); 
 		}catch(Exception e){
@@ -317,7 +317,7 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 		// delete all entities
 		try{
 			CloudTable table = getTableReference();
-			AzureStorageUtility.deleteEntitiesIfExist(table, (String)null);
+			AzureStorageUtility.deleteEntitiesIfExists(table, (String)null);
 			logger.debug("Deleted all tasks in all queues in table: {}", table == null ? null : table.getName()); 
 		}catch(Exception e){
 			throw new TaskQueueStorageInfrastructureException("Failed to delete all entities in table: " + tableName, e);
@@ -333,7 +333,7 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 		}
 		if (!tableExists){
 			try {
-				if (AzureStorageUtility.createIfNotExist(tableClient, tableName)){
+				if (AzureStorageUtility.createIfNotExists(tableClient, tableName)){
 					logger.debug("Created table: {}", tableName); 
 				}
 			} catch (Exception e) {
