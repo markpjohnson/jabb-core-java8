@@ -199,7 +199,7 @@ public class AzureStorageUtility {
 	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid.
 	 * @throws StorageException		If a storage service error occurred during the operation.
 	 */
-	static public boolean deleteIfExist(CloudTableClient tableClient, String tableName) throws URISyntaxException, StorageException {
+	static public boolean deleteIfExists(CloudTableClient tableClient, String tableName) throws URISyntaxException, StorageException {
 			CloudTable table = tableClient.getTableReference(tableName);
 			return table.deleteIfExists();
 	}
@@ -213,7 +213,7 @@ public class AzureStorageUtility {
 	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 * @throws StorageException		If a storage service error occurred during the operation. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 */
-	static public boolean createIfNotExist(CloudTableClient tableClient, String tableName, AttemptStrategy attemptStrategy) throws URISyntaxException, StorageException {
+	static public boolean createIfNotExists(CloudTableClient tableClient, String tableName, AttemptStrategy attemptStrategy) throws URISyntaxException, StorageException {
 		CloudTable table = tableClient.getTableReference(tableName);
 		return ExceptionUncheckUtility.getThrowingUnchecked(()->{
 			return new AttemptStrategy(attemptStrategy)
@@ -232,8 +232,8 @@ public class AzureStorageUtility {
 	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 * @throws StorageException		If a storage service error occurred during the operation. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 */
-	static public boolean createIfNotExist(CloudTableClient tableClient, String tableName) throws URISyntaxException, StorageException{
-		return createIfNotExist(tableClient, tableName, DEFAULT_CREATION_ATTEMPT_STRATEGY);
+	static public boolean createIfNotExists(CloudTableClient tableClient, String tableName) throws URISyntaxException, StorageException{
+		return createIfNotExists(tableClient, tableName, DEFAULT_CREATION_ATTEMPT_STRATEGY);
 	}
 	
 	/**
@@ -244,7 +244,7 @@ public class AzureStorageUtility {
 	 * @throws URISyntaxException	If the resource URI constructed based on the tableName is invalid.
 	 * @throws StorageException		If a storage service error occurred during the operation.
 	 */
-	static public boolean deleteIfExist(CloudQueueClient queueClient, String queueName) throws URISyntaxException, StorageException {
+	static public boolean deleteIfExists(CloudQueueClient queueClient, String queueName) throws URISyntaxException, StorageException {
 		CloudQueue queue = queueClient.getQueueReference(queueName);
 		return queue.deleteIfExists();
 	}
@@ -258,7 +258,7 @@ public class AzureStorageUtility {
 	 * @throws URISyntaxException	If the resource URI constructed based on the queueName is invalid. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 * @throws StorageException		If a storage service error occurred during the operation. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 */
-	static public boolean createIfNotExist(CloudQueueClient queueClient, String queueName, AttemptStrategy attemptStrategy) throws URISyntaxException, StorageException {
+	static public boolean createIfNotExists(CloudQueueClient queueClient, String queueName, AttemptStrategy attemptStrategy) throws URISyntaxException, StorageException {
 		CloudQueue queue = queueClient.getQueueReference(queueName);
 		return ExceptionUncheckUtility.getThrowingUnchecked(()->{
 			return new AttemptStrategy(attemptStrategy)
@@ -277,8 +277,8 @@ public class AzureStorageUtility {
 	 * @throws URISyntaxException	If the resource URI constructed based on the queueName is invalid. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 * @throws StorageException		If a storage service error occurred during the operation. Optionally with a TooManyAttemptsException or InterruptedException as one of its suppressed exceptions.
 	 */
-	static public boolean createIfNotExist(CloudQueueClient queueClient, String queueName) throws URISyntaxException, StorageException{
-		return createIfNotExist(queueClient, queueName, DEFAULT_CREATION_ATTEMPT_STRATEGY);
+	static public boolean createIfNotExists(CloudQueueClient queueClient, String queueName) throws URISyntaxException, StorageException{
+		return createIfNotExists(queueClient, queueName, DEFAULT_CREATION_ATTEMPT_STRATEGY);
 	}
 	
 	/**
@@ -290,7 +290,7 @@ public class AzureStorageUtility {
 	 * 						even if this method returns false it may be caused by a retry rather than the first attempt. 
 	 * @throws StorageException		if non-404 error happened
 	 */
-	static public boolean executeIfExist(CloudTable table, TableOperation operation) throws StorageException{
+	static public boolean executeIfExists(CloudTable table, TableOperation operation) throws StorageException{
 		try {
 			table.execute(operation);
 			return true;
@@ -312,7 +312,7 @@ public class AzureStorageUtility {
 	 * 						even if this method returns false it may be caused by a retry rather than the first attempt. 
 	 * @throws StorageException		if non-404 error happened
 	 */
-	static public boolean executeIfExist(CloudTable table, TableBatchOperation operation) throws StorageException{
+	static public boolean executeIfExists(CloudTable table, TableBatchOperation operation) throws StorageException{
 		try {
 			table.execute(operation);
 			return true;
@@ -332,7 +332,7 @@ public class AzureStorageUtility {
 	 * @param filter		the filter specifies the entities to be deleted
 	 * @throws StorageException		if non-404 error happened
 	 */
-	static public void deleteEntitiesIfExist(CloudTable table, String filter) throws StorageException{
+	static public void deleteEntitiesIfExists(CloudTable table, String filter) throws StorageException{
 		TableQuery<DynamicTableEntity> query = TableQuery.from(DynamicTableEntity.class)
 				.select(COLUMNS_WITH_ONLY_KEYS);
 		if (StringUtils.isNotBlank(filter)){
@@ -340,7 +340,7 @@ public class AzureStorageUtility {
 		}
 		for (DynamicTableEntity entity: table.execute(query)){
 			TableOperation deleteOp = TableOperation.delete(entity);
-			executeIfExist(table, deleteOp);
+			executeIfExists(table, deleteOp);
 		}
 	}
 
@@ -351,7 +351,7 @@ public class AzureStorageUtility {
 	 * @param rowKey			the row key of the entity
 	 * @throws StorageException		if non-404 error happened
 	 */
-	static public void deleteEntitiesIfExist(CloudTable table, String partitionKey, String rowKey) throws StorageException{
+	static public void deleteEntitiesIfExists(CloudTable table, String partitionKey, String rowKey) throws StorageException{
 		String partitionFilter = TableQuery.generateFilterCondition(
 				PARTITION_KEY, 
 				QueryComparisons.EQUAL,
@@ -361,7 +361,7 @@ public class AzureStorageUtility {
 				QueryComparisons.EQUAL,
 				rowKey);
 		String filter = TableQuery.combineFilters(partitionFilter, Operators.AND, rowFilter);
-		deleteEntitiesIfExist(table, filter);
+		deleteEntitiesIfExists(table, filter);
 	}
 
 	/**
@@ -370,10 +370,10 @@ public class AzureStorageUtility {
 	 * @param entity		the entity to be deleted
 	 * @throws StorageException		if non-404 error happened
 	 */
-	static public void deleteEntitiesIfExist(CloudTable table, TableEntity entity) throws StorageException{
+	static public void deleteEntitiesIfExists(CloudTable table, TableEntity entity) throws StorageException{
 		String partitionKey = entity.getPartitionKey();
 		String rowKey = entity.getRowKey();
-		deleteEntitiesIfExist(table, partitionKey, rowKey);
+		deleteEntitiesIfExists(table, partitionKey, rowKey);
 	}
 
 
