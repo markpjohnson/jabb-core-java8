@@ -1,5 +1,5 @@
 /**
- * 
+ *
  */
 package net.sf.jabb.dstream.mock;
 
@@ -25,9 +25,10 @@ import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
  * Mocked StreamDataSupplier providing generated strings as events.
  * Events are generated according to the <code>eventsPerSecond</code> argument passed to the constructor.
  * The position of a mocked event is the epoch milliseconds of the event.
- * 
+ *
  * <p>
  * Every event is a JSON string with the following fields:
+ * </p>
  * <ul>
  * 	<li>timeZone - always "UTC"</li>
  * 	<li>timestamp - Epoch milliseconds of the time this event was generated/enqueued</li>
@@ -38,15 +39,15 @@ import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
  * 	<li>h1, h4, h6, h8, h12 - hour, hour/4*4, hour/6*6, hour/8*8, hour/12*12 </li>
  * 	<li></li>
  * </ul>
- * </p>
+ * 
  * @author James Hu
  *
  */
 public class MockedStreamDataSupplier implements StreamDataSupplier<String> {
 	private static final Logger logger = LoggerFactory.getLogger(MockedStreamDataSupplier.class);
-	
+
 	private static DateTimeFormatter utcIsoDateTimeFormatter = DateTimeFormatter.BASIC_ISO_DATE.withZone(ZoneId.of("UTC"));
-	
+
 	protected int intervalMillis;
 	protected Instant firstEventTime;	// inclusive
 	protected Instant lastEventTime;	// inclusive
@@ -61,7 +62,7 @@ public class MockedStreamDataSupplier implements StreamDataSupplier<String> {
 		Validate.isTrue(eventsPerSecond >= 1 && eventsPerSecond <= 1000, "number of events per second must be between 1 and 1000");
 		Validate.isTrue((1000 % eventsPerSecond) == 0, "1000 must be dividable by number of events per second");
 			Validate.notNull(streamStartTime);
-		
+
 		this.intervalMillis = 1000 / eventsPerSecond;
 		long et = (streamStartTime.toEpochMilli() / intervalMillis + 1)* intervalMillis;
 		this.firstEventTime = Instant.ofEpochMilli(et);
@@ -70,7 +71,7 @@ public class MockedStreamDataSupplier implements StreamDataSupplier<String> {
 			this.lastEventTime = Instant.ofEpochMilli(et);
 		}
 	}
-	
+
 	protected String eventAt(Instant i){
 		LocalDateTime utc = LocalDateTime.ofInstant(i, ZoneId.of("UTC"));
 		StringBuilder sb = new StringBuilder();
@@ -181,7 +182,7 @@ public class MockedStreamDataSupplier implements StreamDataSupplier<String> {
 			}
 			position += intervalMillis;
 		}
-		
+
 		if (logger.isDebugEnabled()){
 			logger.debug("Fetched for ({}-{}],{},{}: ? - {}", startPosition, endPosition, maxItems, timeoutDuration, lastPosition);
 		}
@@ -195,16 +196,16 @@ public class MockedStreamDataSupplier implements StreamDataSupplier<String> {
 	@Override
 	public ReceiveStatus fetch(List<? super String> list, Instant startEnqueuedTime, Instant endEnqueuedTime, int maxItems, Duration timeoutDuration)
 			throws InterruptedException, DataStreamInfrastructureException {
-		return fetch(list, String.valueOf(startEnqueuedTime.toEpochMilli()), 
-				endEnqueuedTime == null ? null : String.valueOf(endEnqueuedTime.toEpochMilli()), 
+		return fetch(list, String.valueOf(startEnqueuedTime.toEpochMilli()),
+				endEnqueuedTime == null ? null : String.valueOf(endEnqueuedTime.toEpochMilli()),
 						maxItems, timeoutDuration);
 	}
 
 	@Override
 	public ReceiveStatus fetch(List<? super String> list, String startPosition, Instant endEnqueuedTime, int maxItems, Duration timeoutDuration)
 			throws InterruptedException, DataStreamInfrastructureException {
-		return fetch(list, startPosition, 
-				endEnqueuedTime == null ? null : String.valueOf(endEnqueuedTime.toEpochMilli()), 
+		return fetch(list, startPosition,
+				endEnqueuedTime == null ? null : String.valueOf(endEnqueuedTime.toEpochMilli()),
 						maxItems, timeoutDuration);
 	}
 
@@ -242,7 +243,7 @@ public class MockedStreamDataSupplier implements StreamDataSupplier<String> {
 				position += intervalMillis;
 			}
 		}
-		
+
 		if (logger.isDebugEnabled()){
 			logger.debug("Received for ({}-{}]: ? - {}", startPosition, endPosition, lastPosition);
 		}
