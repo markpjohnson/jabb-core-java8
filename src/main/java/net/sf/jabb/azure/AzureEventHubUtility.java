@@ -3,11 +3,25 @@
  */
 package net.sf.jabb.azure;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSException;
@@ -24,8 +38,11 @@ import net.sf.jabb.util.jms.JmsUtility;
 import org.apache.qpid.amqp_1_0.jms.impl.MessageImpl;
 
 import com.google.common.base.Throwables;
+import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.core.SharedAccessSignatureHelper;
+import com.microsoft.azure.storage.queue.SharedAccessQueuePolicy;
 import com.microsoft.azure.storage.table.TableQuery;
 
 /**
@@ -35,6 +52,7 @@ import com.microsoft.azure.storage.table.TableQuery;
  */
 public class AzureEventHubUtility {
 	static public final String DEFAULT_CONSUMER_GROUP = "$Default";
+	static private DateTimeFormatter iso8601Formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).withZone(ZoneId.of("UTC"));
 	
 	public static EventHubAnnotations getEventHubAnnotations(Message message){
 		if (message == null){
@@ -116,6 +134,78 @@ public class AzureEventHubUtility {
 			suppliers.add(new StreamDataSupplierWithId<>(partition, supplier));
 		}
 		return suppliers;
+	}
+	
+	public static String generateSharedAccessSignature(String stringToSign, byte[] keyBytes){
+		SecretKey key256;
+		Mac hmacSha256;
+		key256 = new SecretKeySpec(keyBytes, "HmacSHA256");
+        try {
+            hmacSha256 = Mac.getInstance("HmacSHA256");
+            hmacSha256.init(key256);
+        }catch (final NoSuchAlgorithmException e) {
+            throw new IllegalStateException("No HmacSHA256 support in JVM", e);
+        }catch (InvalidKeyException e){
+            throw new IllegalArgumentException("The key is not suitable for signing", e);
+        }
+        
+        byte[] utf8Bytes = null;
+        utf8Bytes = stringToSign.getBytes(StandardCharsets.UTF_8);
+
+        String signature = Base64.getEncoder().encodeToString(hmacSha256.doFinal(utf8Bytes));
+ 
+        return signature;
+	}
+	
+	/**
+	 * Generate the SAS token for accessing an Event Hub
+	 * @param serviceNameSpace		name space of the service bus service
+	 * @param servicePath			name of the Event Hub, or a path specifying other additional information
+	 * @param policyName				access policy name
+	 * @param policyKey				access policy key
+	 * @param expiration			the time that the generated token will expiere
+	 * @return	the full token: {@code SharedAccessSignature sr={URI}&sig={HMAC_SHA256_SIGNATURE}&se={EXPIRATION_TIME}&skn={KEY_NAME} }
+	 */
+	public static String generateSharedAccessSignatureToken(String serviceNameSpace, String servicePath, String policyName, String policyKey, Instant expiration){
+		long expireEpochSeconds = expiration.getEpochSecond();
+		String escapedUri = getEscapedUri(serviceNameSpace, servicePath);
+		
+		//byte[] policyKeyBytes = Base64.getDecoder().decode(policyKey);
+		byte[] policyKeyBytes = policyKey.getBytes(StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder();
+        
+        sb.append(escapedUri).append('\n'); // resource name
+        sb.append(expireEpochSeconds);
+        
+        String stringToSign;
+        stringToSign = sb.toString();
+        
+        String signature = generateSharedAccessSignature(stringToSign, policyKeyBytes);
+        
+        String escapedSignature;
+        try {
+			escapedSignature = URLEncoder.encode(signature, "UTF-8");
+		} catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException("No UTF8 support in JVM", e);
+		}
+		
+		return "SharedAccessSignature sr=" + escapedUri
+				+ "&sig=" + escapedSignature + "&se=" + expireEpochSeconds + "&skn=" + policyName;
+	}
+	
+	private static String getUri(String serviceNameSpace, String servicePath){
+		String plain = "https://" + serviceNameSpace + ".servicebus.windows.net/" + servicePath;
+		return plain;
+	}
+	
+
+	private static String getEscapedUri(String serviceNameSpace, String servicePath){
+		String plain = getUri(serviceNameSpace, servicePath);
+		try {
+			return URLEncoder.encode(plain, "UTF-8").toLowerCase();
+		} catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException("No UTF8 support in JVM", e);
+		}
 	}
 	
 }
