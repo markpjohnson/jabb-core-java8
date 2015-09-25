@@ -28,27 +28,27 @@ public interface StreamDataSupplier<M> {
 	/**
 	 * Get the first position/offset in the stream enqueued after a specified time. 
 	 * This method should never return a constant representing the very first position if necessary.
-	 * @param enquedAfter		the time after which the the position of the first message needs to be returned
+	 * @param enqueuedAfter		the time after which the the position of the first message needs to be returned
 	 * @param waitForArrival  time duration to wait for arrival of the first message if it is not immediately available
 	 * @return	the position/offset of the first data/message in the stream enqueued after the specified time, 
 	 * 			or null if no message enqueued after the specified time can be found within the specified duration.
 	 * @throws  InterruptedException if the thread is interrupted
 	 * @throws  DataStreamInfrastructureException  when error happened while finding out the first position meeting the condition in the stream
 	 */
-	String firstPosition(Instant enquedAfter, Duration waitForArrival) throws InterruptedException, DataStreamInfrastructureException;
+	String firstPosition(Instant enqueuedAfter, Duration waitForArrival) throws InterruptedException, DataStreamInfrastructureException;
 	
 	/**
 	 * Get the first position/offset in the stream enqueued after a specified time. 
 	 * This method wait for at most 2 seconds for the first message enqueued after that time to be available.
 	 * This method should never return a constant representing the very first position if necessary.
-	 * @param enquedAfter		the time after which the the position of the first message needs to be returned
+	 * @param enqueuedAfter		the time after which the the position of the first message needs to be returned
 	 * @return	the position/offset of the first data/message in the stream enqueued after the specified time, 
 	 * 			or null if no message enqueued after the specified time can be found within 2 seconds.
 	 * @throws  InterruptedException if the thread is interrupted
 	 * @throws  DataStreamInfrastructureException  when error happened while finding out the first position meeting the condition in the stream
 	 */
-	default String firstPosition(Instant enquedAfter) throws InterruptedException, DataStreamInfrastructureException{
-		return firstPosition(enquedAfter, Duration.ofSeconds(15));
+	default String firstPosition(Instant enqueuedAfter) throws InterruptedException, DataStreamInfrastructureException{
+		return firstPosition(enqueuedAfter, Duration.ofSeconds(15));
 	}
 	
 	/**
