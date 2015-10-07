@@ -3,6 +3,7 @@
  */
 package net.sf.jabb.util.stat;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,13 +17,17 @@ import java.util.TreeSet;
  * @author James Hu
  *
  */
-public class AggregationPeriodHierarchy {
+public class AggregationPeriodHierarchy implements Serializable{
+	private static final long serialVersionUID = 8664232464718744888L;
+
 	protected Map<String, AggregationPeriodNode> codeMapping = new HashMap<>();
 	protected Set<AggregationPeriodNode> rootNodes = new HashSet<>();
 	protected SortedSet<AggregationPeriod> roots = new TreeSet<>();
 
 	
-	static class AggregationPeriodNode{
+	static class AggregationPeriodNode implements Serializable{
+		private static final long serialVersionUID = 4925692035577355240L;
+
 		AggregationPeriod aggregationPeriod;
 		AggregationPeriodNode lowerLevelNode;
 		Set<AggregationPeriodNode> upperLevelNodes;

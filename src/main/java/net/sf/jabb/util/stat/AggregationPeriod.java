@@ -13,6 +13,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.CompareToBuilder;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 /**
  * A period of time qualified by a quantity and a unit, with time zone.
  * @author James Hu
@@ -24,7 +26,11 @@ public class AggregationPeriod implements Serializable, Comparable<AggregationPe
 	protected int amount;
 	protected AggregationPeriodUnit unit;
 	protected ZoneId zone;
-	protected String codeName;			// as a cache
+	protected transient String codeName;			// as a cache
+	
+	public AggregationPeriod(){
+		
+	}
 	
 	/**
 	 * Constructor using UTC time zone
@@ -158,6 +164,7 @@ public class AggregationPeriod implements Serializable, Comparable<AggregationPe
 		return zone.getId() + "(" + String.valueOf(amount) + " " + unit.toString() + ")";
 	}
 	
+	@JsonIgnore
 	public String getCodeName(){
 		if (codeName == null){
 			codeName = getCodeName(amount, unit, zone);
@@ -173,6 +180,7 @@ public class AggregationPeriod implements Serializable, Comparable<AggregationPe
 		return getCodeName(amount, unit, TimeZoneUtility.UTC);
 	}
 	
+	@JsonIgnore
 	public Duration getDuration(){
 		return unit.getTemporalUnit().getDuration().multipliedBy(amount);
 	}

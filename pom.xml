@@ -3,7 +3,7 @@
 
 	<groupId>net.sf.jabb</groupId>
 	<artifactId>jabb-core-java8</artifactId>
-	<version>1.0.22</version>
+	<version>1.0.23</version>
 	<packaging>jar</packaging>
 
 	<name>jabb-core-java8</name>
@@ -51,7 +51,7 @@
 		<dependency>
 			<groupId>net.sf.jabb</groupId>
 			<artifactId>jabb-core</artifactId>
-			<version>1.0.92</version>
+			<version>1.0.94</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>commons-logging</artifactId>
@@ -164,7 +164,7 @@
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 			<version>2.2.3</version>
-			<scope>test</scope>
+			<optional>true</optional>
 		</dependency>
 	</dependencies>
 	<build>
