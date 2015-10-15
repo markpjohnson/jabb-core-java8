@@ -157,4 +157,22 @@ public class AzureStorageUtilityTest {
 		assertTrue(result);
 	}
 
+	@Test
+	public void testMaskAccountKey(){
+		String[] originals = {
+			"DefaultEndpointsProtocol=https;AccountName=jkdhftest;AccountKey=XE1yzClcEu573I2YA/dR26YPMoZ3bZgTPFCvQfhpkSzdwZGUsce/NWCJaP5o0yxWSis4pyVwvgfbSVz81SXSMg==",
+			"DefaultEndpointsProtocol=https;AccountKey=XE1yzClcEu573I2YA/dR26YPMoZ3bZgTPFCvQfhpkSzdwZGUsce/NWCJaP5o0yxWSis4pyVwvgfbSVz81SXSMg==;AccountName=jkdhftest",
+			"UseDevelopmentStorage=true"
+		};
+		
+		String[] masked = {
+			"DefaultEndpointsProtocol=https;AccountName=jkdhftest;AccountKey=*****",
+			"DefaultEndpointsProtocol=https;AccountKey=*****;AccountName=jkdhftest",
+			"UseDevelopmentStorage=true"
+		};
+		
+		for (int i = 0; i < originals.length; i ++){
+			assertEquals(masked[i], AzureStorageUtility.maskAccountKey(originals[i]));
+		}
+	}
 }

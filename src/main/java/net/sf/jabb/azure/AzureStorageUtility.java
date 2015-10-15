@@ -435,5 +435,23 @@ public class AzureStorageUtility {
 		return containerName + delimiter + blob.getName();
 	}
 	
+	/**
+	 * Mask the account key in the connection string
+	 * @param connString	the original connection string
+	 * @return		the string having account key masked, or the original string if there is no account key
+	 */
+	static public String maskAccountKey(String connString){
+		String KEY = "AccountKey=";
+		int i = StringUtils.indexOfIgnoreCase(connString, KEY);
+		if (i >= 0){
+			int j = connString.indexOf(';', i);
+			if (j < 0){
+				j = connString.length();
+			}
+			return connString.substring(0, i + KEY.length()) + "*****" + connString.substring(j);
+		}else{
+			return connString;
+		}
+	}
 
 }
