@@ -3,7 +3,7 @@
 
 	<groupId>net.sf.jabb</groupId>
 	<artifactId>jabb-core-java8</artifactId>
-	<version>1.0.23</version>
+	<version>1.0.24</version>
 	<packaging>jar</packaging>
 
 	<name>jabb-core-java8</name>
