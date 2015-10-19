@@ -36,7 +36,7 @@ public enum AggregationPeriodUnit {
 	private TemporalUnit temporalUnit;
 	
 	static final private Map<Character, AggregationPeriodUnit> codeMapping;
-	static private Map<String, AggregationPeriodUnit> shortNameMapping;
+	static final private Map<String, AggregationPeriodUnit> shortNameMapping;
 	
 	static{
 		Map<Character, AggregationPeriodUnit> tmpCodeMapping = new HashMap<Character, AggregationPeriodUnit>();
@@ -47,6 +47,22 @@ public enum AggregationPeriodUnit {
 		}
 		codeMapping = ImmutableMap.copyOf(tmpCodeMapping);
 		shortNameMapping = ImmutableMap.copyOf(tmpShortNameMapping);
+	}
+	
+	/**
+	 * Get the codes of all values
+	 * @return	an immutable set containing all the codes
+	 */
+	static public Set<Character> getAllCodes(){
+		return codeMapping.keySet();
+	}
+	
+	/**
+	 * Get the short names of all values
+	 * @return	an immutable set containing all the short names
+	 */
+	static public Set<String> getAllShortNames(){
+		return shortNameMapping.keySet();
 	}
 	
 	/**
@@ -222,6 +238,14 @@ public enum AggregationPeriodUnit {
 	public char getCode() {
 		return code;
 	}
+
+	/**
+	 * @return the shortName
+	 */
+	public String getShortName() {
+		return shortName;
+	}
+
 
 	public TemporalUnit getTemporalUnit() {
 		return temporalUnit;
