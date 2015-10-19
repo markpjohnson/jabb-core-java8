@@ -14,7 +14,7 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.WeekFields;
 import java.util.List;
-import java.util.SortedSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -25,9 +25,9 @@ import java.util.stream.Collectors;
 public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregationPeriodKeyScheme, Serializable{
 	private static final long serialVersionUID = -3654502940787144075L;
 
-	protected AggregationPeriodHierarchy aph;
+	protected AggregationPeriodHierarchy<?> aph;
 
-	protected DefaultAggregationPeriodKeyScheme(AggregationPeriodHierarchy aggregationPeriodHierarchy){
+	protected DefaultAggregationPeriodKeyScheme(AggregationPeriodHierarchy<?> aggregationPeriodHierarchy){
 		this.aph = aggregationPeriodHierarchy;
 	}
 	
@@ -282,9 +282,9 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 	@Override
 	public String upperLevelKey(String key) {
 		AggregationPeriod ap = retrieveAggregationPeriod(key);
-		SortedSet<AggregationPeriod> uaps = aph.getUpperLevelAggregationPeriods(ap);
+		Set<AggregationPeriod> uaps = aph.getUpperLevelAggregationPeriods(ap);
 		if (uaps.size() > 0){
-			AggregationPeriod uap = uaps.first();
+			AggregationPeriod uap = uaps.iterator().next();
 			return generateKey(uap, getStartTime(ap, key));
 		}else{
 			return null;
@@ -295,7 +295,7 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 	public List<String> upperLevelKeys(String key) {
 		AggregationPeriod ap = retrieveAggregationPeriod(key);
 		LocalDateTime startTime = getStartTime(ap, key);
-		SortedSet<AggregationPeriod> uaps = aph.getUpperLevelAggregationPeriods(ap);
+		Set<AggregationPeriod> uaps = aph.getUpperLevelAggregationPeriods(ap);
 		return uaps.stream().map(p->generateKey(p, startTime)).collect(Collectors.toList());
 	}
 
@@ -339,7 +339,7 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 	 * @param aph	the hierarchy of aggregation periods
 	 * @return	the HierarchicalAggregationPeriodKeyScheme
 	 */
-	static public HierarchicalAggregationPeriodKeyScheme newInstance(AggregationPeriodHierarchy aph){
+	static public HierarchicalAggregationPeriodKeyScheme newInstance(AggregationPeriodHierarchy<?> aph){
 		return new DefaultAggregationPeriodKeyScheme(aph);
 	}
 
