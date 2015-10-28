@@ -39,7 +39,7 @@ public class TimeZoneUtilityTest {
 		idMapping.keySet().forEach(k->assertEquals(TimeZoneUtility.SHORTENED_ZONE_ID_LENGTH, k.length()));
 	}
 	
-	//@Test
+	@Test
 	public void printZoneIds(){
 		TimeZoneUtility.getShortenedIdToZoneIdMapping().forEach((id, zone)->{
 			System.out.println(id + "\t-> " + zone);
