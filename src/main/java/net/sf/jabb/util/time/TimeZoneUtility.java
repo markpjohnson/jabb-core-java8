@@ -43,6 +43,30 @@ public abstract class TimeZoneUtility {
 	public static BiMap<String, String> getShortenedIdToZoneIdMapping() {
 		return shortenedIdToZoneIdMapping;
 	}
+	
+	/**
+	 * Check to see if the shortened id is valid
+	 * @param shortenedId	the shortened id to be tested
+	 * @return	true if it is valid, false otherwise
+	 */
+	public static boolean isValidShortenedId(String shortenedId){
+		return shortenedIdToZoneIdMapping.containsKey(shortenedId);
+	}
+	
+	/**
+	 * Check to see if the zone id is valid. 
+	 * Please not that offset-based zone IDs are valid but they don't have corresponding shortened ids.
+	 * @param zoneId	the zone id
+	 * @return	true if it is valid, false otherwise
+	 */
+	public static boolean isValidZoneId(String zoneId){
+		try{
+			ZoneId.of(zoneId);
+			return true;
+		}catch(Exception e){
+			return false;
+		}
+	}
 
 	/**
 	 * Compute the shortened id of a ZoneId. This method can be applied to ZoneOffset as well.
