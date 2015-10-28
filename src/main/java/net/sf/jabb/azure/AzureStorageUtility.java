@@ -10,7 +10,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import net.sf.jabb.util.attempt.AttemptStrategy;
@@ -43,7 +42,6 @@ import com.microsoft.azure.storage.table.TableOperation;
 import com.microsoft.azure.storage.table.TableQuery;
 import com.microsoft.azure.storage.table.TableQuery.Operators;
 import com.microsoft.azure.storage.table.TableQuery.QueryComparisons;
-import com.microsoft.azure.storage.table.TableServiceEntity;
 
 /**
  * Utility functions for Azure Storage usage.
@@ -142,13 +140,13 @@ public class AzureStorageUtility {
 	
 	/**
 	 * Generate a filter condition for string start with a prefix by checking if
-	 * the value is &gt;= prefix and &lt;= prefix + "\uFFFF"
+	 * the value is &gt;= prefix and &lt;= prefix + "\u10FFFD"
 	 * @param property		name of the property
 	 * @param prefix		the prefix that the filter condition requires
 	 * @return	the filter condition string
 	 */
 	public static String generateStartWithFilterCondition(String property, String prefix){
-		return generateStartWithFilterCondition(property, prefix, "\uFFFF");
+		return generateStartWithFilterCondition(property, prefix, "\u10FFFD");
 	}
 	
 	/**
