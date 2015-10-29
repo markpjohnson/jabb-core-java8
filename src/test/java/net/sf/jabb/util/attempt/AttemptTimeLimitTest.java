@@ -97,6 +97,7 @@ public class AttemptTimeLimitTest {
 				finishedCount ++;
 			} catch (InterruptedException e) {
 				interruptedCount ++;
+				Thread.currentThread().interrupt();
 			}
         }
     }
