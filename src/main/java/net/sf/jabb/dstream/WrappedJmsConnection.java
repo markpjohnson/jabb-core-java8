@@ -276,6 +276,14 @@ public class WrappedJmsConnection implements Connection {
 	 * @return	the original JMS connection created by the <code>ConnectionFactory</code>
 	 */
 	public Connection getConnection(){
+		for(int i = 0; i < 10 && isConnecting(); i ++){
+			try {
+				Thread.sleep(200);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
+		}
 		return connection;
 	}
 
