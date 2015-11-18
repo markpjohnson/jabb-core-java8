@@ -20,4 +20,7 @@ public class TooManyAttemptsException extends AttemptException {
 		}
 	}
 	
+	public TooManyAttemptsException(String message){
+		super(message);
+	}
 }
