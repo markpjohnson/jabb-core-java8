@@ -24,4 +24,19 @@ public class InterruptedBeforeAttemptException extends AttemptException {
 	public InterruptedBeforeAttemptException(String message){
 		super(message);
 	}
+	
+	public InterruptedBeforeAttemptException(String message, Throwable cause){
+		super(message, cause);
+	}
+	
+	/**
+	 * Create a copy of this but without the suppressed exceptions
+	 * @return	the copy without suppressed exceptions (but with the cause exception)
+	 */
+	public InterruptedBeforeAttemptException copyWithoutSuppressed(){
+		InterruptedBeforeAttemptException copy = new InterruptedBeforeAttemptException(this.getMessage(), this.getCause());
+		copy.setStackTrace(this.getStackTrace());
+		return copy;
+	}
+
 }

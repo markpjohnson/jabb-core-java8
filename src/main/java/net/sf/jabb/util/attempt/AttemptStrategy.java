@@ -63,7 +63,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
-				lastCause.addSuppressed(new TooManyAttemptsException(e.getMessage()));	// avoid loop of suppressed exceptions
+				lastCause.addSuppressed(e.copyWithoutCause());	// avoid loop of suppressed exceptions
 				throw lastCause;
 			}else{	// should never happen
 				throw e;
@@ -72,7 +72,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
-				lastCause.addSuppressed(new InterruptedBeforeAttemptException(e.getMessage()));	// avoid loop of suppressed exceptions
+				lastCause.addSuppressed(e.copyWithoutSuppressed());	// avoid loop of suppressed exceptions
 				throw lastCause;
 			}else{	// should never happen
 				throw e;
@@ -420,7 +420,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
-				lastCause.addSuppressed(new TooManyAttemptsException(e.getMessage()));
+				lastCause.addSuppressed(e.copyWithoutCause());
 				throw lastCause;
 			}else{	// should never happen
 				throw e;
@@ -429,7 +429,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
-				lastCause.addSuppressed(new InterruptedBeforeAttemptException(e.getMessage()));
+				lastCause.addSuppressed(e.copyWithoutSuppressed());
 				throw lastCause;
 			}else{	// should never happen
 				throw e;
