@@ -9,13 +9,12 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.util.concurrent.TimeLimiter;
+
 import net.sf.jabb.util.ex.ExceptionUncheckUtility;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility.RunnableThrowsExceptions;
 import net.sf.jabb.util.parallel.BackoffStrategy;
 import net.sf.jabb.util.parallel.WaitStrategy;
-
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.TimeLimiter;
 
 /**
  * The strategy controlling how an operation (Runnable or Callable) will be attempted multiple times.
@@ -64,7 +63,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
-				lastCause.addSuppressed(e);
+				lastCause.addSuppressed(new TooManyAttemptsException(e.getMessage()));	// avoid loop of suppressed exceptions
 				throw lastCause;
 			}else{	// should never happen
 				throw e;
@@ -73,7 +72,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
-				lastCause.addSuppressed(e);
+				lastCause.addSuppressed(new InterruptedBeforeAttemptException(e.getMessage()));	// avoid loop of suppressed exceptions
 				throw lastCause;
 			}else{	// should never happen
 				throw e;
@@ -421,7 +420,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
-				lastCause.addSuppressed(e);
+				lastCause.addSuppressed(new TooManyAttemptsException(e.getMessage()));
 				throw lastCause;
 			}else{	// should never happen
 				throw e;
@@ -430,7 +429,7 @@ public class AttemptStrategy extends AttemptStrategyImpl {
 			Attempt<?> lastAttempt = e.getLastAttempt();
 			Exception lastCause = lastAttempt.getException();
 			if (lastCause != null){
-				lastCause.addSuppressed(e);
+				lastCause.addSuppressed(new InterruptedBeforeAttemptException(e.getMessage()));
 				throw lastCause;
 			}else{	// should never happen
 				throw e;

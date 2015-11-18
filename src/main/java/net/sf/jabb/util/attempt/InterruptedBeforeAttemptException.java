@@ -20,4 +20,8 @@ public class InterruptedBeforeAttemptException extends AttemptException {
 			this.addSuppressed(lastAttempt.getException());
 		}
 	}
+	
+	public InterruptedBeforeAttemptException(String message){
+		super(message);
+	}
 }
