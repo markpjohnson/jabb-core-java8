@@ -70,7 +70,7 @@ public class SequentialTransactionWrapper {
 	
 	@Override
 	public String toString(){
-		return new ToStringBuilder(ToStringStyle.SHORT_PREFIX_STYLE)
+		return new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE)
 			.append("transactionId", this.getEntityTransactionId())
 			.append("processorId", this.getTransactionNotNull().getProcessorId())
 			.append("state", this.getTransactionNotNull().getState())
