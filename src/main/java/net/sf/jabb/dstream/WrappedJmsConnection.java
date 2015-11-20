@@ -390,6 +390,15 @@ public class WrappedJmsConnection implements Connection {
 			conn.close();
 		}
 	}
+	
+	@Override
+	public void finalize(){
+		try{
+			close();
+		}catch(Throwable t){
+			// ignore
+		}
+	}
 
 	/* (non-Javadoc)
 	 * @see javax.jms.Connection#createConnectionConsumer(javax.jms.Destination, java.lang.String, javax.jms.ServerSessionPool, int)

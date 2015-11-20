@@ -20,7 +20,18 @@ public class TooManyAttemptsException extends AttemptException {
 		}
 	}
 	
-	public TooManyAttemptsException(String message){
+	public TooManyAttemptsException(String message) {
 		super(message);
 	}
+	
+	/**
+	 * Create a copy of this but without the cause exception
+	 * @return	the copy without cause exception (and also without suppressed exceptions)
+	 */
+	public TooManyAttemptsException copyWithoutCause(){
+		TooManyAttemptsException copy = new TooManyAttemptsException(this.getMessage());
+		copy.setStackTrace(this.getStackTrace());
+		return copy;
+	}
+
 }
