@@ -7,6 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.time.Duration;
 import java.time.Instant;
@@ -18,12 +19,20 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import javax.jms.BytesMessage;
+import javax.jms.MessageProducer;
+import javax.jms.Queue;
+import javax.jms.Session;
 
 import net.sf.jabb.azure.AzureEventHubUtility;
 import net.sf.jabb.azure.EventHubAnnotations;
 import net.sf.jabb.dstream.StreamDataSupplierWithId;
 import net.sf.jabb.dstream.StreamDataSupplierWithIdAndRange;
+import net.sf.jabb.dstream.WrappedJmsConnection;
+import net.sf.jabb.dstream.eventhub.EventHubQpidStreamDataSupplier;
 import net.sf.jabb.seqtx.azure.AzureSequentialTransactionsCoordinator;
 import net.sf.jabb.seqtx.ex.TransactionStorageInfrastructureException;
 import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.Options;
@@ -31,6 +40,8 @@ import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.State;
 import net.sf.jabb.txsdp.TransactionalStreamDataBatchProcessing.Status;
 import net.sf.jabb.util.bean.TripleValueBean;
 import net.sf.jabb.util.col.PutIfAbsentMap;
+import net.sf.jabb.util.jms.JmsUtility;
+import net.sf.jabb.util.parallel.BackoffStrategies;
 import net.sf.jabb.util.parallel.WaitStrategies;
 import net.sf.jabb.util.stat.ConcurrentLongStatistics;
 
@@ -91,8 +102,8 @@ public class StreamDataBatchProcessingIntegrationTest {
 				});
 		assertTrue(suppliersWithId.size() >= 4);
 		
-		Instant rangeFrom = Instant.now().minus(Duration.ofMinutes(50));
-		Instant rangeTo = Instant.now().minus(Duration.ofMinutes(10));
+		Instant rangeFrom = Instant.now().minus(Duration.ofMinutes(10));
+		Instant rangeTo = Instant.now().plus(Duration.ofMinutes(2));
 		List<StreamDataSupplierWithIdAndRange<TripleValueBean<String, Long, String>, ?>> suppliersWithIdAndRange = suppliersWithId.stream()
 				.map(s->{
 					try {
@@ -169,7 +180,38 @@ public class StreamDataBatchProcessingIntegrationTest {
 		logger.info("Starting {} processors in their threads", NUM_PROCESSORS);
 		processing.startAll();
 		
+		Queue eventHub = EventHubQpidStreamDataSupplier.createQueue(System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_NAME"));
+		WrappedJmsConnection sendConnection = EventHubQpidStreamDataSupplier.createConnectionForSending(
+				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_HOST"),
+				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_SEND_USER_NAME"),
+				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_SEND_USER_PASSWORD"),
+				eventHub, 
+				BackoffStrategies.fibonacciBackoff(1000, 10, TimeUnit.SECONDS), 
+				WaitStrategies.threadSleepStrategy(), 
+				"test");
+		sendConnection.establishConnection();
+		
 		for (int i = Integer.MAX_VALUE; i >= 0; i --){
+			Session session = null;
+			MessageProducer sender = null;
+			try{
+				while(sendConnection.getConnection() == null){
+					logger.debug("Wait for send connection to be initially established");
+					Thread.sleep(100);
+				}
+				session = sendConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+				sender = session.createProducer(eventHub);
+				for (int id = 0; id <= 100; id ++){
+					BytesMessage msg = session.createBytesMessage();
+					byte[] bytes = ("{\"id\"=" + id + "}").getBytes(StandardCharsets.UTF_8);
+					msg.writeBytes(bytes);
+					sender.send(msg);
+				}
+			}catch(Exception e){
+				e.printStackTrace();
+			}finally{
+				JmsUtility.closeSilently(sender, null, session);
+			}
 			Thread.sleep(Duration.ofSeconds(30).toMillis());
 			try{
 				Status status = processing.getStatus();

@@ -203,17 +203,28 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 	}
 	
 	static public ConnectionFactory createConnectionFactory(String server, String policyName, String policyKey){
-		org.apache.qpid.amqp_1_0.jms.impl.ConnectionFactoryImpl connectionFactory = new org.apache.qpid.amqp_1_0.jms.impl.ConnectionFactoryImpl(
+		return createConnectionFactory(server, policyName, policyKey, null);
+	}
+	
+	/**
+	 * Create a connection factory
+	 * @param server		server domain name or ip address
+	 * @param policyName	policy name
+	 * @param policyKey		policy key
+	 * @param eventHubName	name of the event hub, will only be used in log messages
+	 * @return	the connection factory
+	 */
+	static public ConnectionFactory createConnectionFactory(String server, String policyName, String policyKey, String eventHubName){
+		EventHubQpidConnectionFactory connectionFactory = new EventHubQpidConnectionFactory(
 				"amqps", server, 5671, policyName, policyKey, makeClientId(), 
-				server, true, 0);
-		connectionFactory.setSyncPublish(false);
+				server, true, 0, eventHubName);
 		return connectionFactory;
 	}
 	
 	static public WrappedJmsConnection createConnection(String server, String policyName, String policyKey, 
 			BackoffStrategy connectBackoffStrategy, WaitStrategy connectWaitStrategy,
-			Predicate<Connection> connectionValidator){
-		ConnectionFactory connectionFactory = createConnectionFactory(server, policyName, policyKey);
+			Predicate<Connection> connectionValidator, String eventHubName){
+		ConnectionFactory connectionFactory = createConnectionFactory(server, policyName, policyKey, eventHubName);
 		
 		return new WrappedJmsConnection(connectionFactory, 
 				connectionValidator, 
@@ -222,11 +233,17 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 				false);
 	}
 	
+	static public WrappedJmsConnection createConnection(String server, String policyName, String policyKey, 
+			BackoffStrategy connectBackoffStrategy, WaitStrategy connectWaitStrategy,
+			Predicate<Connection> connectionValidator){
+		return createConnection(server, policyName, policyKey, connectBackoffStrategy, connectWaitStrategy, connectionValidator, null);
+	}
+	
 	static public WrappedJmsConnection createConnectionForReceiving(String server, String policyName, String policyKey, 
 			Destination eventHub,
 			BackoffStrategy connectBackoffStrategy, WaitStrategy connectWaitStrategy){
-		return createConnection(server, policyName, policyKey, connectBackoffStrategy, connectWaitStrategy, 
-				conn -> WrappedJmsConnection.validateConnectionByCreatingConsumer(conn, eventHub));
+			return createConnection(server, policyName, policyKey, connectBackoffStrategy, connectWaitStrategy, 
+					conn -> WrappedJmsConnection.validateConnectionByCreatingConsumer(conn, eventHub), getQueueName(eventHub));
 	}
 	
 	static public WrappedJmsConnection createConnectionForSending(String server, String policyName, String policyKey, 
@@ -234,11 +251,23 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 			BackoffStrategy connectBackoffStrategy, WaitStrategy connectWaitStrategy,
 			String clientId){
 		return createConnection(server, policyName, policyKey, connectBackoffStrategy, connectWaitStrategy, 
-				conn -> WrappedJmsConnection.validateConnectionByCreatingProducer(conn, eventHub));
+				conn -> WrappedJmsConnection.validateConnectionByCreatingProducer(conn, eventHub), getQueueName(eventHub));
+	}
+	
+	static public String getQueueName(Destination d){
+		if (d instanceof Queue){
+			try {
+				return ((Queue)d).getQueueName();
+			} catch (JMSException e) {
+				throw Throwables.propagate(e);
+			}
+		}else{
+			return d.toString();
+		}
 	}
 	
 	static public Queue createQueue(String eventHubName, String consumerGroup, String partition){
-		org.apache.qpid.amqp_1_0.jms.impl.QueueImpl eventHub = new org.apache.qpid.amqp_1_0.jms.impl.QueueImpl(
+		org.apache.qpid.amqp_1_0.jms.impl.QueueImpl eventHub = org.apache.qpid.amqp_1_0.jms.impl.QueueImpl.valueOf(
 				eventHubName + "/ConsumerGroups/" + (consumerGroup == null ? "$Default" : consumerGroup) + "/Partitions/" + partition);
 		return eventHub;
 	}
@@ -248,7 +277,7 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 	}
 
 	static public Queue createQueue(String eventHubName){
-		org.apache.qpid.amqp_1_0.jms.impl.QueueImpl eventHub = new org.apache.qpid.amqp_1_0.jms.impl.QueueImpl(
+		org.apache.qpid.amqp_1_0.jms.impl.QueueImpl eventHub = org.apache.qpid.amqp_1_0.jms.impl.QueueImpl.valueOf(
 				eventHubName);
 		return eventHub;
 	}

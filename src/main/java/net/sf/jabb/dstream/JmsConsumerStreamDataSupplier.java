@@ -26,7 +26,6 @@ import javax.jms.Session;
 
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 import net.sf.jabb.util.bean.DoubleValueBean;
-import net.sf.jabb.util.ex.ExceptionUncheckUtility.ConsumerThrowsExceptions;
 import net.sf.jabb.util.ex.ExceptionUncheckUtility.FunctionThrowsExceptions;
 import net.sf.jabb.util.jms.JmsUtility;
 
