@@ -66,6 +66,27 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	
 	protected Map<String, Processor> processors = new HashMap<>();
 	
+	public List<StreamDataSupplierWithIdAndRange<M, ?>> getSuppliers() {
+		return suppliers;
+	}
+
+	/**
+	 * Set or change the suppliers. Changing suppliers while processors are running is allowed.
+	 * Processors are able to detect the change and start working with the new suppliers.
+	 * @param suppliers the suppliers to set
+	 */
+	public void setSuppliers(List<StreamDataSupplierWithIdAndRange<M, ?>> suppliers) {
+		this.suppliers = suppliers;
+	}
+
+	/**
+	 * Get the transaction coordinator
+	 * @return the txCoordinator
+	 */
+	public SequentialTransactionsCoordinator getTransactionCoordinator() {
+		return txCoordinator;
+	}
+
 	/**
 	 * Constructor
 	 * @param id				ID of this processing
@@ -275,7 +296,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	}
 	
 	protected String seriesId(StreamDataSupplierWithIdAndRange<M, ?> supplierWithId){
-		return id + "-" + supplierWithId.getId();
+		return id + "_" + supplierWithId.getId().replace('/', '_');
 	}
 
 	class Processor implements Runnable{
@@ -306,15 +327,25 @@ public class TransactionalStreamDataBatchProcessing<M> {
 		
 		@Override
 		public void run() {
-			boolean[] outOfRangeReached = new boolean[suppliers.size()];
+			List<StreamDataSupplierWithIdAndRange<M, ?>> localSuppliers = new ArrayList<>(suppliers.size());
+			localSuppliers.addAll(suppliers);
+
+			boolean[] outOfRangeReached = new boolean[localSuppliers.size()];
 			// make sure we start from a random partition, and then do a round robin afterwards
-			Random random = new Random(System.currentTimeMillis());
-			int partition = random.nextInt(suppliers.size()) - 1;
+			Random random = new Random();
+			int partition = random.nextInt(outOfRangeReached.length);
 			
 			// reuse these data structures in the thread
 			ProcessingContextImpl context = new ProcessingContextImpl(txCoordinator); 
 			
 			while(!state.compareAndSet(State.STOPPING, State.STOPPED)){
+				if (!localSuppliers.equals(suppliers)){	// if suppliers changed
+					localSuppliers.clear();
+					localSuppliers.addAll(suppliers);
+					outOfRangeReached = new boolean[localSuppliers.size()];
+					partition = partition % outOfRangeReached.length;
+				}
+				
 				while(state.get() == State.RUNNING){
 					if (allProcessed(outOfRangeReached)){
 						state.set(State.FINISHED);
@@ -329,12 +360,12 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					StreamDataSupplier<M> supplier = null;
 					try{
 						do{
-							partition = (partition+1) % suppliers.size();
+							partition = (partition+1) % outOfRangeReached.length;
 							if (outOfRangeReached[partition]){
 								break;
 							}
 							
-							supplierWithIdAndRange = suppliers.get(partition);
+							supplierWithIdAndRange = localSuppliers.get(partition);
 							supplier = supplierWithIdAndRange.getSupplier();
 							attempts++;
 							seriesId = seriesId(supplierWithIdAndRange);
@@ -542,8 +573,11 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * @throws DataStreamInfrastructureException				any exception happened in data stream 
 	 */
 	public LinkedHashMap<String, StreamStatus> getStreamStatus() throws TransactionStorageInfrastructureException, DataStreamInfrastructureException{
-		LinkedHashMap<String, StreamStatus> result = new LinkedHashMap<>(suppliers.size());
-		for (StreamDataSupplierWithIdAndRange<M, ?> supplier: suppliers){
+		List<StreamDataSupplierWithIdAndRange<M, ?>> localSuppliers = new ArrayList<>(suppliers.size());
+		localSuppliers.addAll(suppliers);
+
+		LinkedHashMap<String, StreamStatus> result = new LinkedHashMap<>(localSuppliers.size());
+		for (StreamDataSupplierWithIdAndRange<M, ?> supplier: localSuppliers){
 			String seriesId = seriesId(supplier);
 			List<? extends ReadOnlySequentialTransaction> transactions = txCoordinator.getRecentTransactions(seriesId);
 			
