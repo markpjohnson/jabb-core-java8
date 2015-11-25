@@ -107,7 +107,7 @@ public class WrappedJmsConnection implements Connection {
 				if (isConnectionClosed(exception)){
 					threadPool.execute(()->establishConnection());
 				}else{
-					logger.debug("Connection related {}", JmsUtility.exceptionSummary(exception));
+					logger.debug("[{}] Connection related {}", connectionFactory, JmsUtility.exceptionSummary(exception));
 				}
 			}
 			
@@ -180,7 +180,8 @@ public class WrappedJmsConnection implements Connection {
 							newConn = null;
 						}
 					}catch(Exception e){
-						logger.warn("Failed to establish new connection to replace closed one: {}. {}",
+						logger.warn("[{}] Failed to establish new connection to replace closed one: {}. {}",
+								connectionFactory,
 								connection,
 								e instanceof JMSException? JmsUtility.exceptionSummary((JMSException) e) : "",
 								e);
@@ -194,14 +195,14 @@ public class WrappedJmsConnection implements Connection {
 								try {
 									newConn.start();
 								} catch (JMSException e) {
-									logger.warn("Failed to start newly established connection: {}. {}",
-											newConn, JmsUtility.exceptionSummary(e), e);
+									logger.warn("[{}] Failed to start newly established connection: {}. {}",
+											connectionFactory, newConn, JmsUtility.exceptionSummary(e), e);
 								}
 							}
 							connection = newConn;
 						}
 						if (connection == newConn){	// successfully (optionally) started and replaced
-							logger.info("New connection {} established for replacing {}", newConn, oldConn);
+							logger.info("[{}] New connection {} established for replacing {}", connectionFactory, newConn, oldConn);
 							closeSilently(oldConn);
 							connectAttempts = 0;
 							return true;
@@ -243,7 +244,7 @@ public class WrappedJmsConnection implements Connection {
 			consumer = session.createConsumer(testConsumingDestination);
 		    return true;
 		}catch(Exception e){
-			logger.debug("Connection is not valid: {}", e instanceof JMSException ? JmsUtility.exceptionSummary((JMSException)e) : e.getMessage() );
+			logger.debug("[{}] Connection is not valid for receiving: {}", conn, e instanceof JMSException ? JmsUtility.exceptionSummary((JMSException)e) : e.getMessage() );
 			return false;
 		}finally{
 			closeSilently(consumer, session);
@@ -264,7 +265,7 @@ public class WrappedJmsConnection implements Connection {
 			producer = session.createProducer(testProducingDestination);
 		    return true;
 		}catch(Exception e){
-			logger.debug("Connection is not valid: {}", e instanceof JMSException ? JmsUtility.exceptionSummary((JMSException)e) : e.getMessage() );
+			logger.debug("[{}] Connection is not valid for sending: {}", conn, e instanceof JMSException ? JmsUtility.exceptionSummary((JMSException)e) : e.getMessage() );
 			return false;
 		}finally{
 			closeSilently(producer, session);

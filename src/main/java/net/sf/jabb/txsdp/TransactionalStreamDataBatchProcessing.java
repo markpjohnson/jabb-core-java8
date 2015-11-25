@@ -13,12 +13,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import net.sf.jabb.dstream.ReceiveStatus;
 import net.sf.jabb.dstream.StreamDataSupplier;
-import net.sf.jabb.dstream.StreamDataSupplierWithId;
 import net.sf.jabb.dstream.StreamDataSupplierWithIdAndPositionRange;
 import net.sf.jabb.dstream.StreamDataSupplierWithIdAndRange;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
@@ -57,11 +55,38 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	protected Options processorOptions;
 	
 	public static enum State{
-		READY, STOPPED, PAUSED, RUNNING, FINISHED;
+		READY, 		// just initialized
+		STOPPED, 	// stopped, run() method exited
+		PAUSED, 	// paused, run() method is still executing, waiting for the processing to be resumed
+		RUNNING, 	// running
+		FINISHED, 	// all the data within the range had been processed, run() method exited
+		STOPPING, 	// will be stopped soon, run() method is still executing
+		PAUSING;	// will be paused soon, run() method is still executing
 	}
 	
 	protected Map<String, Processor> processors = new HashMap<>();
 	
+	public List<StreamDataSupplierWithIdAndRange<M, ?>> getSuppliers() {
+		return suppliers;
+	}
+
+	/**
+	 * Set or change the suppliers. Changing suppliers while processors are running is allowed.
+	 * Processors are able to detect the change and start working with the new suppliers.
+	 * @param suppliers the suppliers to set
+	 */
+	public void setSuppliers(List<StreamDataSupplierWithIdAndRange<M, ?>> suppliers) {
+		this.suppliers = suppliers;
+	}
+
+	/**
+	 * Get the transaction coordinator
+	 * @return the txCoordinator
+	 */
+	public SequentialTransactionsCoordinator getTransactionCoordinator() {
+		return txCoordinator;
+	}
+
 	/**
 	 * Constructor
 	 * @param id				ID of this processing
@@ -188,7 +213,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * @param runnable the runnable to be paused
 	 */
 	protected void pause(Processor runnable){
-		if (runnable.state.compareAndSet(State.RUNNING, State.PAUSED)){
+		if (runnable.state.compareAndSet(State.RUNNING, State.PAUSING)){
 			return;
 		}
 		throw new IllegalStateException("Cannot pause when not in running state: " + runnable.processorId);
@@ -199,7 +224,15 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * @param runnable the runnable to be stopped
 	 */
 	protected void stop(Processor runnable){
-		runnable.state.set(State.STOPPED);
+		if (runnable.state.compareAndSet(State.RUNNING, State.STOPPING)){
+			return;
+		}
+		if (runnable.state.compareAndSet(State.PAUSED, State.STOPPING)){
+			return;
+		}
+		if (runnable.state.compareAndSet(State.PAUSING, State.STOPPING)){
+			return;
+		}
 	}
 
 	/**
@@ -263,7 +296,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	}
 	
 	protected String seriesId(StreamDataSupplierWithIdAndRange<M, ?> supplierWithId){
-		return id + "-" + supplierWithId.getId();
+		return id + "_" + supplierWithId.getId().replace('/', '_');
 	}
 
 	class Processor implements Runnable{
@@ -294,15 +327,25 @@ public class TransactionalStreamDataBatchProcessing<M> {
 		
 		@Override
 		public void run() {
-			boolean[] outOfRangeReached = new boolean[suppliers.size()];
+			List<StreamDataSupplierWithIdAndRange<M, ?>> localSuppliers = new ArrayList<>(suppliers.size());
+			localSuppliers.addAll(suppliers);
+
+			boolean[] outOfRangeReached = new boolean[localSuppliers.size()];
 			// make sure we start from a random partition, and then do a round robin afterwards
-			Random random = new Random(System.currentTimeMillis());
-			int partition = random.nextInt(suppliers.size()) - 1;
+			Random random = new Random();
+			int partition = random.nextInt(outOfRangeReached.length);
 			
 			// reuse these data structures in the thread
 			ProcessingContextImpl context = new ProcessingContextImpl(txCoordinator); 
 			
-			while(state.get() != State.STOPPED){
+			while(!state.compareAndSet(State.STOPPING, State.STOPPED)){
+				if (!localSuppliers.equals(suppliers)){	// if suppliers changed
+					localSuppliers.clear();
+					localSuppliers.addAll(suppliers);
+					outOfRangeReached = new boolean[localSuppliers.size()];
+					partition = partition % outOfRangeReached.length;
+				}
+				
 				while(state.get() == State.RUNNING){
 					if (allProcessed(outOfRangeReached)){
 						state.set(State.FINISHED);
@@ -317,12 +360,12 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					StreamDataSupplier<M> supplier = null;
 					try{
 						do{
-							partition = (partition+1) % suppliers.size();
+							partition = (partition+1) % outOfRangeReached.length;
 							if (outOfRangeReached[partition]){
 								break;
 							}
 							
-							supplierWithIdAndRange = suppliers.get(partition);
+							supplierWithIdAndRange = localSuppliers.get(partition);
 							supplier = supplierWithIdAndRange.getSupplier();
 							attempts++;
 							seriesId = seriesId(supplierWithIdAndRange);
@@ -388,6 +431,11 @@ public class TransactionalStreamDataBatchProcessing<M> {
 						}
 					}
 				}  // jobState.get() == STATE_RUNNING
+				state.compareAndSet(State.PAUSING, State.PAUSED);
+				if (allProcessed(outOfRangeReached)){
+					state.set(State.FINISHED);
+					break;
+				}
 				await();
 			} // jobState.get() != STATE_STOPPED
 		}
@@ -525,8 +573,11 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * @throws DataStreamInfrastructureException				any exception happened in data stream 
 	 */
 	public LinkedHashMap<String, StreamStatus> getStreamStatus() throws TransactionStorageInfrastructureException, DataStreamInfrastructureException{
-		LinkedHashMap<String, StreamStatus> result = new LinkedHashMap<>(suppliers.size());
-		for (StreamDataSupplierWithIdAndRange<M, ?> supplier: suppliers){
+		List<StreamDataSupplierWithIdAndRange<M, ?>> localSuppliers = new ArrayList<>(suppliers.size());
+		localSuppliers.addAll(suppliers);
+
+		LinkedHashMap<String, StreamStatus> result = new LinkedHashMap<>(localSuppliers.size());
+		for (StreamDataSupplierWithIdAndRange<M, ?> supplier: localSuppliers){
 			String seriesId = seriesId(supplier);
 			List<? extends ReadOnlySequentialTransaction> transactions = txCoordinator.getRecentTransactions(seriesId);
 			

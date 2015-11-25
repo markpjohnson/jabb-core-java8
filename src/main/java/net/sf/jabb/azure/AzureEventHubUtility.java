@@ -93,9 +93,14 @@ public class AzureEventHubUtility {
 			sender.send(request);
 			Message response = consumer.receive();
 			connection.stop();
-			MapMessage map = (MapMessage) response;
-			String[] partitions = (String[])map.getObject("partition_ids");
-			return partitions;
+			if (response instanceof MapMessage){
+				MapMessage map = (MapMessage) response;
+				String[] partitions = (String[])map.getObject("partition_ids");
+				return partitions;
+			}else{
+				throw new IllegalStateException("The Event Hub probably does not exist or is disabled: " + server + "/" + eventHubName 
+						+ ". Response code: " + response.getObjectProperty("status-code") + ". Response description: " + response.getObjectProperty("status-description"));
+			}
 		}finally{
 			JmsUtility.closeSilently(sender, consumer, session);
 			JmsUtility.closeSilently(connection);
