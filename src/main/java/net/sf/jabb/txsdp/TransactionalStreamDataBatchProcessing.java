@@ -363,6 +363,11 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					String seriesId = null;
 					StreamDataSupplierWithIdAndRange<M, ?> supplierWithIdAndRange = null;
 					StreamDataSupplier<M> supplier = null;
+					
+					if (!context.isOpenRangeSuccessfullyClosed){
+						partition = (partition+1) % outOfRangeReached.length;
+					}
+
 					try{
 						while (state.get() == State.RUNNING && !outOfRangeReached[partition]){
 							supplierWithIdAndRange = localSuppliers.get(partition);
