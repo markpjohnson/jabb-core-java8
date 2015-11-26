@@ -298,7 +298,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	protected String seriesId(StreamDataSupplierWithIdAndRange<M, ?> supplierWithId){
 		return id + "_" + supplierWithId.getId().replace('/', '_');
 	}
-
+	
 	class Processor implements Runnable{
 		protected AtomicReference<State> state = new AtomicReference<>(State.READY);
 		private String processorId;
@@ -308,11 +308,14 @@ public class TransactionalStreamDataBatchProcessing<M> {
 		}
 		
 		private void await(){
-			WaitStrategy waitStrategy = processorOptions.getWaitStrategy();
-			try{
-				waitStrategy.await(processorOptions.getTransactionAcquisitionDelay().toMillis());
-			}catch(InterruptedException ie){
-				waitStrategy.handleInterruptedException(ie);
+			long millis = processorOptions.getTransactionAcquisitionDelay().toMillis();
+			if (millis > 0){
+				WaitStrategy waitStrategy = processorOptions.getWaitStrategy();
+				try{
+					waitStrategy.await(millis);
+				}catch(InterruptedException ie){
+					waitStrategy.handleInterruptedException(ie);
+				}
 			}
 		}
 		
@@ -327,6 +330,8 @@ public class TransactionalStreamDataBatchProcessing<M> {
 		
 		@Override
 		public void run() {
+			logger.debug("[{}] Start running: {}", processorId, state);
+			
 			List<StreamDataSupplierWithIdAndRange<M, ?>> localSuppliers = new ArrayList<>(suppliers.size());
 			localSuppliers.addAll(suppliers);
 
@@ -359,30 +364,39 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					StreamDataSupplierWithIdAndRange<M, ?> supplierWithIdAndRange = null;
 					StreamDataSupplier<M> supplier = null;
 					try{
-						do{
-							partition = (partition+1) % outOfRangeReached.length;
-							if (outOfRangeReached[partition]){
-								break;
-							}
-							
+						while (state.get() == State.RUNNING && !outOfRangeReached[partition]){
 							supplierWithIdAndRange = localSuppliers.get(partition);
 							supplier = supplierWithIdAndRange.getSupplier();
-							attempts++;
 							seriesId = seriesId(supplierWithIdAndRange);
+							if (context.isOpenRangeSuccessfullyClosed){
+								transaction = context.transaction;	// assume that last transaction just finished is the globally last transaction
+								break;
+							}
+							attempts++;
 							try {
 								transaction = txCoordinator.startTransaction(seriesId, processorId, 
 										processorOptions.getInitialTransactionTimeoutDuration(), 
 										processorOptions.getMaxInProgressTransactions(), processorOptions.getMaxRetringTransactions());
 							} catch (Exception e) {
 								logger.warn("[{}] startTransaction(...) failed", seriesId, e);
-								await();
 							}
-						}while(transaction == null && state.get() == State.RUNNING);
+							if (transaction != null){
+								break;
+							}
+							await();
+							partition = (partition+1) % outOfRangeReached.length;
+						}
 						
 						// got a skeleton, with matching seriesId
-						while (transaction != null && !transaction.hasStarted() &&  state.get() == State.RUNNING){
+						while (transaction != null && (!transaction.hasStarted() || context.isOpenRangeSuccessfullyClosed) &&  state.get() == State.RUNNING){
 							String previousTransactionId = transaction.getTransactionId();
-							String previousEndPosition = transaction.getStartPosition();
+							String previousEndPosition;
+							if (context.isOpenRangeSuccessfullyClosed){
+								context.isOpenRangeSuccessfullyClosed = false;	// can only be used once
+								previousEndPosition = transaction.getEndPosition();
+							}else{
+								previousEndPosition = transaction.getStartPosition();
+							}
 							transaction.setTransactionId(null);
 							
 							String startPosition = null;
@@ -413,7 +427,8 @@ public class TransactionalStreamDataBatchProcessing<M> {
 								transaction.getStartPosition(), transaction.getEndPosition(),
 								attempts,
 								DurationFormatter.formatSince(startTime));
-						if (doTransaction(context.withSeriesId(seriesId).withTransaction(transaction), supplierWithIdAndRange)){
+						doTransaction(context.withSeriesId(seriesId).withTransaction(transaction), supplierWithIdAndRange);
+						if (context.isOutOfRangeMessageReached){
 							String finishedPosition;
 							try {
 								finishedPosition = SequentialTransactionsCoordinator.getFinishedPosition(txCoordinator.getRecentTransactions(seriesId));
@@ -425,34 +440,39 @@ public class TransactionalStreamDataBatchProcessing<M> {
 								logger.warn("[{}] Failed to get recent transactions", seriesId, e);
 							}
 						}
-					}else{
+					}else{ // can't get a transaction
 						if (state.get() == State.RUNNING && !outOfRangeReached[partition]){
 							await();
 						}
 					}
-				}  // jobState.get() == STATE_RUNNING
+				}  // state.get() == State.RUNNING
 				state.compareAndSet(State.PAUSING, State.PAUSED);
 				if (allProcessed(outOfRangeReached)){
 					state.set(State.FINISHED);
 					break;
 				}
-				await();
-			} // jobState.get() != STATE_STOPPED
+			} // state.compareAndSet(State.STOPPING, State.STOPPED)
+			
+			logger.debug("[{}] Finish running: {}", processorId, state);
 		}
+		
 
 		/**
 		 * perform a batch processing transaction
-		 * @param context	the processing context
+		 * @param context	the processing context which will be updated in this method
 		 * @param supplierWithIdAndRange	the stream data supplier
-		 * @return	true if out of range message had reached which means probably we should stop processing
 		 */
-		protected boolean doTransaction(ProcessingContextImpl context, StreamDataSupplierWithIdAndRange<M, ?> supplierWithIdAndRange) {
+		protected void doTransaction(ProcessingContextImpl context, StreamDataSupplierWithIdAndRange<M, ?> supplierWithIdAndRange) {
 			String seriesId = context.seriesId;
 			SequentialTransaction transaction = context.transaction;
 			
 			boolean succeeded = false;
 			String fetchedLastPosition = null;
 			ReceiveStatus receiveStatus = null;
+			
+			boolean isInitiallyOpenRange = transaction.getEndPosition() == null;
+			boolean isOpenRangeClosed = false;
+			boolean isSuccessfullyFinished = false;
 			try{
 				if (!batchProcessor.initialize(context)){
 					throw new Exception("Unable to initilize processor");
@@ -461,10 +481,11 @@ public class TransactionalStreamDataBatchProcessing<M> {
 				receiveStatus = supplierWithIdAndRange.receiveInRange(msg->batchProcessor.receive(context, msg), transaction.getStartPosition());
 				fetchedLastPosition = receiveStatus.getLastPosition();
 				if (fetchedLastPosition != null){
-					if (transaction.getEndPosition() == null){  // we need to close the open range
+					if (isInitiallyOpenRange){  // we need to close the open range
 						try{
 							txCoordinator.updateTransactionEndPosition(seriesId, processorId, transaction.getTransactionId(), fetchedLastPosition);
 							transaction.setEndPosition(fetchedLastPosition);
+							isOpenRangeClosed = true;
 						}catch(Exception e){
 							throw new Exception("Unable to update end position in open range transaction", e);
 						}
@@ -487,6 +508,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			if (succeeded){
 				try{
 					txCoordinator.finishTransaction(seriesId, processorId, transaction.getTransactionId(), fetchedLastPosition);
+					isSuccessfullyFinished = true;
 				}catch(Exception e){
 					if (logger.isDebugEnabled()){
 						logDebugInTransaction("Unable to finish transaction", context, fetchedLastPosition, e);
@@ -504,7 +526,9 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					}
 				}
 			}
-			return receiveStatus == null ? false : receiveStatus.isOutOfRangeReached();
+			
+			context.isOutOfRangeMessageReached = receiveStatus == null ? false : receiveStatus.isOutOfRangeReached();
+			context.isOpenRangeSuccessfullyClosed = isInitiallyOpenRange && isOpenRangeClosed && isSuccessfullyFinished;
 		}
 		
 		protected void logDebugInTransaction(String message, ProcessingContextImpl context, String fetchedLastPosition, Exception e){
@@ -618,6 +642,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 		}
 		return result;
 	}
+	
 	
 	/**
 	 * Processing status for a single stream with range.
