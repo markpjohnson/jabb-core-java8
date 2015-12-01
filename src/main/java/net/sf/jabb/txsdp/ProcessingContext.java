@@ -88,7 +88,7 @@ public interface ProcessingContext {
 	boolean updateTransactionDetail(Serializable newDetail);
 
 	/**
-	 * Put something into the context
+	 * Put something into the context. It is not guaranteed to be thread safe.
 	 * @param key		the key that can be used later for retrieval
 	 * @param value		the value object
 	 * @return		previous value associated with the key if exist, or null
@@ -96,10 +96,49 @@ public interface ProcessingContext {
 	Object put(String key, Object value);
 
 	/**
-	 * Get previously put value object from the context
+	 * Get previously put value object from the context. It is not guaranteed to be thread safe.
 	 * @param key		the key previously used to put the value object
 	 * @return			the value object associated with the key
 	 */
 	Object get(String key);
+	
+	/**
+	 * Get the transaction finisher that can be used to finish or abort the transaction.
+	 * @return	the transaction finisher that is detached from the context.
+	 */
+	TransactionFinisher getTransactionFinisher();
+	
+	/**
+	 * An object that can be detached from the context for handling the finishing and aborting of the transaction
+	 * @author James Hu
+	 *
+	 */
+	public static interface TransactionFinisher{
+		/**
+		 * Finish the transaction
+		 * @return	true if successfully finished, false otherwise
+		 */
+		boolean finishTransaction();
+		
+		/**
+		 * Abort the transaction
+		 * @return	true if successfully aborted, false otherwise
+		 */
+		boolean abortTransaction();
+
+		/**
+		 * Renew timeout for the transaction
+		 * @param newTimeout	the new timeout
+		 * @return	true if successfully renewed, false otherwise
+		 */
+		boolean renewTransactionTimeout(Instant newTimeout);
+
+		/**
+		 * Update detail for the transaction
+		 * @param newDetail	the new detail
+		 * @return	true if successfully updated, false otherwise
+		 */
+		boolean updateTransactionDetail(Serializable newDetail);
+	}
 
 }

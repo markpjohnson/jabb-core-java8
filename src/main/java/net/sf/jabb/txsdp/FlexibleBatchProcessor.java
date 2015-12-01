@@ -25,7 +25,8 @@ public interface FlexibleBatchProcessor<T> {
 	/**
 	 * Finish current batch
 	 * @param context	the context of the batch
-	 * @return	true if the batch finished successfully, false otherwise.
+	 * @return	true if the batch finished successfully, false if unsuccessful, 
+	 * null if the transaction will be finished or aborted by the FlexibleBatchProcessor itself.
 	 */
-	boolean finish(ProcessingContext context);
+	Boolean finish(ProcessingContext context);
 }

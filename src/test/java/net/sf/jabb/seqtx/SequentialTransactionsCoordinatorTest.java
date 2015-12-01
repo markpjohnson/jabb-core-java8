@@ -479,6 +479,49 @@ public abstract class SequentialTransactionsCoordinatorTest {
 	}
 	
 	@Test
+	public void test13CloseOpenRangeThenFinishAfterNextCreated() throws TransactionStorageInfrastructureException, DuplicatedTransactionIdException, NotOwningTransactionException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException{
+		tracker.clear(seriesId);
+		
+		// start a new open range one
+		SequentialTransaction transaction = tracker.startTransaction(seriesId, processorId, Duration.ofMinutes(2), 5, 5);
+		assertNotNull(transaction);
+		assertFalse(transaction.hasStarted());
+		String previousId = transaction.getTransactionId();
+		transaction.setTransactionId(null);
+		transaction.setStartPosition("1");
+		transaction.setEndPositionNull();
+		transaction = tracker.startTransaction(seriesId, previousId, null, transaction, 5, 5);
+		assertNotNull(transaction);
+		assertTrue(transaction.hasStarted());
+		String firstId = transaction.getTransactionId();
+		
+		// set end position
+		tracker.updateTransactionEndPosition(seriesId, processorId, firstId, "5");
+		
+		// start another one:
+		transaction = tracker.startTransaction(seriesId, null, null, new SimpleSequentialTransaction(processorId, Duration.ofMinutes(2)), 5, 5);
+		assertNotNull(transaction);
+		assertFalse(transaction.hasStarted());
+		assertEquals(firstId, transaction.getTransactionId());
+		assertEquals("5", transaction.getStartPosition());
+		
+		transaction.setTransactionId(null);
+		transaction.setStartPosition("6");
+		transaction.setEndPosition("6");
+		transaction = tracker.startTransaction(seriesId, firstId, "5", transaction, 5, 5);
+		assertNotNull(transaction);
+		assertTrue(transaction.hasStarted());
+		String secondId = transaction.getTransactionId();
+		
+		// finish the second one
+		tracker.finishTransaction(seriesId, processorId, secondId);
+		
+		// finish the first one
+		tracker.finishTransaction(seriesId, processorId, firstId);
+	}
+
+	
+	@Test
 	public void test13CreateAfterLastFinishedWithNewEnd() throws TransactionStorageInfrastructureException, DuplicatedTransactionIdException, NotOwningTransactionException, IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException{
 		tracker.clear(seriesId);
 		

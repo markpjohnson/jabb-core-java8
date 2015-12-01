@@ -471,13 +471,13 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			String seriesId = context.seriesId;
 			SequentialTransaction transaction = context.transaction;
 			
-			boolean succeeded = false;
+			Boolean succeeded = null;
 			String fetchedLastPosition = null;
 			ReceiveStatus receiveStatus = null;
 			
 			boolean isInitiallyOpenRange = transaction.getEndPosition() == null;
 			boolean isOpenRangeClosed = false;
-			boolean isSuccessfullyFinished = false;
+			boolean isProcessingFailed = false;
 			try{
 				if (!batchProcessor.initialize(context)){
 					throw new Exception("Unable to initilize processor");
@@ -510,16 +510,19 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					logDebugInTransaction("Processing is not successful", context, fetchedLastPosition, e);
 				}
 			}
-			if (succeeded){
+			if (succeeded == null){	// the batchProcessor will handle transaction by itself
+				// do nothing because the batchProcessor will do it later
+			}else if (succeeded){	// succeeded
 				try{
-					txCoordinator.finishTransaction(seriesId, processorId, transaction.getTransactionId(), fetchedLastPosition);
-					isSuccessfullyFinished = true;
+					//txCoordinator.finishTransaction(seriesId, processorId, transaction.getTransactionId(), fetchedLastPosition);
+					txCoordinator.finishTransaction(seriesId, processorId, transaction.getTransactionId());
 				}catch(Exception e){
 					if (logger.isDebugEnabled()){
 						logDebugInTransaction("Unable to finish transaction", context, fetchedLastPosition, e);
 					}
 				}
-			}else{
+			}else{	// failed
+				isProcessingFailed = true;
 				try{
 					txCoordinator.abortTransaction(seriesId, processorId, transaction.getTransactionId());
 					if (logger.isDebugEnabled()){
@@ -533,7 +536,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			}
 			
 			context.isOutOfRangeMessageReached = receiveStatus == null ? false : receiveStatus.isOutOfRangeReached();
-			context.isOpenRangeSuccessfullyClosed = isInitiallyOpenRange && isOpenRangeClosed && isSuccessfullyFinished;
+			context.isOpenRangeSuccessfullyClosed = isInitiallyOpenRange && isOpenRangeClosed && !isProcessingFailed;
 		}
 		
 		protected void logDebugInTransaction(String message, ProcessingContextImpl context, String fetchedLastPosition, Exception e){
