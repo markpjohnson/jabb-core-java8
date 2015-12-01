@@ -64,7 +64,7 @@ class SimpleFlexibleBatchProcessor<T> implements FlexibleBatchProcessor<T>{
 	}
 
 	@Override
-	public boolean finish(ProcessingContext context) {
+	public Boolean finish(ProcessingContext context) {
 		@SuppressWarnings("unchecked")
 		ArrayList<T> dataItems = (ArrayList<T>) context.get(KEY_DATA_ITEMS);
 		try{

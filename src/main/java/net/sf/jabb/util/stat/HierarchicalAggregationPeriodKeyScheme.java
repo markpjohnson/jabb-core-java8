@@ -141,8 +141,8 @@ public interface HierarchicalAggregationPeriodKeyScheme{
 	/**
 	 * Generate time period key from milliseconds since UNIX epoch
 	 * @param aggregationPeriod		the aggregation period for which the key will be generated
-	 * @param epochMilli	milliseconds since UNIX epoch
-	 * @param zone	the time zone
+	 * @param epochMilli	milliseconds since UNIX epoch in specified time zone
+	 * @param zone	the time zone for interpreting epochMilli
 	 * @return	the time period key
 	 */
 	default String generateKey(AggregationPeriod aggregationPeriod, long epochMilli, ZoneId zone){
@@ -152,8 +152,8 @@ public interface HierarchicalAggregationPeriodKeyScheme{
 	/**
 	 * Generate time period key from minutes since UNIX epoch
 	 * @param aggregationPeriodCodeName		the code name of the aggregation period for which the key will be generated
-	 * @param epochMinutes		minutes since UNIX epoch
-	 * @param zone				the time zone
+	 * @param epochMinutes		minutes since UNIX epoch in specified time zone
+	 * @param zone				the time zone for interpreting epochMinutes
 	 * @return	the time period key
 	 */
 	default String generateKey(String aggregationPeriodCodeName, int epochMinutes, ZoneId zone){
@@ -163,8 +163,8 @@ public interface HierarchicalAggregationPeriodKeyScheme{
 	/**
 	 * Generate time period key from minutes since UNIX epoch
 	 * @param aggregationPeriod		the aggregation period for which the key will be generated
-	 * @param epochMinutes		minutes since UNIX epoch
-	 * @param zone				the time zone
+	 * @param epochMinutes		minutes since UNIX epoch in specified time zone
+	 * @param zone				the time zone for interpreting epochMinutes
 	 * @return	the time period key
 	 */
 	default String generateKey(AggregationPeriod aggregationPeriod, int epochMinutes, ZoneId zone){
