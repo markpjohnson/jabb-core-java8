@@ -118,9 +118,9 @@ public class ConcurrentBigIntegerStatistics implements NumberStatistics<BigInteg
 	}
 	
 	@Override
-	public void reset(BigInteger newCount, BigInteger newSum, BigInteger newMin, BigInteger newMax){
+	public void reset(long newCount, BigInteger newSum, BigInteger newMin, BigInteger newMax){
 		count.reset();
-		count.add(newCount.longValue());
+		count.add(newCount);
 		sum.set(newSum);
 		if (newMax.compareTo(LONG_MAX_VALUE) <= 0 && newMin.compareTo(LONG_MIN_VALUE) >= 0){
 			longMinMax.reset(newMin.longValue(), newMax.longValue());
@@ -167,26 +167,28 @@ public class ConcurrentBigIntegerStatistics implements NumberStatistics<BigInteg
 		}
 	}
 	
-	public void merge(ConcurrentBigIntegerStatistics another){
-		if (another != null){
-			merge(another.getCount(), another.getSum(), another.getMin(), another.getMax());
+	public void mergeBigInteger(NumberStatistics<? extends BigInteger> other) {
+		if (other != null){
+			merge(other.getCount(), other.getSum(), other.getMin(), other.getMax());
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	public void merge(NumberStatistics<? extends Number> another) {
-		if (another instanceof ConcurrentBigIntegerStatistics){
-			merge((ConcurrentBigIntegerStatistics)another);
-		}else{
-			long anotherCount = another.getCount();
-			if (anotherCount > 0){
-				count.add(another.getCount());
-				sum.add(another.getSum().longValue());
-				longMinMax.evaluate(another.getMin().longValue());
-				longMinMax.evaluate(another.getMax().longValue());
+	public void merge(NumberStatistics<? extends Number> other) {
+		if (other != null && other.getCount() > 0){
+			if (other.getSum() instanceof BigInteger){
+				mergeBigInteger((NumberStatistics<? extends BigInteger>)other);
+			}else{
+				long otherCount = other.getCount();
+				if (otherCount > 0){
+					count.add(other.getCount());
+					sum.add(other.getSum().longValue());
+					longMinMax.evaluate(other.getMin().longValue());
+					longMinMax.evaluate(other.getMax().longValue());
+				}
 			}
 		}
-		
 	}
 
 
