@@ -176,7 +176,7 @@ public class AzureStorageUtility {
 	 * @return					the concatenated string
 	 */
 	static public String keysToString(String partitionKey, String rowKey){
-		return partitionKey + "/" + rowKey;
+		return (partitionKey == null ? "null" : partitionKey) + "/" + rowKey;
 	}
 
 	/**
@@ -340,6 +340,32 @@ public class AzureStorageUtility {
 			TableOperation deleteOp = TableOperation.delete(entity);
 			executeIfExists(table, deleteOp);
 		}
+	}
+	
+	/**
+	 * Retrieve an entity by row key only
+	 * @param table	the table
+	 * @param rowKey	the row key
+	 * @param clazzType	type of the entity class
+	 * @return	the first entity that has the row key, or null if not found
+	 */
+	static public <T extends TableEntity> T retrieveByRowKey(CloudTable table, String rowKey, Class<T> clazzType){
+		TableQuery<T> query = TableQuery.from(clazzType).where(
+				TableQuery.generateFilterCondition(ROW_KEY, QueryComparisons.EQUAL, rowKey));
+		for (T entity: table.execute(query)){
+			return entity;
+		}
+		return null;
+	}
+
+	/**
+	 * Retrieve an entity by row key only
+	 * @param table	the table
+	 * @param rowKey	the row key
+	 * @return	the first entity that has the row key, or null if not found
+	 */
+	static public DynamicTableEntity retrieveByRowKey(CloudTable table, String rowKey){
+		return retrieveByRowKey(table, rowKey, DynamicTableEntity.class);
 	}
 
 	/**
