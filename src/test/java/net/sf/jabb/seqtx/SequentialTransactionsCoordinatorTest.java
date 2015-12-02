@@ -232,11 +232,9 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		assertTrue(tracker.isTransactionSuccessful("another progress", lastId));
 		assertTrue(tracker.isTransactionSuccessful(seriesId, "another transaction"));
 		assertFalse(tracker.isTransactionSuccessful(seriesId, lastId));
-		assertTrue(tracker.isTransactionSuccessful(seriesId, "another transaction", Instant.now().plusSeconds(-3600)));
 		
 		tracker.finishTransaction(seriesId, processorId, lastId);
 		assertTrue(tracker.isTransactionSuccessful(seriesId, lastId));
-		assertTrue(tracker.isTransactionSuccessful(seriesId, "another transaction", Instant.now().plusSeconds(-3600)));
 		
 		// abort
 		transaction = tracker.startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);
@@ -318,8 +316,6 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		
 		tracker.finishTransaction(seriesId, processorId, lastId);
 		assertTrue(tracker.isTransactionSuccessful(seriesId, lastId));
-		
-		assertTrue(tracker.isTransactionSuccessful(seriesId, lastId, Instant.now().minus(Duration.ofSeconds(20))));
 	}
 	
 	@Test
@@ -347,7 +343,6 @@ public abstract class SequentialTransactionsCoordinatorTest {
 		
 		tracker.finishTransaction(seriesId, processorId, lastId);
 		assertTrue(tracker.isTransactionSuccessful(seriesId, lastId));
-		assertTrue(tracker.isTransactionSuccessful(seriesId, "another transaction", Instant.now().plusSeconds(-3600)));
 		
 		// open range finish
 		transaction = tracker.startAnyFailedTransaction(seriesId, processorId, Duration.ofSeconds(120*timeScale), 5, 5);

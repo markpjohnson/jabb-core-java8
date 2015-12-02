@@ -4,8 +4,10 @@
 package net.sf.jabb.seqtx.azure;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -65,6 +67,8 @@ import com.microsoft.azure.storage.table.TableRequestOptions;
  */
 public class AzureSequentialTransactionsCoordinator implements SequentialTransactionsCoordinator {
 	static private final Logger logger = LoggerFactory.getLogger(AzureSequentialTransactionsCoordinator.class);
+
+	static protected final Base64.Encoder base64 = Base64.getUrlEncoder().withoutPadding();
 
 	/**
 	 * The default attempt strategy for Azure operations, with maximum 90 seconds allowed in total, and 0.5 to 10 seconds backoff interval 
@@ -156,10 +160,20 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		this.attemptStrategy = attemptStrategy;
 	}
 	
+	/**
+	 * Generate a 22-character presented random UUID
+	 * @return base64 URL safe encoded UUID
+	 */
 	protected String newUniqueTransactionId(){
-		return UUID.randomUUID().toString();
+		UUID uuid = UUID.randomUUID();
+		ByteBuffer bb = ByteBuffer.wrap(new byte[16]);
+		bb.putLong(uuid.getMostSignificantBits());
+		bb.putLong(uuid.getLeastSignificantBits());
+		
+		String encoded = base64.encodeToString(bb.array());
+		return encoded;
 	}
-
+	
 	@Override
 	public SequentialTransaction startTransaction(String seriesId,
 			String previousTransactionId, String previousTransactionEndPosition,
@@ -426,11 +440,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			String transactionId, String endPosition) throws NotOwningTransactionException,
 			TransactionStorageInfrastructureException, IllegalTransactionStateException,
 			NoSuchTransactionException, IllegalEndPositionException {
-		Validate.notNull(seriesId, "Series ID cannot be null");
+		//Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.notNull(transactionId, "Transaction ID cannot be null");
 
-		String transactionKey = AzureStorageUtility.keysToString(seriesId, transactionId);
 		try {
 			AtomicReference<String> updatedEndPosition = new AtomicReference<>(null);
 			new AttemptStrategy(attemptStrategy)
@@ -445,12 +458,14 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 								}else{
 									if (!endPosition.equals(entity.getEndPosition())){
 										// can't change the end position of a non-last transaction
+										String transactionKey = AzureStorageUtility.keysToString(entity);
 										throw new IllegalEndPositionException("Cannot change transaction end position from '" + entity.getEndPosition() + "' to '" + endPosition + "' because it is not the last transaction: " + transactionKey);
 									}
 								}
 							}
 							if (updatedEndPosition.get() == null){
 								// cannot finish an open transaction
+								String transactionKey = AzureStorageUtility.keysToString(entity);
 								throw new IllegalEndPositionException("Cannot finish transaction with a null end position: " + transactionKey);
 							}
 							return entity.finish();
@@ -470,7 +485,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		} catch (NotOwningTransactionException | TransactionStorageInfrastructureException | IllegalTransactionStateException | IllegalEndPositionException | NoSuchTransactionException e){
 			throw e;
 		} catch (Exception e){	// only possible: StorageException|RuntimeException
-			throw new TransactionStorageInfrastructureException("Failed to update transaction entity state to " + SequentialTransactionState.FINISHED + ": " + transactionKey, e);
+			throw new TransactionStorageInfrastructureException("Failed to update transaction entity state to " + SequentialTransactionState.FINISHED + ": " + AzureStorageUtility.keysToString(seriesId, transactionId), e);
 		}
 	}
 
@@ -479,11 +494,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			String transactionId) throws NotOwningTransactionException,
 			TransactionStorageInfrastructureException, IllegalTransactionStateException,
 			NoSuchTransactionException {
-		Validate.notNull(seriesId, "Series ID cannot be null");
+		//Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.notNull(transactionId, "Transaction time out cannot be null");
 
-		String transactionKey = AzureStorageUtility.keysToString(seriesId, transactionId);
 		try {
 			new AttemptStrategy(attemptStrategy)
 				.overrideBackoffStrategy(BackoffStrategies.noBackoff())
@@ -496,7 +510,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		} catch (NotOwningTransactionException | TransactionStorageInfrastructureException | IllegalTransactionStateException | NoSuchTransactionException e){
 			throw e;
 		} catch (Exception e){	// only possible: StorageException|RuntimeException
-			throw new TransactionStorageInfrastructureException("Failed to update transaction entity state to " + SequentialTransactionState.ABORTED + ": " + transactionKey, e);
+			throw new TransactionStorageInfrastructureException("Failed to update transaction entity state to " + SequentialTransactionState.ABORTED + ": " + AzureStorageUtility.keysToString(seriesId, transactionId), e);
 		}
 	}
 
@@ -505,11 +519,10 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			String transactionId, String endPosition, Instant timeout, Serializable detail)
 			throws NotOwningTransactionException, TransactionStorageInfrastructureException,
 			IllegalTransactionStateException, NoSuchTransactionException, IllegalEndPositionException {
-		Validate.notNull(seriesId, "Series ID cannot be null");
+		//Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.isTrue(endPosition != null || timeout != null || detail != null, "End position, time out, and detail cannot all be null");
 
-		String transactionKey = AzureStorageUtility.keysToString(seriesId, transactionId);
 		try {
 			new AttemptStrategy(attemptStrategy)
 				.overrideBackoffStrategy(BackoffStrategies.noBackoff())
@@ -523,6 +536,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 								}else if (entity.isLastTransaction()){
 									entity.setEndPosition(endPosition);
 								}else{
+									String transactionKey = AzureStorageUtility.keysToString(entity);
 									throw new IllegalEndPositionException("Cannot change transaction end position from '" + entity.getEndPosition() + "' to '" + endPosition + "' because it is not the last transaction: " + transactionKey);
 								}
 							}
@@ -538,14 +552,14 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		} catch (NotOwningTransactionException | TransactionStorageInfrastructureException | IllegalTransactionStateException | NoSuchTransactionException | IllegalEndPositionException e){
 			throw e;
 		} catch (Exception e){	// only possible: StorageException|RuntimeException
-			throw new TransactionStorageInfrastructureException("Failed to update transaction entity with keys: " + transactionKey, e);
+			throw new TransactionStorageInfrastructureException("Failed to update transaction entity with keys: " + AzureStorageUtility.keysToString(seriesId, transactionId), e);
 		}
 			
 	}
 	
 	/**
 	 * Perform modification of a transaction
-	 * @param seriesId							ID of the series
+	 * @param seriesId							ID of the series, can be null
 	 * @param processorId						ID of the process that this transaction must belong to, or null if there is no need to check this
 	 * @param transactionId						ID of the transaction
 	 * @param stateChecker						lambda to check whether the transaction state is okay, returns true for ok false for throwing IllegalTransactionStateException
@@ -564,7 +578,13 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		String transactionKey = AzureStorageUtility.keysToString(seriesId, transactionId);
 		SequentialTransactionEntity entity = null;
 		try {
-			entity = fetchEntity(seriesId, transactionId);
+			if (seriesId == null){
+				entity = fetchEntity(transactionId);
+				seriesId = entity.getPartitionKey();
+				transactionKey = AzureStorageUtility.keysToString(seriesId, transactionId);
+			}else{
+				entity = fetchEntity(seriesId, transactionId);
+			}
 		} catch (StorageException e) {
 			throw new TransactionStorageInfrastructureException("Failed to fetch transaction entity with keys: " + transactionKey, e);
 		}
@@ -583,20 +603,27 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	}
 
 	@Override
-	public boolean isTransactionSuccessful(String seriesId,
-			String transactionId, Instant beforeWhen)
+	public boolean isTransactionSuccessful(String seriesId,	String transactionId)
 			throws TransactionStorageInfrastructureException {
-		Validate.notNull(seriesId, "Series ID cannot be null");
-		Validate.notNull(transactionId, "Transaction time out cannot be null");
-		Validate.notNull(beforeWhen, "Time cannot be null");
+		//Validate.notNull(seriesId, "Series ID cannot be null");
+		Validate.notNull(transactionId, "Transaction id cannot be null");
 
 		// try cached first
+		/*	this check is for current VM only
 		if (lastSucceededTransactionCached != null){
 			if (!beforeWhen.isAfter(lastSucceededTransactionCached.getFinishTime())){
 				return true;
 			}
 		}
-		
+		*/
+		SequentialTransactionEntity entity;
+		try {
+			entity = seriesId == null? fetchEntity(transactionId) : fetchEntity(seriesId, transactionId);
+			return entity == null || entity.isFinished();
+		} catch (StorageException e) {
+			throw new TransactionStorageInfrastructureException("Failed to fetch transaction entity: " + AzureStorageUtility.keysToString(seriesId, transactionId), e);
+		}
+		/*
 		// reload
 		List<? extends ReadOnlySequentialTransaction> transactions = getRecentTransactionsIncludingDummy(seriesId);
 		
@@ -612,7 +639,8 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 			return matched.get().isFinished();
 		}
 		
-		return true;		// must be a very old transaction
+		return true;		// must be a very old succeeded transaction
+		*/
 	}
 
 	protected List<? extends ReadOnlySequentialTransaction> getRecentTransactionsIncludingDummy(
@@ -898,6 +926,19 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	}
 	
 	/**
+	 * Fetch the transaction entity by transactionId only
+	 * @param transactionId		the ID of the transaction
+	 * @return					the transaction entity or null if not found
+	 * @throws TransactionStorageInfrastructureException		if failed to get table reference
+	 */
+	protected SequentialTransactionEntity fetchEntity(String transactionId) throws TransactionStorageInfrastructureException{
+		CloudTable table = getTableReference();
+		SequentialTransactionEntity entity = null;
+		entity = AzureStorageUtility.retrieveByRowKey(table, transactionId, SequentialTransactionEntity.class);
+		return entity;
+	}
+	
+	/**
 	 * Fetch the transaction entity as DynamicTableEntity by seriesId and transactionId
 	 * @param seriesId			the ID of the series that the transaction belongs to
 	 * @param transactionId		the ID of the transaction
@@ -915,6 +956,19 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 				throw e;
 			}
 		}
+		return entity;
+	}
+	
+	/**
+	 * Fetch the transaction entity as DynamicTableEntity by transactionId only
+	 * @param transactionId		the ID of the transaction
+	 * @return					the transaction entity as DynamicTableEntity or null if not found
+	 * @throws TransactionStorageInfrastructureException		if failed to get table reference
+	 */
+	protected DynamicTableEntity fetchDynamicEntity(String transactionId) throws TransactionStorageInfrastructureException{
+		CloudTable table = getTableReference();
+		DynamicTableEntity entity = null;
+		entity = AzureStorageUtility.retrieveByRowKey(table, transactionId);
 		return entity;
 	}
 	

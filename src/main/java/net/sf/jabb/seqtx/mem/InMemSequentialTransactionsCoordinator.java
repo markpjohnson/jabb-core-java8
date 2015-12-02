@@ -36,10 +36,10 @@ import org.apache.commons.lang3.Validate;
  */
 public class InMemSequentialTransactionsCoordinator implements SequentialTransactionsCoordinator {
 	
-	protected Map<String, LinkedList<SimpleSequentialTransaction>> transactionsByseriesId;
+	protected Map<String, LinkedList<SimpleSequentialTransaction>> transactionsBySeriesId;
 	
 	public InMemSequentialTransactionsCoordinator(){
-		transactionsByseriesId = new PutIfAbsentMap<String, LinkedList<SimpleSequentialTransaction>>(new HashMap<String, LinkedList<SimpleSequentialTransaction>>(), k->new LinkedList<>());
+		transactionsBySeriesId = new PutIfAbsentMap<String, LinkedList<SimpleSequentialTransaction>>(new HashMap<String, LinkedList<SimpleSequentialTransaction>>(), k->new LinkedList<>());
 	}
 
 	/**
@@ -112,7 +112,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		Validate.isTrue(maxRetryingTransactions > 0, "Maximum number of retrying transactions must be greater than zero: %d", maxRetryingTransactions);
 		Validate.isTrue(maxInProgressTransacions >= maxRetryingTransactions, "Maximum number of in-progress transactions must not be less than the maximum number of retrying transactions: %d, %d", maxInProgressTransacions, maxRetryingTransactions);
 
-		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
+		LinkedList<SimpleSequentialTransaction> transactions = transactionsBySeriesId.get(seriesId);
 		if (transactions.size() > 0 && previousTransactionEndPosition != null){
 			Validate.notNull(previousTransactionId, "previousTransactionId cannot be null when previousTransactionEndPosition is not null");
 		}
@@ -183,7 +183,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.notNull(transactionId, "Transaction ID cannot be null");
 
-		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
+		LinkedList<SimpleSequentialTransaction> transactions = transactionsBySeriesId.get(seriesId);
 		synchronized(transactions){
 			compact(transactions);
 
@@ -229,7 +229,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.notNull(transactionId, "Transaction time out cannot be null");
 
-		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
+		LinkedList<SimpleSequentialTransaction> transactions = transactionsBySeriesId.get(seriesId);
 		synchronized(transactions){
 			compact(transactions);
 
@@ -255,7 +255,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 			throws TransactionStorageInfrastructureException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 
-		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
+		LinkedList<SimpleSequentialTransaction> transactions = transactionsBySeriesId.get(seriesId);
 		LinkedList<SimpleSequentialTransaction> copy = new LinkedList<>();
 		synchronized(transactions){
 			compact(transactions);
@@ -268,21 +268,13 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 	}
 	
 	@Override
-	public boolean isTransactionSuccessful(String seriesId, String transactionId, Instant beforeWhen) {
+	public boolean isTransactionSuccessful(String seriesId, String transactionId) {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 		Validate.notNull(transactionId, "Transaction time out cannot be null");
-		Validate.notNull(beforeWhen, "Time cannot be null");
 
-		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
+		LinkedList<SimpleSequentialTransaction> transactions = transactionsBySeriesId.get(seriesId);
 		synchronized(transactions){
 			compact(transactions);
-			
-			if (transactions.size() > 0){
-				SimpleSequentialTransaction first = transactions.getFirst(); // the last known successful if exists
-				if (first.isFinished() && beforeWhen.isBefore(first.getFinishTime())){
-					return true;
-				}
-			}
 			
 			Optional<SimpleSequentialTransaction> matched = transactions.stream().filter(tx->tx.getTransactionId().equals(transactionId)).findAny();
 			if (matched.isPresent()){
@@ -300,7 +292,7 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 		Validate.notNull(processorId, "Processor ID cannot be null");
 		Validate.isTrue(endPosition != null || transactionTimeout != null || detail != null, "End position, time out, and detail cannot all be null");
 
-		LinkedList<SimpleSequentialTransaction> transactions = transactionsByseriesId.get(seriesId);
+		LinkedList<SimpleSequentialTransaction> transactions = transactionsBySeriesId.get(seriesId);
 		synchronized(transactions){
 			compact(transactions);
 			
@@ -341,12 +333,12 @@ public class InMemSequentialTransactionsCoordinator implements SequentialTransac
 	public void clear(String seriesId) throws TransactionStorageInfrastructureException {
 		Validate.notNull(seriesId, "Series ID cannot be null");
 
-		this.transactionsByseriesId.remove(seriesId);
+		this.transactionsBySeriesId.remove(seriesId);
 	}
 
 	@Override
 	public void clearAll() throws TransactionStorageInfrastructureException {
-		this.transactionsByseriesId.clear();
+		this.transactionsBySeriesId.clear();
 	}
 
 

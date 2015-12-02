@@ -3,7 +3,7 @@
 
 	<groupId>net.sf.jabb</groupId>
 	<artifactId>jabb-core-java8</artifactId>
-	<version>1.0.33</version>
+	<version>1.0.34</version>
 	<packaging>jar</packaging>
 
 	<name>jabb-core-java8</name>
@@ -51,7 +51,7 @@
 		<dependency>
 			<groupId>net.sf.jabb</groupId>
 			<artifactId>jabb-core</artifactId>
-			<version>1.0.103</version>
+			<version>1.0.104</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>commons-logging</artifactId>
