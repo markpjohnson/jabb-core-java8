@@ -930,7 +930,6 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * @param transactionId		the ID of the transaction
 	 * @return					the transaction entity or null if not found
 	 * @throws TransactionStorageInfrastructureException		if failed to get table reference
-	 * @throws StorageException					if other underlying error happened
 	 */
 	protected SequentialTransactionEntity fetchEntity(String transactionId) throws TransactionStorageInfrastructureException{
 		CloudTable table = getTableReference();
@@ -965,7 +964,6 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 	 * @param transactionId		the ID of the transaction
 	 * @return					the transaction entity as DynamicTableEntity or null if not found
 	 * @throws TransactionStorageInfrastructureException		if failed to get table reference
-	 * @throws StorageException					if other underlying error happened
 	 */
 	protected DynamicTableEntity fetchDynamicEntity(String transactionId) throws TransactionStorageInfrastructureException{
 		CloudTable table = getTableReference();

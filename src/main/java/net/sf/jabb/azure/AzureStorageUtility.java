@@ -344,9 +344,10 @@ public class AzureStorageUtility {
 	
 	/**
 	 * Retrieve an entity by row key only
+	 * @param <T> type of the entity class
 	 * @param table	the table
 	 * @param rowKey	the row key
-	 * @param clazzType	type of the entity class
+	 * @param clazzType	the entity class
 	 * @return	the first entity that has the row key, or null if not found
 	 */
 	static public <T extends TableEntity> T retrieveByRowKey(CloudTable table, String rowKey, Class<T> clazzType){
