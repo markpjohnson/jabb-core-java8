@@ -296,7 +296,11 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	}
 	
 	protected String seriesId(StreamDataSupplierWithIdAndRange<M, ?> supplierWithId){
-		return id + "_" + supplierWithId.getId().replace('/', '_');
+		if (id == null || id.length() == 0){
+			return supplierWithId.getId().replace('/', '_');
+		}else{
+			return id + "_" + supplierWithId.getId().replace('/', '_');
+		}
 	}
 	
 	class Processor implements Runnable{
