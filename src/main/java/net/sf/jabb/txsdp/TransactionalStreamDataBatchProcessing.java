@@ -346,6 +346,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			
 			// reuse these data structures in the thread
 			ProcessingContextImpl context = new ProcessingContextImpl(txCoordinator); 
+			boolean sticky = false;
 			
 			while(!state.compareAndSet(State.STOPPING, State.STOPPED)){
 				if (!localSuppliers.equals(suppliers)){	// if suppliers changed
@@ -368,7 +369,10 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					StreamDataSupplierWithIdAndRange<M, ?> supplierWithIdAndRange = null;
 					StreamDataSupplier<M> supplier = null;
 					
-					if (!context.isOpenRangeSuccessfullyClosed){
+					// if sticky is true, we don't need to get a transaction skeleton from the coordinator. and we don't change to another partition
+					sticky = processorOptions.stickyMode == Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED && context.isOpenRangeSuccessfullyClosed ||
+							processorOptions.stickyMode == Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED_OR_NO_DATA && context.isOpenRangeAbortedBecauseNothingReceived;
+					if (!sticky){
 						partition = (partition+1) % outOfRangeReached.length;
 					}
 
@@ -377,8 +381,8 @@ public class TransactionalStreamDataBatchProcessing<M> {
 							supplierWithIdAndRange = localSuppliers.get(partition);
 							supplier = supplierWithIdAndRange.getSupplier();
 							seriesId = seriesId(supplierWithIdAndRange);
-							if (context.isOpenRangeSuccessfullyClosed){
-								transaction = context.transaction;	// assume that last transaction just finished is the globally last transaction
+							if (sticky){
+								transaction = context.transaction;	// assume that we can get start position directly from the last transaction that had just finished
 								break;
 							}
 							attempts++;
@@ -397,27 +401,33 @@ public class TransactionalStreamDataBatchProcessing<M> {
 						}
 						
 						// got a skeleton, with matching seriesId
-						while (transaction != null && (!transaction.hasStarted() || context.isOpenRangeSuccessfullyClosed) &&  state.get() == State.RUNNING){
+						while (transaction != null && (!transaction.hasStarted() || sticky) &&  state.get() == State.RUNNING){
 							String previousTransactionId = transaction.getTransactionId();
 							String previousEndPosition;
-							if (context.isOpenRangeSuccessfullyClosed){
-								context.isOpenRangeSuccessfullyClosed = false;	// can only be used once
-								previousEndPosition = transaction.getEndPosition();
+							String startPosition = null;
+							if (sticky && context.isOpenRangeAbortedBecauseNothingReceived){
+								previousEndPosition = context.previousTransactionEndPosition;
+								startPosition = transaction.getStartPosition();		// just retry last one, the transaction object is from context
 							}else{
-								previousEndPosition = transaction.getStartPosition();
+								if (sticky && context.isOpenRangeSuccessfullyClosed){
+									context.isOpenRangeSuccessfullyClosed = false;	// can only be used once
+									previousEndPosition = transaction.getEndPosition();		// the transaction object is from context
+								}else{
+									previousEndPosition = transaction.getStartPosition();	// the transaction object is returned by the coordinator
+								}
+								if (previousEndPosition == null){
+									startPosition = "";	// the beginning of the range
+								}else{
+									startPosition = supplier.nextStartPosition(previousEndPosition);
+								}
 							}
 							transaction.setTransactionId(null);
 							
-							String startPosition = null;
-							if (previousEndPosition == null){
-								startPosition = "";	// the beginning of the range
-							}else{
-								startPosition = supplier.nextStartPosition(previousEndPosition);
-							}
 							transaction.setStartPosition(startPosition);
 							transaction.setEndPositionNull();	// for an open range transaction
 							transaction.setTimeout(processorOptions.getInitialTransactionTimeoutDuration());
 							attempts++;
+							context.previousTransactionEndPosition = previousEndPosition;
 							transaction = txCoordinator.startTransaction(seriesId, previousTransactionId, previousEndPosition, transaction, 
 									processorOptions.getMaxInProgressTransactions(), processorOptions.getMaxRetringTransactions());
 						}
@@ -526,7 +536,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					}
 				}
 			}else{	// failed
-				isProcessingFailed = true;
+				isProcessingFailed = true;	// may also because that nothing had been received for the open range
 				try{
 					txCoordinator.abortTransaction(seriesId, processorId, transaction.getTransactionId());
 					if (logger.isDebugEnabled()){
@@ -541,6 +551,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			
 			context.isOutOfRangeMessageReached = receiveStatus == null ? false : receiveStatus.isOutOfRangeReached();
 			context.isOpenRangeSuccessfullyClosed = isInitiallyOpenRange && isOpenRangeClosed && !isProcessingFailed;
+			context.isOpenRangeAbortedBecauseNothingReceived = isInitiallyOpenRange && fetchedLastPosition == null;
 		}
 		
 		protected void logDebugInTransaction(String message, ProcessingContextImpl context, String fetchedLastPosition, Exception e){
@@ -797,16 +808,21 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * 	<li>transactionAcquisitionDelay - time to wait before next try to get a batch of data items for processing when 
 	 * 			previously there was no data available for processing</li>
 	 * 	<li>waitStrategy - the {@link WaitStrategy} specifying how to wait for a specific time duration</li>
+	 *  <li>noStick/stickyWhenOpenRangeSucceeded/stickyWhenOpenRangeSucceededOrNoData - how processors stick to suppliers</li>
 	 * </ul>
 	 * @author James Hu
 	 *
 	 */
 	static public class Options{
+		static private final int STICKY_NO = 0;
+		static private final int STICKY_WHEN_OPEN_RANGE_SUCCEEDED = 1;
+		static private final int STICKY_WHEN_OPEN_RANGE_SUCCEEDED_OR_NO_DATA = 2;
 		private Duration initialTransactionTimeoutDuration;
 		private int maxInProgressTransactions;
 		private int maxRetringTransactions;
 		private Duration transactionAcquisitionDelay;
 		private WaitStrategy waitStrategy;
+		private int stickyMode = STICKY_NO;
 		
 		public Options(){
 		}
@@ -817,6 +833,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			this.maxRetringTransactions = that.maxRetringTransactions;
 			this.transactionAcquisitionDelay = that.transactionAcquisitionDelay;
 			this.waitStrategy = that.waitStrategy;
+			this.stickyMode = that.stickyMode;
 		}
 		
 		public Duration getInitialTransactionTimeoutDuration() {
@@ -871,6 +888,37 @@ public class TransactionalStreamDataBatchProcessing<M> {
 		}
 		public Options withWaitStrategy(WaitStrategy waitStrategy) {
 			this.waitStrategy = waitStrategy;
+			return this;
+		}
+		
+		/**
+		 * Processors will always try to get and process a transaction from another supplier
+		 * after processed (successful or not) a transaction from a supplier.
+		 * @return the same Options object
+		 */
+		public Options withNoSticky(){
+			this.stickyMode = STICKY_NO;
+			return this;
+		}
+		
+		/**
+		 * Processors will keep trying to process transactions from the same supplier
+		 * only if previous transaction was a successfully closed open range one.
+		 * @return the same Options object
+		 */
+		public Options withStickyWhenOpenRangeSucceeded(){
+			this.stickyMode = STICKY_WHEN_OPEN_RANGE_SUCCEEDED;
+			return this;
+		}
+		
+		/**
+		 * Processors will keep trying to process transactions from the same supplier
+		 * if previous transaction was an open range one and the transaction succeeded
+		 * or there was no data received in the transaction.
+		 * @return the same Options object
+		 */
+		public Options withStickyWhenOpenRangeSucceededOrNoData(){
+			this.stickyMode = STICKY_WHEN_OPEN_RANGE_SUCCEEDED_OR_NO_DATA;
 			return this;
 		}
 	}
