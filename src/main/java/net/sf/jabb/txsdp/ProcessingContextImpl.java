@@ -42,6 +42,7 @@ class ProcessingContextImpl implements ProcessingContext{
 		this.transaction = transaction;
 		this.isOutOfRangeMessageReached = false;
 		this.isOpenRangeSuccessfullyClosed = false;
+		this.isOpenRangeAbortedBecauseNothingReceived = false;
 		return this;
 	}
 	

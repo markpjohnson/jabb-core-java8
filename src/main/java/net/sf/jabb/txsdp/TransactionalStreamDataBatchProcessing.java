@@ -410,9 +410,8 @@ public class TransactionalStreamDataBatchProcessing<M> {
 								startPosition = transaction.getStartPosition();		// just retry last one, the transaction object is from context
 							}else{
 								if (sticky && context.isOpenRangeSuccessfullyClosed){
-									context.isOpenRangeSuccessfullyClosed = false;	// can only be used once
 									previousEndPosition = transaction.getEndPosition();		// the transaction object is from context
-								}else{
+								}else{	// no sticky
 									previousEndPosition = transaction.getStartPosition();	// the transaction object is returned by the coordinator
 								}
 								if (previousEndPosition == null){
@@ -437,6 +436,12 @@ public class TransactionalStreamDataBatchProcessing<M> {
 						logger.warn("[{}] Transaction ID is duplicated: " + transaction.getTransactionId(), seriesId, e);
 					}catch(Exception e){
 						logger.error("[{}] Error happened", seriesId, e);
+					}finally{
+						// clear those flags so that the next round will start from a new state 
+						// otherwise sometimes the processor may stick to the same partition for ever
+						context.isOpenRangeAbortedBecauseNothingReceived = false;
+						context.isOpenRangeSuccessfullyClosed = false;
+						context.isOutOfRangeMessageReached = false;
 					}
 					
 					if (transaction != null && transaction.hasStarted() && state.get() == State.RUNNING){
