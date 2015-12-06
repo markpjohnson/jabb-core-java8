@@ -23,6 +23,7 @@ class ProcessingContextImpl implements ProcessingContext{
 	String seriesId;
 	SequentialTransaction transaction;
 	Map<String, Object> map;
+	
 	String previousTransactionEndPosition;
 	boolean isOutOfRangeMessageReached;		// true if out of range message had reached which means probably we should stop processing
 	boolean isOpenRangeSuccessfullyClosed;
