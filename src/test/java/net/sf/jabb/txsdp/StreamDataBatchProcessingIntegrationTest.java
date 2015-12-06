@@ -46,7 +46,9 @@ import net.sf.jabb.util.parallel.WaitStrategies;
 import net.sf.jabb.util.stat.ConcurrentLongStatistics;
 
 import org.apache.qpid.amqp_1_0.jms.impl.MessageImpl;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +58,7 @@ import com.microsoft.azure.storage.CloudStorageAccount;
  * @author James Hu
  *
  */
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class StreamDataBatchProcessingIntegrationTest {
 	static private final Logger logger = LoggerFactory.getLogger(StreamDataBatchProcessingIntegrationTest.class);
 	
@@ -79,7 +82,21 @@ public class StreamDataBatchProcessingIntegrationTest {
 		doTest(null);
 	}
 	
+	@Test
+	public void test3AllPartitionsStickySucceeded() throws Exception {
+		doTest(null, Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED);
+	}
+	
+	@Test
+	public void test3AllPartitionsStickySucceededOrNoData() throws Exception {
+		doTest(null, Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED_OR_NO_DATA);
+	}
+	
 	protected void doTest(Integer numPartitions) throws Exception {
+		doTest(numPartitions, Options.STICKY_NEVER);
+	}
+	
+	protected void doTest(Integer numPartitions, int stickyMode) throws Exception {
 		List<StreamDataSupplierWithId<TripleValueBean<String, Long, String>>> suppliersWithId = AzureEventHubUtility.createStreamDataSuppliers(
 				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_HOST"),
 				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_RECEIVE_USER_NAME"),
@@ -135,7 +152,8 @@ public class StreamDataBatchProcessingIntegrationTest {
 			.withMaxInProgressTransactions(10)
 			.withMaxRetringTransactions(10)
 			.withTransactionAcquisitionDelay(Duration.ofSeconds(10))
-			.withWaitStrategy(WaitStrategies.threadSleepStrategy());
+			.withWaitStrategy(WaitStrategies.threadSleepStrategy())
+			.withStickyMode(stickyMode);
 		
 		Map<String, Set<Long>> logMap = new PutIfAbsentMap<String, Set<Long>>(new HashMap<String, Set<Long>>(), k->Collections.newSetFromMap(new ConcurrentHashMap<Long, Boolean>()));
 		
