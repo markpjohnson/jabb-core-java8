@@ -814,15 +814,15 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 *
 	 */
 	static public class Options{
-		static private final int STICKY_NO = 0;
-		static private final int STICKY_WHEN_OPEN_RANGE_SUCCEEDED = 1;
-		static private final int STICKY_WHEN_OPEN_RANGE_SUCCEEDED_OR_NO_DATA = 2;
+		static public final int STICKY_NEVER = 0;
+		static public final int STICKY_WHEN_OPEN_RANGE_SUCCEEDED = 1;
+		static public final int STICKY_WHEN_OPEN_RANGE_SUCCEEDED_OR_NO_DATA = 2;
 		private Duration initialTransactionTimeoutDuration;
 		private int maxInProgressTransactions;
 		private int maxRetringTransactions;
 		private Duration transactionAcquisitionDelay;
 		private WaitStrategy waitStrategy;
-		private int stickyMode = STICKY_NO;
+		private int stickyMode = STICKY_NEVER;
 		
 		public Options(){
 		}
@@ -891,13 +891,18 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			return this;
 		}
 		
+		public Options withStickyMode(int stickyMode){
+			this.stickyMode = stickyMode;
+			return this;
+		}
+		
 		/**
 		 * Processors will always try to get and process a transaction from another supplier
 		 * after processed (successful or not) a transaction from a supplier.
 		 * @return the same Options object
 		 */
 		public Options withNoSticky(){
-			this.stickyMode = STICKY_NO;
+			this.stickyMode = STICKY_NEVER;
 			return this;
 		}
 		

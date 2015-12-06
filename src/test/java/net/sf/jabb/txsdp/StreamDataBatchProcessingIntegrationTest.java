@@ -79,7 +79,21 @@ public class StreamDataBatchProcessingIntegrationTest {
 		doTest(null);
 	}
 	
+	@Test
+	public void test3AllPartitionsStickySucceeded() throws Exception {
+		doTest(null, Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED);
+	}
+	
+	@Test
+	public void test3AllPartitionsStickySucceededOrNoData() throws Exception {
+		doTest(null, Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED_OR_NO_DATA);
+	}
+	
 	protected void doTest(Integer numPartitions) throws Exception {
+		doTest(numPartitions, Options.STICKY_NEVER);
+	}
+	
+	protected void doTest(Integer numPartitions, int stickyMode) throws Exception {
 		List<StreamDataSupplierWithId<TripleValueBean<String, Long, String>>> suppliersWithId = AzureEventHubUtility.createStreamDataSuppliers(
 				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_HOST"),
 				System.getenv("SYSTEM_DEFAULT_AZURE_EVENT_HUB_RECEIVE_USER_NAME"),
@@ -135,7 +149,8 @@ public class StreamDataBatchProcessingIntegrationTest {
 			.withMaxInProgressTransactions(10)
 			.withMaxRetringTransactions(10)
 			.withTransactionAcquisitionDelay(Duration.ofSeconds(10))
-			.withWaitStrategy(WaitStrategies.threadSleepStrategy());
+			.withWaitStrategy(WaitStrategies.threadSleepStrategy())
+			.withStickyMode(stickyMode);
 		
 		Map<String, Set<Long>> logMap = new PutIfAbsentMap<String, Set<Long>>(new HashMap<String, Set<Long>>(), k->Collections.newSetFromMap(new ConcurrentHashMap<Long, Boolean>()));
 		
