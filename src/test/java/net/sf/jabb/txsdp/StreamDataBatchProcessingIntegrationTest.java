@@ -46,7 +46,9 @@ import net.sf.jabb.util.parallel.WaitStrategies;
 import net.sf.jabb.util.stat.ConcurrentLongStatistics;
 
 import org.apache.qpid.amqp_1_0.jms.impl.MessageImpl;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +58,7 @@ import com.microsoft.azure.storage.CloudStorageAccount;
  * @author James Hu
  *
  */
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class StreamDataBatchProcessingIntegrationTest {
 	static private final Logger logger = LoggerFactory.getLogger(StreamDataBatchProcessingIntegrationTest.class);
 	
