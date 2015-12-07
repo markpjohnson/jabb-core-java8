@@ -696,7 +696,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 							AzureStorageUtility.PARTITION_KEY, 
 							QueryComparisons.EQUAL,
 							seriesId));
-			logger.debug("Deleted all transactions in series '{}' in table: {}", seriesId, table == null ? null : table.getName()); 
+			logger.debug("Deleted all transactions in series '{}' in table: {}", seriesId, table.getName()); 
 		}catch(Exception e){
 			throw new TransactionStorageInfrastructureException("Failed to delete entities belonging to series '" + seriesId + "' in table: " + tableName, e);
 		}
@@ -708,7 +708,7 @@ public class AzureSequentialTransactionsCoordinator implements SequentialTransac
 		try{
 			CloudTable table = getTableReference();
 			AzureStorageUtility.deleteEntitiesIfExists(table, (String)null);
-			logger.debug("Deleted all transactions in all series in table: {}", table == null ? null : table.getName()); 
+			logger.debug("Deleted all transactions in all series in table: {}", table.getName()); 
 		}catch(Exception e){
 			throw new TransactionStorageInfrastructureException("Failed to delete all entities in table: " + tableName, e);
 		}
