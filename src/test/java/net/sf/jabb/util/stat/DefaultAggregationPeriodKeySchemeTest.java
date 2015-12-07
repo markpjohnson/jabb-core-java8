@@ -65,19 +65,12 @@ public class DefaultAggregationPeriodKeySchemeTest {
 	@Test
 	public void testWithTimeZones() {
 		LocalDateTime ldt = LocalDateTime.parse("201503121703", DateTimeFormatter.ofPattern("uuuuMMddHHmm"));
-		ZonedDateTime zdt = ZonedDateTime.of(ldt, GMT6);
-		long seconds = zdt.toEpochSecond();
 		
 		assertEquals(APC_1HOUR + "2015031217", hapks.generateKey(APC_1HOUR, ldt));
-		assertEquals(APC_1HOUR + "2015031223", hapks.generateKey(APC_1HOUR, zdt.withZoneSameInstant(UTC)));
 		assertEquals(APC_1HOUR + "2015031221", hapks.nextKey(APC_1HOUR + "2015031220"));
 		assertEquals(APC_1HOUR + "2015031219", hapks.previousKey(APC_1HOUR + "2015031220"));
 		assertEquals(APC_1HOUR + "2015030923", hapks.previousKey(APC_1HOUR + "2015031000"));
 
-		assertEquals(APC_1HOUR + "2015031220", hapks.generateKey(APC_1HOUR, zdt.withZoneSameInstant(GMT3)));
-
-		assertEquals(APC_1HOUR + "2015031217", hapks.generateKey(APC_1HOUR, zdt));
-		assertEquals(APC_1HOUR + "2015031217", hapks.generateKey(APC_1HOUR, seconds* 1000L, GMT6));
 	}
 	
 	protected void print(AggregationPeriodKeyScheme scheme, String key){

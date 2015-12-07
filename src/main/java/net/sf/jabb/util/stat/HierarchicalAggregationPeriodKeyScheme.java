@@ -5,7 +5,6 @@ package net.sf.jabb.util.stat;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 
@@ -109,66 +108,12 @@ public interface HierarchicalAggregationPeriodKeyScheme{
 
 	/**
 	 * Generate the key representing the time period that the specified date time falls into
-	 * @param aggregationPeriodCodeName		the code name of the aggregation period for which the key will be generated
-	 * @param dateTimeWithZone  the date time
-	 * @return	the time period key
-	 */
-	default String generateKey(String aggregationPeriodCodeName, ZonedDateTime dateTimeWithZone) {
-		return generateKey(aggregationPeriodCodeName, dateTimeWithZone.toLocalDateTime());
-	}
-
-	/**
-	 * Generate the key representing the time period that the specified date time falls into
 	 * @param aggregationPeriod		the aggregation period for which the key will be generated
-	 * @param dateTimeWithZone  the date time
+	 * @param instant  the date time
 	 * @return	the time period key
 	 */
-	default String generateKey(AggregationPeriod aggregationPeriod, ZonedDateTime dateTimeWithZone) {
-		return generateKey(aggregationPeriod.getCodeName(), dateTimeWithZone.toLocalDateTime());
-	}
-
-	/**
-	 * Generate time period key from milliseconds since UNIX epoch
-	 * @param aggregationPeriodCodeName		the code name of the aggregation period for which the key will be generated
-	 * @param epochMilli	milliseconds since UNIX epoch
-	 * @param zone	the time zone
-	 * @return	the time period key
-	 */
-	default String generateKey(String aggregationPeriodCodeName, long epochMilli, ZoneId zone){
-		return generateKey(aggregationPeriodCodeName, ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), zone));
-	}
-	
-	/**
-	 * Generate time period key from milliseconds since UNIX epoch
-	 * @param aggregationPeriod		the aggregation period for which the key will be generated
-	 * @param epochMilli	milliseconds since UNIX epoch in specified time zone
-	 * @param zone	the time zone for interpreting epochMilli
-	 * @return	the time period key
-	 */
-	default String generateKey(AggregationPeriod aggregationPeriod, long epochMilli, ZoneId zone){
-		return generateKey(aggregationPeriod.getCodeName(), ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), zone));
-	}
-	
-	/**
-	 * Generate time period key from minutes since UNIX epoch
-	 * @param aggregationPeriodCodeName		the code name of the aggregation period for which the key will be generated
-	 * @param epochMinutes		minutes since UNIX epoch in specified time zone
-	 * @param zone				the time zone for interpreting epochMinutes
-	 * @return	the time period key
-	 */
-	default String generateKey(String aggregationPeriodCodeName, int epochMinutes, ZoneId zone){
-		return generateKey(aggregationPeriodCodeName, ZonedDateTime.ofInstant(Instant.ofEpochSecond(60L*epochMinutes), zone));
-	}
-
-	/**
-	 * Generate time period key from minutes since UNIX epoch
-	 * @param aggregationPeriod		the aggregation period for which the key will be generated
-	 * @param epochMinutes		minutes since UNIX epoch in specified time zone
-	 * @param zone				the time zone for interpreting epochMinutes
-	 * @return	the time period key
-	 */
-	default String generateKey(AggregationPeriod aggregationPeriod, int epochMinutes, ZoneId zone){
-		return generateKey(aggregationPeriod.getCodeName(), ZonedDateTime.ofInstant(Instant.ofEpochSecond(60L*epochMinutes), zone));
+	default String generateKey(AggregationPeriod aggregationPeriod, Instant instant){
+		return generateKey(aggregationPeriod.getCodeName(), LocalDateTime.ofInstant(instant, aggregationPeriod.getZone()));
 	}
 
 	/**
