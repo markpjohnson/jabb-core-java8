@@ -85,7 +85,7 @@ public interface ProcessingContext {
 	 * 			2 if the transaction has failed once and later been retried once, 
 	 * 			3 if the transaction has been tried and retried three times, etc.
 	 */
-	int getTransactinAttempts();
+	int getTransactionAttempts();
 
 	/**
 	 * Update the transaction with a new detail field.

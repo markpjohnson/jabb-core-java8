@@ -214,7 +214,7 @@ class ProcessingContextImpl implements ProcessingContext{
 	}
 	
 	@Override
-	public int getTransactinAttempts(){
+	public int getTransactionAttempts(){
 		return transaction.getAttempts();
 	}
 
