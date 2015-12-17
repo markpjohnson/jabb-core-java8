@@ -212,5 +212,10 @@ class ProcessingContextImpl implements ProcessingContext{
 	public Serializable getTransactionDetail() {
 		return transaction.getDetail();
 	}
+	
+	@Override
+	public int getTransactinAttempts(){
+		return transaction.getAttempts();
+	}
 
 }

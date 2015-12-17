@@ -80,6 +80,14 @@ public interface ProcessingContext {
 	Serializable getTransactionDetail();
 	
 	/**
+	 * Get the number of attempts for the transaction
+	 * @return 1 if the transaction has been attempted once, 
+	 * 			2 if the transaction has failed once and later been retried once, 
+	 * 			3 if the transaction has been tried and retried three times, etc.
+	 */
+	int getTransactinAttempts();
+
+	/**
 	 * Update the transaction with a new detail field.
 	 * Value returned by {@link #getTransactionDetail()} will reflect the new timeout if this method succeeded.
 	 * @param newDetail	the new detail
