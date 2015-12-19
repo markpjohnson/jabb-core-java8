@@ -370,8 +370,12 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					StreamDataSupplier<M> supplier = null;
 					
 					// if sticky is true, we don't need to get a transaction skeleton from the coordinator. and we don't change to another partition
-					sticky = processorOptions.stickyMode == Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED && context.isOpenRangeSuccessfullyClosed ||
+					boolean newSticky = processorOptions.stickyMode == Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED && context.isOpenRangeSuccessfullyClosed ||
 							processorOptions.stickyMode == Options.STICKY_WHEN_OPEN_RANGE_SUCCEEDED_OR_NO_DATA && context.isOpenRangeAbortedBecauseNothingReceived;
+					if (sticky != newSticky){
+						sticky = newSticky;
+						logger.debug("Processor '{}' {}stick on '{}'", processorId, sticky ? "" : "no longer ", seriesId(localSuppliers.get(partition)));
+					}
 					if (!sticky){
 						partition = (partition+1) % outOfRangeReached.length;
 					}
@@ -391,7 +395,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 										processorOptions.getInitialTransactionTimeoutDuration(), 
 										processorOptions.getMaxInProgressTransactions(), processorOptions.getMaxRetringTransactions());
 							} catch (Exception e) {
-								logger.warn("[{}] startTransaction(...) failed", seriesId, e);
+								logger.warn("[{}] Processor {} startTransaction(...) failed", seriesId, processorId, e);
 							}
 							if (transaction != null){
 								break;
@@ -401,14 +405,16 @@ public class TransactionalStreamDataBatchProcessing<M> {
 						}
 						
 						// got a skeleton, with matching seriesId
-						while (transaction != null && (!transaction.hasStarted() || sticky) &&  state.get() == State.RUNNING){
-							String previousTransactionId = transaction.getTransactionId();
+						while (transaction != null && (!transaction.hasStarted() || sticky && transaction == context.transaction) &&  state.get() == State.RUNNING){
+							String previousTransactionId;
 							String previousEndPosition;
 							String startPosition = null;
 							if (sticky && context.isOpenRangeAbortedBecauseNothingReceived){
+								previousTransactionId = context.previousTransactionPreviousTransactionId;
 								previousEndPosition = context.previousTransactionEndPosition;
 								startPosition = transaction.getStartPosition();		// just retry last one, the transaction object is from context
 							}else{
+								previousTransactionId = transaction.getTransactionId();
 								if (sticky && context.isOpenRangeSuccessfullyClosed){
 									previousEndPosition = transaction.getEndPosition();		// the transaction object is from context
 								}else{	// no sticky
@@ -426,9 +432,13 @@ public class TransactionalStreamDataBatchProcessing<M> {
 							transaction.setEndPositionNull();	// for an open range transaction
 							transaction.setTimeout(processorOptions.getInitialTransactionTimeoutDuration());
 							attempts++;
+							context.previousTransactionPreviousTransactionId = previousTransactionId;
 							context.previousTransactionEndPosition = previousEndPosition;
 							transaction = txCoordinator.startTransaction(seriesId, previousTransactionId, previousEndPosition, transaction, 
 									processorOptions.getMaxInProgressTransactions(), processorOptions.getMaxRetringTransactions());
+							if (logger.isDebugEnabled()){
+								logger.debug("[{}] Processor {} tried to start transaction: sticky={}, previousTransactionId={}, previousEndPosition={}, startPosition={}, transactionId={}", seriesId, processorId, sticky, previousTransactionId, previousEndPosition, startPosition, transaction == null ? null : transaction.getTransactionId());
+							}
 						}
 					}catch(TransactionStorageInfrastructureException e){
 						logger.debug("[{}] In transaction storage infrastructure error happened", seriesId, e);
@@ -445,12 +455,16 @@ public class TransactionalStreamDataBatchProcessing<M> {
 					}
 					
 					if (transaction != null && transaction.hasStarted() && state.get() == State.RUNNING){
-						logger.debug("Got a {} transaction {} [{}-{}] after {} attempts: {}", 
-								(transaction.getAttempts() == 1 ? "new" : "failed"),
-								transaction.getTransactionId(),
-								transaction.getStartPosition(), transaction.getEndPosition(),
-								attempts,
-								DurationFormatter.formatSince(startTime));
+						if (logger.isDebugEnabled()){
+							logger.debug("[{}] Processor {} got a {} transaction {} [{}-{}] after {} attempts: {}", 
+									seriesId,
+									processorId,
+									(transaction.getAttempts() == 1 ? "new" : "failed"),
+									transaction.getTransactionId(),
+									transaction.getStartPosition(), transaction.getEndPosition(),
+									attempts,
+									DurationFormatter.formatSince(startTime));
+						}
 						doTransaction(context.withSeriesId(seriesId).withTransaction(transaction), supplierWithIdAndRange);
 						if (context.isOutOfRangeMessageReached){
 							String finishedPosition;
@@ -461,7 +475,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 									outOfRangeReached[partition] = true;
 								}
 							} catch (Exception e) {
-								logger.warn("[{}] Failed to get recent transactions", seriesId, e);
+								logger.warn("[{}] Processor {} ailed to get recent transactions", seriesId, processorId, e);
 							}
 						}
 					}else{ // can't get a transaction
@@ -490,7 +504,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 			String seriesId = context.seriesId;
 			SequentialTransaction transaction = context.transaction;
 			
-			Boolean succeeded = null;
+			Boolean succeeded = false;
 			String fetchedLastPosition = null;
 			ReceiveStatus receiveStatus = null;
 			
