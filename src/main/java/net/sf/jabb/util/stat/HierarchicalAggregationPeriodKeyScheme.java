@@ -137,5 +137,20 @@ public interface HierarchicalAggregationPeriodKeyScheme{
 	 * @return	the lower level key
 	 */
 	String firstLowerLevelKey(String key);
+
+	/**
+	 * Retrieve the aggregation period information from the key
+	 * @param key	the time period key
+	 * @return		the aggregation period, or null if not found
+	 */
+	AggregationPeriod retrieveAggregationPeriod(String key);
+
+	/**
+	 * Separate the part representing AggregationPeriod from the key
+	 * @param key	the time period key
+	 * @return	An array that the first element is the code name of the AggregationPeriod or null if something went wrong, 
+	 * 			and the second element is the remaining part of the key
+	 */
+	String[] separateAggregationPeriod(String key);
 	
 }
