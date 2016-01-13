@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import net.sf.jabb.util.time.TimeZoneUtility;
+
 /**
  * The scheme of year, month, day, hour, minute
  * @author James Hu
@@ -108,23 +110,50 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 	 * @param key	the key starts with aggregation period code name
 	 * @return		the aggregation period, or null if not found
 	 */
-	protected AggregationPeriod retrieveAggregationPeriod(String key){
+	@Override
+	public AggregationPeriod retrieveAggregationPeriod(String key){
+		int i = endOfAggregationPeriod(key);
+		return i > 0 ? AggregationPeriod.parse(key.substring(0, i)) : null;
+	}
+	
+	/**
+	 * Separate the part representing AggregationPeriod from the key
+	 * @param key	the key starts with aggregation period code name
+	 * @return	An array that the first element is the code name of the AggregationPeriod or null if something went wrong, 
+	 * 			and the second element is the remaining part of the key
+	 */
+	@Override
+	public String[] separateAggregationPeriod(String key){
+		int i = endOfAggregationPeriod(key);
+		if ( i > 0){
+			return new String[] {key.substring(0, i), key.substring(i)};
+		}else{
+			return new String[] {null, key};
+		}
+	}
+	
+	/**
+	 * Find the end position of the aggregation period code
+	 * @param key	the key starts with aggregation period code name
+	 * @return the next position after the last character of aggregation period code name, or -1 if not found
+	 */
+	protected int endOfAggregationPeriod(String key){
 		int i;
 		
 		// find the first non-digit which should be the start of the AggregationPeriodUnit code
-		for (i = 6; i < key.length(); i ++){
+		for (i = TimeZoneUtility.SHORTENED_ZONE_ID_LENGTH; i < key.length(); i ++){
 			if (!Character.isDigit(key.charAt(i))){
 				// find the next first digit which marks the end of the AggregationPeriodUnit code
 				for (;i < key.length(); i ++){
 					if (Character.isDigit(key.charAt(i))){
-						return AggregationPeriod.parse(key.substring(0, i));
+						return i;
 					}
 				}
 			}
 		}
-		return null;
-		
+		return -1;
 	}
+	
 
 	/**
 	 * Get the start time (inclusive) of the time period represented by the key.
