@@ -73,6 +73,19 @@ public class DefaultAggregationPeriodKeySchemeTest {
 
 	}
 	
+	@Test
+	public void testRetrievingAggregationPeriods() {
+		LocalDateTime ldt = LocalDateTime.parse("201503121703", DateTimeFormatter.ofPattern("uuuuMMddHHmm"));
+		
+		assertArrayEquals(new String[]{APC_1HOUR, "2015031217"}, hapks.separateAggregationPeriod(hapks.generateKey(APC_1HOUR, ldt)));
+		assertArrayEquals(new String[]{APC_1HOUR, "2015031221"}, hapks.separateAggregationPeriod(hapks.nextKey(APC_1HOUR + "2015031220")));
+		assertArrayEquals(new String[]{APC_1HOUR, "2015031219"}, hapks.separateAggregationPeriod(hapks.previousKey(APC_1HOUR + "2015031220")));
+		assertArrayEquals(new String[]{APC_1HOUR, "2015030923"}, hapks.separateAggregationPeriod(hapks.previousKey(APC_1HOUR + "2015031000")));
+		
+		assertEquals(AggregationPeriod.parse(APC_1HOUR), hapks.retrieveAggregationPeriod(hapks.previousKey(APC_1HOUR + "2015031000")));
+	}
+	
+
 	protected void print(AggregationPeriodKeyScheme scheme, String key){
 		System.out.println(key + " -> " + scheme.getStartTime(key) + ", " + scheme.getStartTime(key) + " => " + scheme.nextKey(key));
 	}

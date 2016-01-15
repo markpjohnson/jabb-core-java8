@@ -115,13 +115,30 @@ public class AggregationPeriod implements Serializable, Comparable<AggregationPe
 			}else if (splited.length == 3){
 				ZoneId zone = TimeZoneUtility.toZoneId(splited[0]);
 				return parse(splited[1] + " " + splited[2], zone);
-			}else if (trimed.length() >= TimeZoneUtility.SHORTENED_ZONE_ID_LENGTH +2){
-				ZoneId zone = TimeZoneUtility.toZoneId(trimed.substring(0, TimeZoneUtility.SHORTENED_ZONE_ID_LENGTH));
-				return parse(trimed.substring(TimeZoneUtility.SHORTENED_ZONE_ID_LENGTH), zone);
+			}else if (trimed.length() >= TimeZoneUtility.SHORTENED_ZONE_ID_MIN_LENGTH +2){
+				int firstNonAlpha = indexOfFirstNonAlpha(trimed);
+				ZoneId zone = TimeZoneUtility.toZoneId(trimed.substring(0, firstNonAlpha));
+				return parse(trimed.substring(firstNonAlpha), zone);
 			}else{
 				throw new IllegalArgumentException("Not in valid format: " + zoneAndAmountAndUnit);
 			}
 		}
+	}
+	protected static int indexOfFirstNonAlpha(String s){
+		return indexOfFirstNonAlpha(s, 0);
+	}
+	protected static int indexOfFirstNonAlpha(String s, int startIndex){
+		if (s == null || s.length() == 0){
+			return 0;
+		}
+
+		int i = startIndex;
+		for (; i < s.length(); i ++){
+			if (!Character.isAlphabetic(s.charAt(i))){
+				break;
+			}
+		}
+		return i;
 	}
 
 	@Override
