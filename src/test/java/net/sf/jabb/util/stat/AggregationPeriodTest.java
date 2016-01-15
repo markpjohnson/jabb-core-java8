@@ -21,11 +21,11 @@ public class AggregationPeriodTest {
 		assertEquals(AggregationPeriod.parse("2y"), AggregationPeriod.parse("2 year"));
 		assertEquals(AggregationPeriod.parse("2y"), AggregationPeriod.parse("2 years"));
 		
-		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("l70P5A1H"));
-		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("l70P5A 1 H"));
-		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("l70P5A 1 Hour"));
-		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("l70P5A 1 Hours"));
-		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("l70P5A 1 YEAR_MONTH_DAY_HOUR"));
+		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("to1H"));
+		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("to 1 H"));
+		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("to 1 Hour"));
+		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("to 1 Hours"));
+		assertEquals(AggregationPeriod.parse("1h", ZoneId.of("Pacific/Apia")), AggregationPeriod.parse("to 1 YEAR_MONTH_DAY_HOUR"));
 		
 		assertEquals(AggregationPeriod.parse("2d"), AggregationPeriod.parse("2 days"));
 		assertEquals(AggregationPeriod.parse("2d"), AggregationPeriod.parse("2 day"));

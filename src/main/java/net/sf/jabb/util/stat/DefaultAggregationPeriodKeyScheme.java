@@ -141,7 +141,7 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 		int i;
 		
 		// find the first non-digit which should be the start of the AggregationPeriodUnit code
-		for (i = TimeZoneUtility.SHORTENED_ZONE_ID_LENGTH; i < key.length(); i ++){
+		for (i = 1; i < key.length(); i ++){
 			if (!Character.isDigit(key.charAt(i))){
 				// find the next first digit which marks the end of the AggregationPeriodUnit code
 				for (;i < key.length(); i ++){
