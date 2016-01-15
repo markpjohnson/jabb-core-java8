@@ -25,6 +25,14 @@ import javax.jms.Queue;
 import javax.jms.QueueBrowser;
 import javax.jms.Session;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Throwables;
+import com.google.common.util.concurrent.UncheckedTimeoutException;
+
 import net.sf.jabb.azure.AzureEventHubUtility;
 import net.sf.jabb.azure.EventHubAnnotations;
 import net.sf.jabb.dstream.JmsConsumerStreamDataSupplier;
@@ -37,14 +45,6 @@ import net.sf.jabb.util.parallel.Sequencer;
 import net.sf.jabb.util.parallel.WaitStrategies;
 import net.sf.jabb.util.parallel.WaitStrategy;
 import net.sf.jabb.util.text.DurationFormatter;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Throwables;
-import com.google.common.util.concurrent.UncheckedTimeoutException;
 
 /**
  * Stream data supplier for accessing messages in Azure Event Hub through Qpid JMS.
