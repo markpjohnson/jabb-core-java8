@@ -1,3 +1,4 @@
+# initial list 2016-01-15
 UTC
 GMT
 Etc/GMT
@@ -584,3 +585,8 @@ Universal
 W-SU
 WET
 Zulu
+
+# added 2015-01-16
+Asia/Chita
+Pacific/Bougainville
+Asia/Srednekolymsk

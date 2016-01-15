@@ -62,15 +62,18 @@ public abstract class TimeZoneUtility {
 			while((line = in.readLine()) != null){
 				String id = line.trim();
 				if (id.length() > 0 && !id.startsWith("#")){	// skip empty lines and comment lines
-					ZoneId.of(id);
-					String shortenedId = intToAlphaString(i);
-					shortenedIdMap.put(shortenedId, id);
-					indexMap.put(i, id);
+					if (isValidZoneId(id)){
+						String shortenedId = intToAlphaString(i);
+						shortenedIdMap.put(shortenedId, id);
+						indexMap.put(i, id);
+					}else{
+						System.err.println("WARN: Unknown ZoneId: " + id);
+					}
 					i ++;
 				}
 			}
 		} catch(Exception e){
-			System.err.println("Failed to read sorted ZoneIds from resource");
+			System.err.println("ERROR: Failed to read sorted ZoneIds from resource");
 			e.printStackTrace();
 		}
 		shortenedIdToZoneIdMapping = ImmutableBiMap.copyOf(shortenedIdMap);
@@ -80,7 +83,7 @@ public abstract class TimeZoneUtility {
 			Set<String> newZoneIds = new HashSet<>();
 			newZoneIds.addAll(ZoneId.getAvailableZoneIds());
 			newZoneIds.removeAll(shortenedIdToZoneIdMapping.values());
-			System.err.println("There are new time zones added: " + newZoneIds);
+			System.err.println("WARN: There are new time zones: " + newZoneIds);
 		}
 	}
 	
