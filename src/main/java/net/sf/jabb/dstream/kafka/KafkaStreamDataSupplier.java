@@ -101,20 +101,19 @@ public class KafkaStreamDataSupplier<M> implements StreamDataSupplier<M> {
 		Long endPos = Long.parseLong(endPosition);
 		consumer.seek(subscribedPartition, startPos);
 		long opMaxTime = System.currentTimeMillis() + timeoutDuration.toMillis();
-		// lastPos is the last message start offset. It doesn't include message
-		// length.
+		logger.log(Level.INFO,
+				"maxTime=" + String.valueOf(opMaxTime) + ",now=" + String.valueOf(System.currentTimeMillis()));
+		// lastPos is the last message start offset.
 		long lastPos = 0;
+		int count = 0;
+		boolean outOfRange = false;
 		while (true) {
 			// Since poll can't specify maxItems, we just wait for timeout. We
 			// can also do busy poll and check each return until maxItem reached
 			// or timeout.
-			int count = 0;
-			boolean outOfRange = false;
 			long opNow = System.currentTimeMillis();
-			if (opNow >= opMaxTime) {
-				return new SimpleReceiveStatus(String.valueOf(lastPos), null, outOfRange);
-			}
 			ConsumerRecords<Void, M> records = consumer.poll(opMaxTime - opNow);
+			logger.log(Level.INFO, "poll fetched " + records.count() + " messages");
 			Iterator<ConsumerRecord<Void, M>> it = records.iterator();
 			while (it.hasNext() && count < maxItems) {
 				ConsumerRecord<Void, M> record = it.next();
@@ -122,9 +121,15 @@ public class KafkaStreamDataSupplier<M> implements StreamDataSupplier<M> {
 					outOfRange = true;
 					return new SimpleReceiveStatus(String.valueOf(lastPos), null, outOfRange);
 				}
+				count++;
 				list.add(record.value());
 				lastPos = record.offset();
 				logger.log(Level.INFO, "lastPos=" + String.valueOf(lastPos));
+			}
+			opNow = System.currentTimeMillis();
+			if (opNow >= opMaxTime) {
+				logger.log(Level.INFO, "timeout, lastPos=" + String.valueOf(lastPos));
+				return new SimpleReceiveStatus(String.valueOf(lastPos), null, outOfRange);
 			}
 		}
 	}
@@ -166,24 +171,30 @@ public class KafkaStreamDataSupplier<M> implements StreamDataSupplier<M> {
 		consumer.seek(subscribedPartition, startPos);
 		boolean outOfRange = false;
 		long millisecondLeft = receiver.apply(null);
-		Long lastPos = (long) -1;
+		long deadline = System.currentTimeMillis() + millisecondLeft;
+		long lastPos = (long) -1;
 		while (true) {
-			// poll with 1 millisecond timeout.
-			ConsumerRecords<Void, M> records = consumer.poll(1);
+			// poll with max possible timeout specified by receiver.
+			ConsumerRecords<Void, M> records = consumer.poll(millisecondLeft);
 			Iterator<ConsumerRecord<Void, M>> it = records.iterator();
+			logger.log(Level.INFO, "poll got " + records.count() + " records");
 			while (it.hasNext()) {
 				ConsumerRecord<Void, M> record = it.next();
 				if (record.offset() <= endPos) {
 					millisecondLeft = receiver.apply(record.value());
 					lastPos = record.offset();
 					if (millisecondLeft < 0) {
-						return new SimpleReceiveStatus(lastPos.toString(), null, outOfRange);
+						return new SimpleReceiveStatus(String.valueOf(lastPos), null, outOfRange);
 					}
 				} else {
 					outOfRange = true;
-					return new SimpleReceiveStatus(lastPos.toString(), null, outOfRange);
+					return new SimpleReceiveStatus(String.valueOf(lastPos), null, outOfRange);
 				}
 			}
+			if (System.currentTimeMillis() >= deadline) {
+				return new SimpleReceiveStatus(String.valueOf(lastPos), null, outOfRange);
+			}
+			millisecondLeft = deadline - System.currentTimeMillis();
 		}
 	}
 

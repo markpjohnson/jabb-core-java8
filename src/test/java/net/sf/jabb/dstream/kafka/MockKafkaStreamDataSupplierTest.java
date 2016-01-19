@@ -6,92 +6,60 @@ import static org.junit.Assert.fail;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Properties;
 import java.util.function.Function;
 
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.MockConsumer;
+import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import net.sf.jabb.dstream.ReceiveStatus;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 
-// This test class is not finished. This need following command lines setup before run it.
-// 
-// bin/zookeeper-server-start.sh config/zookeeper.properties
-// bin/kafka-server-start.sh config/server.properties &
-// bin/kafka-topics.sh --zookeeper localhost:10000 --create --topic testTopic --partitions 1
-//
-@Ignore
-public class KafkaStreamDataSupplierTest {
-	private KafkaConsumer<Void, String> realConsumer;
-	private static final List<TopicPartition> topicPartitions = new ArrayList<TopicPartition>();
-	private static final String testTopicName = "testTopic";
-	private static final int testPartition = 0;
-	private long firstOffset = 0;
-	private long lastOffset = 9;
-	private String firstOffsetStr = String.valueOf(firstOffset);
-	private String lastOffsetStr;
-	private static final int messageCount = 10;
+public class MockKafkaStreamDataSupplierTest {
+	private MockConsumer<Void, String> mockConsumer;
+	private List<TopicPartition> topicPartitions = new ArrayList<TopicPartition>();
+	private final String testTopicName = "testTopic";
+	private final int testPartition = 0;
+	private final int firstOffset = 1;
 	private final String firstMsg = "string1";
-
-	@BeforeClass
-	public static void setUpClass() {
-		Properties producerProps = new Properties();
-		producerProps.put("bootstrap.servers", "localhost:9092");
-		producerProps.put("acks", "all");
-		producerProps.put("retries", 0);
-		producerProps.put("batch.size", 16384);
-		producerProps.put("linger.ms", 1);
-		producerProps.put("buffer.memory", 33554432);
-		producerProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-		producerProps.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-
-		Producer<Void, String> realProducer = new KafkaProducer<>(producerProps);
-		for (int i = 0; i < messageCount; i++) {
-			realProducer.send(
-					new ProducerRecord<Void, String>(testTopicName, testPartition, null, "string" + String.valueOf(i)));
-		}
-		realProducer.close();
-		topicPartitions.add(new TopicPartition(testTopicName, testPartition));
-	}
+	private final String firstOffsetStr = "1";
+	private final String lastOffsetStr = "9"; // 1 + "string1".length()
 
 	@Before
-	public void setUp() throws Exception {
-		Properties consumerProps = new Properties();
-		consumerProps.put("bootstrap.servers", "localhost:9092");
-		consumerProps.put("group.id", "test");
-		consumerProps.put("enable.auto.commit", "false");
-		consumerProps.put("auto.commit.interval.ms", "1000");
-		consumerProps.put("session.timeout.ms", "30000");
-		consumerProps.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-		consumerProps.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-		realConsumer = new KafkaConsumer<Void, String>(consumerProps);
-		realConsumer.assign(topicPartitions);
-		realConsumer.seekToEnd(topicPartitions.get(0));
-		lastOffset = realConsumer.position(topicPartitions.get(0));
-		lastOffsetStr = String.valueOf(lastOffset);
-		kafkaStream = new KafkaStreamDataSupplier<String>(realConsumer, topicPartitions);
+	public void setUp() {
+		mockConsumer = new MockConsumer<Void, String>(OffsetResetStrategy.LATEST);
+		topicPartitions.add(new TopicPartition(testTopicName, testPartition));
+		mockConsumer.assign(topicPartitions);
+		ConsumerRecord<Void, String> record = new ConsumerRecord<Void, String>(testTopicName, testPartition,
+				firstOffset, null, firstMsg);
+		mockConsumer.addRecord(record);
+		HashMap<TopicPartition, Long> endOffset = new HashMap<TopicPartition, Long>();
+		endOffset.put(topicPartitions.get(0), (long) 9);
+		mockConsumer.updateEndOffsets(endOffset);
+		HashMap<TopicPartition, Long> startOffset = new HashMap<TopicPartition, Long>();
+		startOffset.put(topicPartitions.get(0), (long) 1);
+		mockConsumer.updateBeginningOffsets(startOffset);
+		kafkaStream = new KafkaStreamDataSupplier<String>(mockConsumer, topicPartitions);
 	}
 
 	@After
 	public void tearDown() {
-		realConsumer.close();
+		mockConsumer.close();
 	}
 
 	private KafkaStreamDataSupplier<String> kafkaStream;
 
+
 	@Test
 	public void testFirstPosition() {
-		if (!kafkaStream.firstPosition().equals(firstOffsetStr)) {
+		if (!kafkaStream.firstPosition().equals("1")) {
 			fail("kafkaStream.firstPosition()=" + kafkaStream.firstPosition() + ", expect " + firstOffsetStr);
 		}
 	}
@@ -116,7 +84,7 @@ public class KafkaStreamDataSupplierTest {
 
 	@Test
 	public void testNextStartPosition() {
-		long next = lastOffset + 1;
+		long next = Long.parseLong(lastOffsetStr) + 1;
 		if (!kafkaStream.nextStartPosition(lastOffsetStr).equals(String.valueOf(next))) {
 			fail("kafkaStream.nextStartPosition()=" + kafkaStream.nextStartPosition(lastOffsetStr) + ", expected "
 					+ String.valueOf(next));
@@ -137,25 +105,23 @@ public class KafkaStreamDataSupplierTest {
 		assertTrue(!kafkaStream.isInRange(Instant.MAX, Instant.MIN));
 	}
 
-	// @Ignore
+	@Ignore
 	@Test
 	public void testFetchListOfQsuperMStringStringIntDuration()
 			throws DataStreamInfrastructureException, InterruptedException {
 		List<String> out = new ArrayList<String>();
-		// The timeout duration needs to be longer, as this is the first time to
-		// establish connection.
-		ReceiveStatus ret = kafkaStream.fetch(out, firstOffsetStr, lastOffsetStr, 1, Duration.ofMillis(200));
+		ReceiveStatus ret = kafkaStream.fetch(out, firstOffsetStr, lastOffsetStr, 1, Duration.ofMillis(100));
 		if (ret.isOutOfRangeReached()) {
 			fail("fetch return out of range error");
 		}
 		if (!ret.getLastPosition().equals(firstOffsetStr)) {
-			fail("fetch last position got " + ret.getLastPosition() + ", expect " + firstOffsetStr);
+			fail("fetch last position got " + ret.getLastPosition() + ", expect " + lastOffsetStr);
 		}
 		if (out.size() != 1) {
 			fail("fetch message got " + out.size() + ", expect 1");
 		}
-		if (!out.get(0).equals("string" + firstOffsetStr)) {
-			fail("fetch message got " + out.get(0) + ", expect string" + firstOffsetStr);
+		if (!out.get(0).equals(firstMsg)) {
+			fail("fetch message got " + out.get(0) + ", expect " + firstMsg);
 		}
 	}
 
@@ -193,14 +159,14 @@ public class KafkaStreamDataSupplierTest {
 			if (lastMsg != null && !lastMsg.equals(firstMsg)) {
 				fail("received message got " + lastMsg + ", expect " + firstMsg);
 			}
-			return new Long(200);
+			return new Long(10);
 		};
-		ReceiveStatus ret = kafkaStream.receive(receiver, "1", "1");
-		if (!ret.getLastPosition().equals("1")) {
-			fail("lastPosition got " + ret.getLastPosition() + ", expect 1");
+		ReceiveStatus ret = kafkaStream.receive(receiver, "1", "9");
+		if (!ret.getLastPosition().equals(firstOffsetStr)) {
+			fail("lastPosition got " + ret.getLastPosition() + ", expect 9");
 		}
-		if (!ret.isOutOfRangeReached()) {
-			fail("out of range for one receive not triggered");
+		if (ret.isOutOfRangeReached()) {
+			fail("out of range for one receive");
 		}
 
 	}
