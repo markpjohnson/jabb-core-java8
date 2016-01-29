@@ -107,6 +107,18 @@
 			<optional>true</optional>
 		</dependency>
 		<dependency>
+		    <groupId>com.amazonaws</groupId>
+		    <artifactId>aws-java-sdk</artifactId>
+		    <version>1.10.49</version>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+		    <groupId>com.amazonaws</groupId>
+		    <artifactId>amazon-kinesis-client</artifactId>
+		    <version>1.6.1</version>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
 			<groupId>com.google.code.findbugs</groupId>
 			<artifactId>annotations</artifactId>
 			<version>3.0.0</version>
