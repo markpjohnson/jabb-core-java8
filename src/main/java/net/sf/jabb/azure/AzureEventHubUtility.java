@@ -131,14 +131,7 @@ public class AzureEventHubUtility {
 	 */
 	public static <M> List<StreamDataSupplierWithId<M>> createStreamDataSuppliers(String server, String policyName, String policyKey, 
 			String eventHubName, String consumerGroup, Function<Message, M> messageConverter) throws JMSException{
-		String[] partitions = getPartitions(server, policyName, policyKey, eventHubName);
-		List<StreamDataSupplierWithId<M>> suppliers = new ArrayList<>(partitions.length);
-		for (String partition: partitions){
-			EventHubQpidStreamDataSupplier<M> supplier = new EventHubQpidStreamDataSupplier<>(server, eventHubName, policyName, policyKey,
-					consumerGroup, partition, messageConverter);
-			suppliers.add(new StreamDataSupplierWithId<>(partition, supplier));
-		}
-		return suppliers;
+		return EventHubQpidStreamDataSupplier.create(server, policyName, policyKey, eventHubName, consumerGroup, messageConverter);
 	}
 	
 	public static String generateSharedAccessSignature(String stringToSign, byte[] keyBytes){

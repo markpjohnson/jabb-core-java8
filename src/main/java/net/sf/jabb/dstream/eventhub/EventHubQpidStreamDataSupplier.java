@@ -7,7 +7,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,6 +30,7 @@ import javax.jms.Session;
 import net.sf.jabb.azure.AzureEventHubUtility;
 import net.sf.jabb.azure.EventHubAnnotations;
 import net.sf.jabb.dstream.JmsConsumerStreamDataSupplier;
+import net.sf.jabb.dstream.StreamDataSupplierWithId;
 import net.sf.jabb.dstream.WrappedJmsConnection;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 import net.sf.jabb.util.jms.JmsUtility;
@@ -186,6 +189,30 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 		this.identifier = clientId + "->" + policyName + ":" + server + "/" + eventHubName + "/" + consumerGroup + "/" + partition;
 		this.wrappedConnection = createConnectionForReceiving(server, policyName, policyKey, destination,
 				connectBackoffStrategy, connectWaitStrategy);
+	}
+	
+	/**
+	 * Create a list of {@link StreamDataSupplierWithId}s from an Event Hub.
+	 * @param <M>		type of the message
+	 * @param server		the server name containing name space of the Event Hub
+	 * @param policyName	policy with read permission
+	 * @param policyKey		key of the policy
+	 * @param eventHubName	name of the Event Hub
+	 * @param consumerGroup		consumer group name
+	 * @param messageConverter	JMS message converter
+	 * @return					a list of {@link StreamDataSupplierWithId}s, one per partition
+	 * @throws JMSException		If list of partitions cannot be fetched
+	 */
+	public static <M> List<StreamDataSupplierWithId<M>> create(String server, String policyName, String policyKey, 
+			String eventHubName, String consumerGroup, Function<Message, M> messageConverter) throws JMSException{
+		String[] partitions = AzureEventHubUtility.getPartitions(server, policyName, policyKey, eventHubName);
+		List<StreamDataSupplierWithId<M>> suppliers = new ArrayList<>(partitions.length);
+		for (String partition: partitions){
+			EventHubQpidStreamDataSupplier<M> supplier = new EventHubQpidStreamDataSupplier<>(server, eventHubName, policyName, policyKey,
+					consumerGroup, partition, messageConverter);
+			suppliers.add(new StreamDataSupplierWithId<>(partition, supplier));
+		}
+		return suppliers;
 	}
 	
 	static protected String makeClientId(){
