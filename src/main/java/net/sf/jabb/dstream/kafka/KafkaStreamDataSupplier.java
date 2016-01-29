@@ -62,7 +62,7 @@ public class KafkaStreamDataSupplier<M> implements StreamDataSupplier<M> {
 		long curPos = consumer.position(subscribedPartition);
 		// move to end of the topic
 		consumer.seekToEnd(subscribedPartition);
-		long lastPos = consumer.position(subscribedPartition);
+		long lastPos = consumer.position(subscribedPartition) - 1;
 		consumer.seek(subscribedPartition, curPos);
 		return String.valueOf(lastPos);
 	}
@@ -100,6 +100,7 @@ public class KafkaStreamDataSupplier<M> implements StreamDataSupplier<M> {
 		Long startPos = Long.parseLong(startPosition);
 		Long endPos = Long.parseLong(endPosition);
 		consumer.seek(subscribedPartition, startPos);
+		consumer.position(subscribedPartition);
 		long opMaxTime = System.currentTimeMillis() + timeoutDuration.toMillis();
 		logger.log(Level.INFO,
 				"maxTime=" + String.valueOf(opMaxTime) + ",now=" + String.valueOf(System.currentTimeMillis()));
@@ -169,10 +170,13 @@ public class KafkaStreamDataSupplier<M> implements StreamDataSupplier<M> {
 		long startPos = Long.parseLong(startPosition);
 		long endPos = Long.parseLong(endPosition);
 		consumer.seek(subscribedPartition, startPos);
+		consumer.position(subscribedPartition);
 		boolean outOfRange = false;
 		long millisecondLeft = receiver.apply(null);
 		long deadline = System.currentTimeMillis() + millisecondLeft;
 		long lastPos = (long) -1;
+		logger.log(Level.INFO, "receive called with startPos " + String.valueOf(startPos) + " endPos "
+				+ String.valueOf(endPos) + " timeout:" + millisecondLeft);
 		while (true) {
 			// poll with max possible timeout specified by receiver.
 			ConsumerRecords<Void, M> records = consumer.poll(millisecondLeft);
