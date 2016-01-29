@@ -3,10 +3,7 @@
  */
 package net.sf.jabb.dstream;
 
-import java.time.Duration;
 import java.time.Instant;
-
-import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 
 import org.apache.commons.lang3.Validate;
 
@@ -42,6 +39,11 @@ public class StreamDataSupplierWithId<M> {
 			Validate.isTrue(supplier.isInRange(fromTime, toTime), "fromTime cannot be after toTime");
 		}
 		return new StreamDataSupplierWithIdAndEnqueuedTimeRange<>(id, supplier, fromTime, toTime);
+	}
+	
+	@Override
+	public String toString(){
+		return (id == null ? "" : id) + ": " + supplier;
 	}
 	
 	public String getId() {

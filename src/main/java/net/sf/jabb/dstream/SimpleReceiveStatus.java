@@ -24,6 +24,11 @@ public class SimpleReceiveStatus implements ReceiveStatus {
 		this.outOfRangeReached = outOfRangeReached;
 	}
 	
+	@Override
+	public String toString(){
+		return "(" + lastPosition + ", " + lastEnqueuedTime + ", " + outOfRangeReached + ")";
+	}
+	
 	/**
 	 * @return the lastPosition
 	 */
