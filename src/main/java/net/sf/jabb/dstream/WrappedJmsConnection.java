@@ -54,7 +54,7 @@ public class WrappedJmsConnection implements Connection {
 	
 	protected AtomicInteger stopStartLatch = new AtomicInteger(0);
 	protected AtomicBoolean isConnecting = new AtomicBoolean(false);
-	protected volatile int connectAttempts = 0;
+	protected int connectAttempts = 0;
 	protected BackoffStrategy connectBackoffStrategy;
 	protected WaitStrategy connectWaitStrategy;
 	

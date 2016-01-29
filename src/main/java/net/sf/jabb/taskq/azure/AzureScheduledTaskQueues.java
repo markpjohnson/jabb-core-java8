@@ -318,7 +318,7 @@ public class AzureScheduledTaskQueues implements ScheduledTaskQueues{
 		try{
 			CloudTable table = getTableReference();
 			AzureStorageUtility.deleteEntitiesIfExists(table, (String)null);
-			logger.debug("Deleted all tasks in all queues in table: {}", table == null ? null : table.getName()); 
+			logger.debug("Deleted all tasks in all queues in table: {}", table.getName()); 
 		}catch(Exception e){
 			throw new TaskQueueStorageInfrastructureException("Failed to delete all entities in table: " + tableName, e);
 		}

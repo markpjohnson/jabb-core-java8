@@ -180,7 +180,7 @@ public class ExceptionUncheckUtility {
 			return function.test(t);
 		} catch (Exception exception) {
 			throwAsUnchecked(exception);
-			return null;
+			return false;
 		}
 	}
 

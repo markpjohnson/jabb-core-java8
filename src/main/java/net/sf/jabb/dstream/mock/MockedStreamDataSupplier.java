@@ -127,9 +127,8 @@ public class MockedStreamDataSupplier implements StreamDataSupplier<String> {
 				return String.valueOf(Long.valueOf(firstPositionAfterNow) - intervalMillis);
 			}
 		} catch (InterruptedException e) {
-			new DataStreamInfrastructureException(e);
+			throw new DataStreamInfrastructureException(e);
 		}
-		return null;
 	}
 
 	@Override
