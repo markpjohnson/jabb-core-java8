@@ -21,18 +21,14 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.AfterClass;
+import org.junit.Assume;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.sf.jabb.dstream.ReceiveStatus;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 
-// This test class is not finished. This need following command lines setup before run it.
-// 
-// bin/zookeeper-server-start.sh config/zookeeper.properties
-// bin/kafka-server-start.sh config/server.properties &
-// bin/kafka-topics.sh --zookeeper localhost:2181 --create --topic testTopic --partitions 1
-//
 public class KafkaStreamDataSupplierTest {
 	private static KafkaConsumer<Void, String> realConsumer;
 	private static final List<TopicPartition> topicPartitions = new ArrayList<TopicPartition>();
@@ -97,7 +93,10 @@ public class KafkaStreamDataSupplierTest {
 	@BeforeClass
 	public static void setUpClass() throws InterruptedException {
 		String kafkaHome = System.getenv("KAFKA_HOME");
-		assertNotNull("KAFKA_HOME environment variable is not set", kafkaHome);
+		if (kafkaHome == null) {
+			// Use assumeTrue to skip testcases.
+			return;
+		}
 		String zooCfg = createProperties("zookeeper.properties", zookeeperProperties);
 		String kafkaCfg = createProperties("kafkabroker.properties", kafkaBrokerProperties);
 		{
@@ -141,6 +140,12 @@ public class KafkaStreamDataSupplierTest {
 		consumerProps.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 		realConsumer = new KafkaConsumer<Void, String>(consumerProps);
 		kafkaStream = new KafkaStreamDataSupplier<String>(realConsumer, topicPartitions);
+	}
+
+	@Before
+	public void setUp() {
+		String kafkaHome = System.getenv("KAFKA_HOME");
+		Assume.assumeTrue(kafkaHome != null);
 	}
 
 	@AfterClass
