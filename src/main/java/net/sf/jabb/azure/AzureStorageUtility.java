@@ -5,12 +5,16 @@ package net.sf.jabb.azure;
 
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import net.sf.jabb.util.attempt.AttemptStrategy;
 import net.sf.jabb.util.attempt.StopStrategies;
@@ -23,6 +27,7 @@ import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.Lists;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
@@ -326,6 +331,8 @@ public class AzureStorageUtility {
 	
 	/**
 	 * Delete entities specified by a filtering condition. 404 not found error will be ignored.
+	 * Deletion operations will be grouped into batches whenever possible.
+	 * 
 	 * @param table		the table
 	 * @param filter		the filter specifies the entities to be deleted
 	 * @throws StorageException		if non-404 error happened
@@ -336,9 +343,60 @@ public class AzureStorageUtility {
 		if (StringUtils.isNotBlank(filter)){
 			query.where(filter);
 		}
+		
+		final int DELETE_MACRO_BATCH_SIZE = 1000;
+		List<DynamicTableEntity> batch = new ArrayList<>(DELETE_MACRO_BATCH_SIZE);
 		for (DynamicTableEntity entity: table.execute(query)){
-			TableOperation deleteOp = TableOperation.delete(entity);
-			executeIfExists(table, deleteOp);
+			batch.add(entity);
+			if (batch.size() >= DELETE_MACRO_BATCH_SIZE){
+				deleteEntitiesIfExists(table, batch);
+				batch.clear();
+			}
+		}
+		if (batch.size() == 1){
+			executeIfExists(table, TableOperation.delete(batch.get(0)));
+		}else if (batch.size() > 1){
+			deleteEntitiesIfExists(table, batch);
+		}
+	}
+	
+	/**
+	 * Delete entities using batch operations whenever possible.
+	 * No exception will be thrown if an entity to be deleted does not exist.
+	 * 
+	 * @param table		the table
+	 * @param allEntities		entities to be deleted, they don't need to be all in the same partition
+	 * @throws StorageException	if any exception happened when executing batch deletion
+	 */
+	static public void deleteEntitiesIfExists(CloudTable table, Collection<? extends TableEntity> allEntities) throws StorageException{
+		Map<String, List<TableEntity>> groupedByPartitionKey = allEntities.stream().collect(Collectors.groupingBy(TableEntity::getPartitionKey));
+		for (List<TableEntity> entities: groupedByPartitionKey.values()){
+			if (entities.size() > 1){
+				deleteEntitiesInSamePartition(table, entities);
+			}else{
+				executeIfExists(table, TableOperation.delete(entities.get(0)));
+			}
+		}
+	}
+	
+	/**
+	 * Delete entities in same partition using batch operations.
+	 * No exception will be thrown if an entity to be deleted does not exist.
+	 * 
+	 * @param table		the table
+	 * @param allEntities		entities to be deleted, they must have the same partition key
+	 * @throws StorageException	if any exception happened when executing batch deletion
+	 */
+	static public void deleteEntitiesInSamePartition(CloudTable table, List<? extends TableEntity> allEntities) throws StorageException{
+		final int DELETE_MICRO_BATCH_SIZE = 100;
+
+		TableBatchOperation batchOperation = new TableBatchOperation();
+		for (List<? extends TableEntity> entities: Lists.partition(allEntities, DELETE_MICRO_BATCH_SIZE)){
+			for (TableEntity entity: entities){
+				batchOperation.delete(entity);
+			}
+			executeIfExists(table, batchOperation);
+			batchOperation.clear();
 		}
 	}
 	
