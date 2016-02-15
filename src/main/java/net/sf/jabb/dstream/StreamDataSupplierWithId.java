@@ -36,8 +36,7 @@ public class StreamDataSupplierWithId<M> {
 		return new StreamDataSupplierWithIdAndPositionRange<>(id, supplier, fromPosition, toPosition);
 	}
 	
-	public StreamDataSupplierWithIdAndEnqueuedTimeRange<M> withRange(Instant fromTime, Instant toTime)
-			throws DataStreamInfrastructureException {
+	public StreamDataSupplierWithIdAndEnqueuedTimeRange<M> withRange(Instant fromTime, Instant toTime){
 		if (fromTime != null && toTime != null){
 			Validate.isTrue(supplier.isInRange(fromTime, toTime), "fromTime cannot be after toTime");
 		}
