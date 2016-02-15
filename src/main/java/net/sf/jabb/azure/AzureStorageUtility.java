@@ -86,6 +86,14 @@ public class AzureStorageUtility {
 		return e.getHttpStatusCode() == 404;
 	}
 	
+	public static boolean isTableNotFound(StorageException e){
+		return e.getHttpStatusCode() == 404 && StorageErrorCodeStrings.TABLE_NOT_FOUND.equals(e.getErrorCode());
+	}
+	
+	public static boolean isResourceNotFound(StorageException e){
+		return e.getHttpStatusCode() == 404 && StorageErrorCodeStrings.RESOURCE_NOT_FOUND.equals(e.getErrorCode());
+	}
+	
 	public static boolean isUpdateConditionNotSatisfied(StorageException e){
 		return e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
 	}
