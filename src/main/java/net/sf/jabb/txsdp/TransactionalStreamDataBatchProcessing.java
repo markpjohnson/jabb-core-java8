@@ -441,14 +441,14 @@ public class TransactionalStreamDataBatchProcessing<M> {
 							}
 						}
 					}catch(TransactionStorageInfrastructureException e){
-						transaction = null;
 						logger.debug("[{}] In transaction storage infrastructure error happened", seriesId, e);
+						transaction = null;
 					}catch(DuplicatedTransactionIdException e){
-						transaction = null;
 						logger.warn("[{}] Transaction ID is duplicated: " + transaction.getTransactionId(), seriesId, e);
-					}catch(Exception e){
 						transaction = null;
+					}catch(Exception e){
 						logger.error("[{}] Error happened", seriesId, e);
+						transaction = null;
 					}finally{
 						// clear those flags so that the next round will start from a new state 
 						// otherwise sometimes the processor may stick to the same partition for ever

@@ -9,6 +9,7 @@ import java.math.BigInteger;
 import java.util.concurrent.atomic.LongAdder;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 /**
  * Thread-safe statistics holder for high precision use cases.
@@ -44,7 +45,7 @@ public class ConcurrentBigIntegerStatistics implements NumberStatistics<BigInteg
 		if (other == this){
 			return true;
 		}
-		if (other == null || !(other instanceof NumberStatistics<?>)){
+		if (!(other instanceof NumberStatistics<?>)){
 			return false;
 		}
 		NumberStatistics<?> that = (NumberStatistics<?>) other;
@@ -54,6 +55,16 @@ public class ConcurrentBigIntegerStatistics implements NumberStatistics<BigInteg
 			.append(this.getMin(), that.getMin())
 			.append(this.getMin(), that.getMax())
 			.isEquals();
+	}
+	
+	@Override
+	public int hashCode(){
+		return new HashCodeBuilder()
+				.append(count)
+				.append(sum)
+				.append(bigIntegerMinMax)
+				.append(longMinMax)
+				.toHashCode();
 	}
 
 	@Override

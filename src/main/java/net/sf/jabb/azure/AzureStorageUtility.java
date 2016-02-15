@@ -5,12 +5,17 @@ package net.sf.jabb.azure;
 
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import net.sf.jabb.util.attempt.AttemptStrategy;
 import net.sf.jabb.util.attempt.StopStrategies;
@@ -23,8 +28,10 @@ import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.Lists;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.StorageExtendedErrorInformation;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.CloudBlob;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -40,8 +47,8 @@ import com.microsoft.azure.storage.table.TableBatchOperation;
 import com.microsoft.azure.storage.table.TableEntity;
 import com.microsoft.azure.storage.table.TableOperation;
 import com.microsoft.azure.storage.table.TableQuery;
-import com.microsoft.azure.storage.table.TableQuery.Operators;
 import com.microsoft.azure.storage.table.TableQuery.QueryComparisons;
+import com.microsoft.azure.storage.table.TableServiceEntity;
 
 /**
  * Utility functions for Azure Storage usage.
@@ -65,6 +72,11 @@ public class AzureStorageUtility {
     static public final String TIMESTAMP = "Timestamp";
     
 	static public String[] COLUMNS_WITH_ONLY_KEYS = new String[0];
+	
+	static final int MAX_BATCH_OPERATION_SIZE = 100;
+	static final int MAX_GROUP_FOR_BATCH_OPERATION_SIZE = 1000;
+
+
 
 	public static boolean isNotFoundOrUpdateConditionNotSatisfied(StorageException e){
 		return e.getHttpStatusCode() == 404 || e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
@@ -303,19 +315,54 @@ public class AzureStorageUtility {
 	
 	/**
 	 * Execute an operation and ignore 404 not found error.
+	 * Operations in the batch may be split and retried if any of them got a 404 not found error
 	 * @param table			the table
 	 * @param operation		the operation
-	 * @return				true if the operation succeeded, false if 404 not found error happened. 
+	 * @return				true if all the operations in the batch succeeded, 
+	 * 						false if for each of the operations either it succeeded or got a 404 not found error. 
 	 * 						Please note that due to the retry logic inside Azure Storage SDK, 
 	 * 						even if this method returns false it may be caused by a retry rather than the first attempt. 
 	 * @throws StorageException		if non-404 error happened
 	 */
 	static public boolean executeIfExists(CloudTable table, TableBatchOperation operation) throws StorageException{
+		if (operation.size() == 0){
+			return true;
+		}
+		if (operation.size() == 1){
+			return executeIfExists(table, operation.get(0));
+		}
 		try {
 			table.execute(operation);
 			return true;
 		} catch (StorageException e) {
-			if (e.getHttpStatusCode() == 404){ 
+			if (e.getHttpStatusCode() == 404){
+				TableBatchOperation shouldSuceedBatch = new TableBatchOperation();	// all operations before the first failed
+				TableBatchOperation notSureBatch = new TableBatchOperation();		// all not tried
+				
+				StorageExtendedErrorInformation extendedInfo = e.getExtendedErrorInformation();
+				HashMap<String, String[]> details;
+				if (extendedInfo != null && (details = extendedInfo.getAdditionalDetails()) != null){
+					int i;
+					for (i = 0; i < operation.size(); i ++){
+						if (!details.containsKey(String.valueOf(i))){
+							shouldSuceedBatch.add(operation.get(i));
+						}else{
+							break;
+						}
+					}
+					for (; i < operation.size(); i ++){
+						if (details.containsKey(String.valueOf(i))){
+							executeIfExists(table, operation.get(i));
+						}else{
+							notSureBatch.add(operation.get(i));
+						}
+					}
+				}else{
+					shouldSuceedBatch.add(operation.get(0));
+					notSureBatch.addAll(operation.subList(1, operation.size() - 1));
+				}
+				executeIfExists(table, shouldSuceedBatch);
+				executeIfExists(table, notSureBatch);
 				return false;
 			}else{
 				throw e;
@@ -323,22 +370,87 @@ public class AzureStorageUtility {
 		}
 	}
 
+	/**
+	 * Delete all entities in a partition. 404 not found error will be ignored.
+	 * Deletion operations will be grouped into batches whenever possible.
+	 * 
+	 * @param table		the table
+	 * @param partitionKey		the partition key
+	 * @throws StorageException		if non-404 error happened
+	 */
+	static public void deleteEntitiesInPartitionIfExistsInBatches(CloudTable table, String partitionKey) throws StorageException{
+		String partitionFilter = TableQuery.generateFilterCondition(
+				PARTITION_KEY, 
+				QueryComparisons.EQUAL,
+				partitionKey);
+		deleteEntitiesIfExistsInBatches(table, partitionFilter);
+	}
 	
 	/**
 	 * Delete entities specified by a filtering condition. 404 not found error will be ignored.
+	 * Deletion operations will be grouped into batches whenever possible.
+	 * 
 	 * @param table		the table
 	 * @param filter		the filter specifies the entities to be deleted
 	 * @throws StorageException		if non-404 error happened
 	 */
-	static public void deleteEntitiesIfExists(CloudTable table, String filter) throws StorageException{
-		TableQuery<DynamicTableEntity> query = TableQuery.from(DynamicTableEntity.class)
+	static public void deleteEntitiesIfExistsInBatches(CloudTable table, String filter) throws StorageException{
+		TableQuery<TableServiceEntity> query = TableQuery.from(TableServiceEntity.class)
 				.select(COLUMNS_WITH_ONLY_KEYS);
 		if (StringUtils.isNotBlank(filter)){
 			query.where(filter);
 		}
-		for (DynamicTableEntity entity: table.execute(query)){
-			TableOperation deleteOp = TableOperation.delete(entity);
-			executeIfExists(table, deleteOp);
+		
+		List<TableServiceEntity> batch = new ArrayList<>(MAX_GROUP_FOR_BATCH_OPERATION_SIZE);
+		for (TableServiceEntity entity: table.execute(query)){
+			batch.add(entity);
+			if (batch.size() >= MAX_GROUP_FOR_BATCH_OPERATION_SIZE){
+				deleteEntitiesIfExistsInBatches(table, batch);
+				batch.clear();
+			}
+		}
+		if (batch.size() == 1){
+			executeIfExists(table, TableOperation.delete(batch.get(0)));
+		}else if (batch.size() > 1){
+			deleteEntitiesIfExistsInBatches(table, batch);
+		}
+	}
+	
+	/**
+	 * Delete entities using batch operations whenever possible.
+	 * No exception will be thrown if an entity to be deleted does not exist.
+	 * 
+	 * @param table		the table
+	 * @param allEntities		entities to be deleted, they don't need to be all in the same partition
+	 * @throws StorageException	if any exception happened when executing batch deletion
+	 */
+	static public void deleteEntitiesIfExistsInBatches(CloudTable table, Collection<? extends TableEntity> allEntities) throws StorageException{
+		Map<String, List<TableEntity>> groupedByPartitionKey = allEntities.stream().collect(Collectors.groupingBy(TableEntity::getPartitionKey));
+		for (List<TableEntity> entities: groupedByPartitionKey.values()){
+			if (entities.size() > 1){
+				deleteEntitiesInSamePartitionIfExistsInBatches(table, entities);
+			}else{
+				executeIfExists(table, TableOperation.delete(entities.get(0)));
+			}
+		}
+	}
+	
+	/**
+	 * Delete entities in same partition using batch operations.
+	 * No exception will be thrown if an entity to be deleted does not exist.
+	 * 
+	 * @param table		the table
+	 * @param allEntities		entities to be deleted, they must have the same partition key
+	 * @throws StorageException	if any exception happened when executing batch deletion
+	 */
+	static public void deleteEntitiesInSamePartitionIfExistsInBatches(CloudTable table, List<? extends TableEntity> allEntities) throws StorageException{
+		TableBatchOperation batchOperation = new TableBatchOperation();
+		for (List<? extends TableEntity> entities: Lists.partition(allEntities, MAX_BATCH_OPERATION_SIZE)){
+			for (TableEntity entity: entities){
+				batchOperation.delete(entity);
+			}
+			executeIfExists(table, batchOperation);
+			batchOperation.clear();
 		}
 	}
 	
@@ -376,17 +488,10 @@ public class AzureStorageUtility {
 	 * @param rowKey			the row key of the entity
 	 * @throws StorageException		if non-404 error happened
 	 */
-	static public void deleteEntitiesIfExists(CloudTable table, String partitionKey, String rowKey) throws StorageException{
-		String partitionFilter = TableQuery.generateFilterCondition(
-				PARTITION_KEY, 
-				QueryComparisons.EQUAL,
-				partitionKey);
-		String rowFilter = TableQuery.generateFilterCondition(
-				ROW_KEY, 
-				QueryComparisons.EQUAL,
-				rowKey);
-		String filter = TableQuery.combineFilters(partitionFilter, Operators.AND, rowFilter);
-		deleteEntitiesIfExists(table, filter);
+	static public void deleteEntityIfExists(CloudTable table, String partitionKey, String rowKey) throws StorageException{
+		TableEntity entity = new TableServiceEntity(partitionKey, rowKey);
+		setEtagAny(entity);
+		executeIfExists(table, TableOperation.delete(entity));
 	}
 
 	/**
@@ -396,9 +501,7 @@ public class AzureStorageUtility {
 	 * @throws StorageException		if non-404 error happened
 	 */
 	static public void deleteEntitiesIfExists(CloudTable table, TableEntity entity) throws StorageException{
-		String partitionKey = entity.getPartitionKey();
-		String rowKey = entity.getRowKey();
-		deleteEntitiesIfExists(table, partitionKey, rowKey);
+		executeIfExists(table, TableOperation.delete(entity));
 	}
 
 
@@ -479,4 +582,7 @@ public class AzureStorageUtility {
 		}
 	}
 
+	static public void setEtagAny(TableEntity entity){
+		entity.setEtag("*");
+	}
 }
