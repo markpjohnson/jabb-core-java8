@@ -29,7 +29,7 @@ import org.junit.Test;
 import net.sf.jabb.dstream.ReceiveStatus;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 
-public class KafkaStreamDataSupplierTest {
+public class KafkaStreamDataSupplierIntegrationTest {
 	private static KafkaConsumer<Void, String> realConsumer;
 	private static final List<TopicPartition> topicPartitions = new ArrayList<TopicPartition>();
 	private static final String testTopicName = "testTopic";
