@@ -82,10 +82,14 @@ public interface StreamDataSupplier<M> {
 	boolean isInRange(String position, String endPosition);
 	
 	/**
-	 * Check if an enqueued time is within the range defined by an end enqueued time
-	 * @param enqueuedTime		the enqueued time to be checked
-	 * @param endEnqueuedTime	the end enqueued time
-	 * @return	true if in range, false otherwise
+	 * Check if an enqueued time is within the range defined by an end enqueued
+	 * time
+	 * 
+	 * @param enqueuedTime
+	 *            the enqueued time to be checked
+	 * @param endEnqueuedTime
+	 *            the end enqueued time
+	 * @return true if in range, false otherwise
 	 */
 	boolean isInRange(Instant enqueuedTime, Instant endEnqueuedTime);
 	

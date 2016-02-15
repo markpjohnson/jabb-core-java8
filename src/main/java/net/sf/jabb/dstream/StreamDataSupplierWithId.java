@@ -7,6 +7,8 @@ import java.time.Instant;
 
 import org.apache.commons.lang3.Validate;
 
+import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
+
 
 /**
  * Data structure for a StreamDataSupplier and an ID.
@@ -34,7 +36,8 @@ public class StreamDataSupplierWithId<M> {
 		return new StreamDataSupplierWithIdAndPositionRange<>(id, supplier, fromPosition, toPosition);
 	}
 	
-	public StreamDataSupplierWithIdAndEnqueuedTimeRange<M> withRange(Instant fromTime, Instant toTime){
+	public StreamDataSupplierWithIdAndEnqueuedTimeRange<M> withRange(Instant fromTime, Instant toTime)
+			throws DataStreamInfrastructureException {
 		if (fromTime != null && toTime != null){
 			Validate.isTrue(supplier.isInRange(fromTime, toTime), "fromTime cannot be after toTime");
 		}
