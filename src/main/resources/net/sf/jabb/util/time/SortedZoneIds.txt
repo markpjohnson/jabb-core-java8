@@ -590,3 +590,6 @@ Zulu
 Asia/Chita
 Pacific/Bougainville
 Asia/Srednekolymsk
+
+# added 2016-02-16
+America/Fort_Nelson

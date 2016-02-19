@@ -86,6 +86,14 @@ public class AzureStorageUtility {
 		return e.getHttpStatusCode() == 404;
 	}
 	
+	public static boolean isTableNotFound(StorageException e){
+		return e.getHttpStatusCode() == 404 && StorageErrorCodeStrings.TABLE_NOT_FOUND.equals(e.getErrorCode());
+	}
+	
+	public static boolean isResourceNotFound(StorageException e){
+		return e.getHttpStatusCode() == 404 && StorageErrorCodeStrings.RESOURCE_NOT_FOUND.equals(e.getErrorCode());
+	}
+	
 	public static boolean isUpdateConditionNotSatisfied(StorageException e){
 		return e.getHttpStatusCode() == 412 && StorageErrorCodeStrings.UPDATE_CONDITION_NOT_SATISFIED.equals(e.getErrorCode());
 	}
@@ -132,6 +140,22 @@ public class AzureStorageUtility {
 			combined = TableQuery.combineFilters(combined, operator, filter);
 		}
 		return combined;
+	}
+	
+	/**
+	 * Generate a filter condition for string start with a prefix by checking if
+	 * the value is &gt;= prefix and &lt;= prefix + suffix
+	 * @param property		name of the property
+	 * @param startPrefix	the start prefix (inclusive)
+	 * @param endPrefix		the end prefix (exclusive)
+	 * @return	the filter condition string
+	 */
+	public static String generateStartToEndFilterCondition(String property, String startPrefix, String endPrefix){
+		return TableQuery.combineFilters(
+				TableQuery.generateFilterCondition(property, QueryComparisons.GREATER_THAN_OR_EQUAL, startPrefix),
+				TableQuery.Operators.AND,
+				TableQuery.generateFilterCondition(property, QueryComparisons.LESS_THAN, endPrefix)
+				);
 	}
 	
 	/**
