@@ -146,6 +146,22 @@ public class AzureStorageUtility {
 	 * Generate a filter condition for string start with a prefix by checking if
 	 * the value is &gt;= prefix and &lt;= prefix + suffix
 	 * @param property		name of the property
+	 * @param startPrefix	the start prefix (inclusive)
+	 * @param endPrefix		the end prefix (exclusive)
+	 * @return	the filter condition string
+	 */
+	public static String generateStartToEndFilterCondition(String property, String startPrefix, String endPrefix){
+		return TableQuery.combineFilters(
+				TableQuery.generateFilterCondition(property, QueryComparisons.GREATER_THAN_OR_EQUAL, startPrefix),
+				TableQuery.Operators.AND,
+				TableQuery.generateFilterCondition(property, QueryComparisons.LESS_THAN, endPrefix)
+				);
+	}
+	
+	/**
+	 * Generate a filter condition for string start with a prefix by checking if
+	 * the value is &gt;= prefix and &lt;= prefix + suffix
+	 * @param property		name of the property
 	 * @param prefix		the prefix that the filter condition requires
 	 * @param suffix		the maximal (inclusive) allowed characters after the prefix
 	 * @return	the filter condition string
