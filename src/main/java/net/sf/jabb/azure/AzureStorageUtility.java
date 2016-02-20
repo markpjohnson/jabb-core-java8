@@ -182,7 +182,7 @@ public class AzureStorageUtility {
 	 * @return	the filter condition string
 	 */
 	public static String generateStartWithFilterCondition(String property, String prefix){
-		return generateStartWithFilterCondition(property, prefix, "\u10FFFD");
+		return generateStartWithFilterCondition(property, prefix, "\uFFFF");
 	}
 	
 	/**
