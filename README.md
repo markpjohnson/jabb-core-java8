@@ -7,4 +7,4 @@ Collection of reusable application building blocks that require Java 8:
 * [StreamDataSupplier](https://github.com/james-hu/jabb-core-java8/wiki/StreamDataSupplier) - Abstraction of data stream
 * [TransactionalStreamDataBatchProcessing](https://github.com/james-hu/jabb-core-java8/wiki/TransactionalStreamDataBatchProcessing) - Coordinated processing of stream data
 
-[![Codeship Status for james-hu/jabb-core-java8](https://codeship.com/projects/bba807c0-a5f8-0132-667d-0e35fa3a3375/status?branch=master)](https://codeship.com/projects/66886)
+[![Codeship Status for james-hu/jabb-core-java8](https://codeship.com/projects/334a6ba0-b8f4-0133-1e32-66c6d90159b1/status?branch=master)](https://codeship.com/projects/135352)
