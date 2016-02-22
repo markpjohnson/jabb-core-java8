@@ -109,5 +109,12 @@ public interface AggregationPeriodKeyScheme {
 		return generateKey(ZonedDateTime.ofInstant(Instant.ofEpochSecond(60L*epochMinutes), zone));
 	}
 	
+	/**
+	 * Separate the part representing AggregationPeriod from the key
+	 * @param key	the time period key
+	 * @return	An array that the first element is the code name of the AggregationPeriod or null if something went wrong, 
+	 * 			and the second element is the remaining part of the key
+	 */
+	String[] separateAggregationPeriod(String key);
 
 }
