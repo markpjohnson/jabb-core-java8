@@ -51,7 +51,7 @@
 		<dependency>
 			<groupId>net.sf.jabb</groupId>
 			<artifactId>jabb-core</artifactId>
-			<version>1.0.108</version>
+			<version>1.0.109</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>commons-logging</artifactId>
@@ -181,6 +181,12 @@
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 			<version>2.2.3</version>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-core</artifactId>
+			<version>2.5</version>
 			<optional>true</optional>
 		</dependency>
 	</dependencies>
