@@ -124,6 +124,16 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 	 */
 	@Override
 	public String[] separateAggregationPeriod(String key){
+		return staticSeparateAggregationPeriod(key);
+	}
+	
+	/**
+	 * Separate the part representing AggregationPeriod from the key
+	 * @param key	the key starts with aggregation period code name
+	 * @return	An array that the first element is the code name of the AggregationPeriod or null if something went wrong, 
+	 * 			and the second element is the remaining part of the key
+	 */
+	static public String[] staticSeparateAggregationPeriod(String key){
 		int i = endOfAggregationPeriod(key);
 		if ( i > 0){
 			return new String[] {key.substring(0, i), key.substring(i)};
@@ -137,7 +147,7 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 	 * @param key	the key starts with aggregation period code name
 	 * @return the next position after the last character of aggregation period code name, or -1 if not found
 	 */
-	protected int endOfAggregationPeriod(String key){
+	static protected int endOfAggregationPeriod(String key){
 		int i;
 		
 		// find the first non-digit which should be the start of the AggregationPeriodUnit code
@@ -403,6 +413,11 @@ public class DefaultAggregationPeriodKeyScheme implements HierarchicalAggregatio
 			@Override
 			public String generateKey(LocalDateTime dateTimeWithoutZone) {
 				return DefaultAggregationPeriodKeyScheme.staticGenerateKey(ap, dateTimeWithoutZone);
+			}
+
+			@Override
+			public String[] separateAggregationPeriod(String key) {
+				return DefaultAggregationPeriodKeyScheme.staticSeparateAggregationPeriod(key);
 			}
 			
 		};
