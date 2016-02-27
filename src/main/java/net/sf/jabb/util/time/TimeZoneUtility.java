@@ -67,7 +67,7 @@ public abstract class TimeZoneUtility {
 						shortenedIdMap.put(shortenedId, id);
 						indexMap.put(i, id);
 					}else{
-						System.err.println("WARN: Unknown ZoneId: " + id);
+						System.err.println("INFO: Unknown ZoneId: " + id);
 					}
 					i ++;
 				}
