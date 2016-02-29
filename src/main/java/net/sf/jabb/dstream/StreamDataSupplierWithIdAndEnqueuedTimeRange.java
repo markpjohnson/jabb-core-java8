@@ -16,7 +16,7 @@ import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
  * @param <M> type of the message object
  *
  */
-public class StreamDataSupplierWithIdAndEnqueuedTimeRange<M> extends StreamDataSupplierWithId<M>  implements StreamDataSupplierWithIdAndRange<M, Instant>{
+public class StreamDataSupplierWithIdAndEnqueuedTimeRange<M> extends StreamDataSupplierWithIdImpl<M> implements StreamDataSupplierWithIdAndRange<M, Instant>{
 	protected Instant fromEnqueuedTime;
 	protected Instant toEnqueuedTime;
 	

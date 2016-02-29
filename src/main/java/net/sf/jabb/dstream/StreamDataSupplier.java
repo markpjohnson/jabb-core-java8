@@ -279,12 +279,12 @@ public interface StreamDataSupplier<M> {
 	void stop() throws Exception;
 	
 	/**
-	 * Wrap this and an id into a <code>StreamDataSupplierWithId</code> data structure
+	 * Wrap this and an id into a <code>StreamDataSupplierWithIdImpl</code> data structure
 	 * @param id	ID of the supplier
-	 * @return		an <code>StreamDataSupplierWithId</code> instance
+	 * @return		an <code>StreamDataSupplierWithIdImpl</code> instance
 	 */
 	default StreamDataSupplierWithId<M> withId(String id){
-		return new StreamDataSupplierWithId<>(id, this);
+		return new StreamDataSupplierWithIdImpl<>(id, this);
 	}
 	
 }

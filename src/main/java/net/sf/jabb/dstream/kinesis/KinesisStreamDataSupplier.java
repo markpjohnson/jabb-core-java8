@@ -14,10 +14,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import net.sf.jabb.dstream.ReceiveStatus;
-import net.sf.jabb.dstream.SimpleReceiveStatus;
-import net.sf.jabb.dstream.StreamDataSupplier;
-import net.sf.jabb.dstream.StreamDataSupplierWithId;
+import net.sf.jabb.dstream.*;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 import net.sf.jabb.util.attempt.AttemptStrategy;
 import net.sf.jabb.util.attempt.StopStrategies;
@@ -170,9 +167,9 @@ public class KinesisStreamDataSupplier<M> implements StreamDataSupplier<M> {
 	 * @param receiveBatchSize		the batch size for getting records from Kinesis from within receive(...) methods
 	 * @return	list of StreamDataSupplierWithIds covering all shards of the Kinesis stream.
 	 */
-	public static <M> List<StreamDataSupplierWithId<M>> create(String endpoint, String streamName, 
-			Function<UserRecord, M> messageConverter,
-			long pollInterval, int fetchBatchSize, int receiveBatchSize){
+	public static <M> List<StreamDataSupplierWithId<M>> create(String endpoint, String streamName,
+	                                                           Function<UserRecord, M> messageConverter,
+	                                                           long pollInterval, int fetchBatchSize, int receiveBatchSize){
 		return create(null, null, endpoint, streamName, messageConverter, pollInterval, fetchBatchSize, receiveBatchSize);
 	}
 	
@@ -190,10 +187,10 @@ public class KinesisStreamDataSupplier<M> implements StreamDataSupplier<M> {
 	 * @param receiveBatchSize		the batch size for getting records from Kinesis from within receive(...) methods
 	 * @return	list of StreamDataSupplierWithIds covering all shards of the Kinesis stream.
 	 */
-	public static <M> List<StreamDataSupplierWithId<M>> create(String awsAccessKeyId, String awsSecretKey, 
-			String endpoint, String streamName, 
-			Function<UserRecord, M> messageConverter,
-			long pollInterval, int fetchBatchSize, int receiveBatchSize){
+	public static <M> List<StreamDataSupplierWithId<M>> create(String awsAccessKeyId, String awsSecretKey,
+	                                                           String endpoint, String streamName,
+	                                                           Function<UserRecord, M> messageConverter,
+	                                                           long pollInterval, int fetchBatchSize, int receiveBatchSize){
 		AmazonKinesisClient client;
 		if (awsAccessKeyId != null && awsSecretKey != null){
 			client = new AmazonKinesisClient(new BasicAWSCredentials(awsAccessKeyId, awsSecretKey));

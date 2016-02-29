@@ -1,64 +1,20 @@
 /**
- * 
+ * Created by mjohnson on 2/29/2016.
  */
 package net.sf.jabb.dstream;
 
 import java.time.Instant;
 
-import org.apache.commons.lang3.Validate;
-
-import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
-
-
-/**
- * Data structure for a StreamDataSupplier and an ID.
- * @author James Hu
- *
- * @param <M> type of the message object
- */
-public class StreamDataSupplierWithId<M> {
-	protected String id;
-	protected StreamDataSupplier<M> supplier;
+public interface StreamDataSupplierWithId<M> {
+	StreamDataSupplierWithIdAndPositionRange<M> withRange(String fromPosition, String toPosition);
 	
-	public StreamDataSupplierWithId(){
-		
-	}
+	StreamDataSupplierWithIdAndEnqueuedTimeRange<M> withRange(Instant fromTime, Instant toTime);
 	
-	public StreamDataSupplierWithId(String id, StreamDataSupplier<M> supplier){
-		this.id = id;
-		this.supplier = supplier;
-	}
+	String getId();
 	
-	public StreamDataSupplierWithIdAndPositionRange<M> withRange(String fromPosition, String toPosition){
-		if (fromPosition != null && toPosition != null){
-			Validate.isTrue(supplier.isInRange(fromPosition, toPosition), "fromPosition cannot be after toPosition");
-		}
-		return new StreamDataSupplierWithIdAndPositionRange<>(id, supplier, fromPosition, toPosition);
-	}
+	void setId(String id);
 	
-	public StreamDataSupplierWithIdAndEnqueuedTimeRange<M> withRange(Instant fromTime, Instant toTime){
-		if (fromTime != null && toTime != null){
-			Validate.isTrue(supplier.isInRange(fromTime, toTime), "fromTime cannot be after toTime");
-		}
-		return new StreamDataSupplierWithIdAndEnqueuedTimeRange<>(id, supplier, fromTime, toTime);
-	}
+	StreamDataSupplier<M> getSupplier();
 	
-	@Override
-	public String toString(){
-		return (id == null ? "" : id) + ": " + supplier;
-	}
-	
-	public String getId() {
-		return id;
-	}
-	public void setId(String id) {
-		this.id = id;
-	}
-	public StreamDataSupplier<M> getSupplier() {
-		return supplier;
-	}
-	public void setSupplier(StreamDataSupplier<M> supplier) {
-		this.supplier = supplier;
-	}
-	
+	void setSupplier(StreamDataSupplier<M> supplier);
 }

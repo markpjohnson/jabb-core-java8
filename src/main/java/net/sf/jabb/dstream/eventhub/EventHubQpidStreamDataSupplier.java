@@ -27,6 +27,8 @@ import javax.jms.Queue;
 import javax.jms.QueueBrowser;
 import javax.jms.Session;
 
+import net.sf.jabb.dstream.StreamDataSupplierWithId;
+import net.sf.jabb.dstream.StreamDataSupplierWithIdImpl;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
@@ -38,7 +40,6 @@ import com.google.common.util.concurrent.UncheckedTimeoutException;
 import net.sf.jabb.azure.AzureEventHubUtility;
 import net.sf.jabb.azure.EventHubAnnotations;
 import net.sf.jabb.dstream.JmsConsumerStreamDataSupplier;
-import net.sf.jabb.dstream.StreamDataSupplierWithId;
 import net.sf.jabb.dstream.WrappedJmsConnection;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 import net.sf.jabb.util.jms.JmsUtility;
@@ -192,7 +193,7 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 	}
 	
 	/**
-	 * Create a list of {@link StreamDataSupplierWithId}s from an Event Hub.
+	 * Create a list of {@link StreamDataSupplierWithIdImpl}s from an Event Hub.
 	 * @param <M>		type of the message
 	 * @param server		the server name containing name space of the Event Hub
 	 * @param policyName	policy with read permission
@@ -200,17 +201,17 @@ public class EventHubQpidStreamDataSupplier<M> extends JmsConsumerStreamDataSupp
 	 * @param eventHubName	name of the Event Hub
 	 * @param consumerGroup		consumer group name
 	 * @param messageConverter	JMS message converter
-	 * @return					a list of {@link StreamDataSupplierWithId}s, one per partition
+	 * @return					a list of {@link StreamDataSupplierWithIdImpl}s, one per partition
 	 * @throws JMSException		If list of partitions cannot be fetched
 	 */
-	public static <M> List<StreamDataSupplierWithId<M>> create(String server, String policyName, String policyKey, 
-			String eventHubName, String consumerGroup, Function<Message, M> messageConverter) throws JMSException{
+	public static <M> List<StreamDataSupplierWithId<M>> create(String server, String policyName, String policyKey,
+	                                                           String eventHubName, String consumerGroup, Function<Message, M> messageConverter) throws JMSException{
 		String[] partitions = AzureEventHubUtility.getPartitions(server, policyName, policyKey, eventHubName);
 		List<StreamDataSupplierWithId<M>> suppliers = new ArrayList<>(partitions.length);
 		for (String partition: partitions){
 			EventHubQpidStreamDataSupplier<M> supplier = new EventHubQpidStreamDataSupplier<>(server, eventHubName, policyName, policyKey,
 					consumerGroup, partition, messageConverter);
-			suppliers.add(new StreamDataSupplierWithId<>(partition, supplier));
+			suppliers.add(new StreamDataSupplierWithIdImpl<>(partition, supplier));
 		}
 		return suppliers;
 	}

@@ -11,13 +11,10 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
@@ -32,18 +29,13 @@ import javax.jms.MessageProducer;
 import javax.jms.Session;
 
 import net.sf.jabb.dstream.StreamDataSupplierWithId;
+import net.sf.jabb.dstream.StreamDataSupplierWithIdImpl;
 import net.sf.jabb.dstream.eventhub.EventHubQpidStreamDataSupplier;
 import net.sf.jabb.util.jms.JmsUtility;
 
 import org.apache.qpid.amqp_1_0.jms.impl.MessageImpl;
 
 import com.google.common.base.Throwables;
-import com.microsoft.azure.storage.Constants;
-import com.microsoft.azure.storage.StorageErrorCodeStrings;
-import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.core.SharedAccessSignatureHelper;
-import com.microsoft.azure.storage.queue.SharedAccessQueuePolicy;
-import com.microsoft.azure.storage.table.TableQuery;
 
 /**
  * Utility methods for Azure Event Hub.
@@ -118,7 +110,7 @@ public class AzureEventHubUtility {
 
 	
 	/**
-	 * Create a list of {@link StreamDataSupplierWithId}s from an Event Hub.
+	 * Create a list of {@link StreamDataSupplierWithIdImpl}s from an Event Hub.
 	 * @param <M>		type of the message
 	 * @param server		the server name containing name space of the Event Hub
 	 * @param policyName	policy with read permission
@@ -126,11 +118,11 @@ public class AzureEventHubUtility {
 	 * @param eventHubName	name of the Event Hub
 	 * @param consumerGroup		consumer group name
 	 * @param messageConverter	JMS message converter
-	 * @return					a list of {@link StreamDataSupplierWithId}s, one per partition
+	 * @return					a list of {@link StreamDataSupplierWithIdImpl}s, one per partition
 	 * @throws JMSException		If list of partitions cannot be fetched
 	 */
-	public static <M> List<StreamDataSupplierWithId<M>> createStreamDataSuppliers(String server, String policyName, String policyKey, 
-			String eventHubName, String consumerGroup, Function<Message, M> messageConverter) throws JMSException{
+	public static <M> List<StreamDataSupplierWithId<M>> createStreamDataSuppliers(String server, String policyName, String policyKey,
+	                                                                              String eventHubName, String consumerGroup, Function<Message, M> messageConverter) throws JMSException{
 		return EventHubQpidStreamDataSupplier.create(server, policyName, policyKey, eventHubName, consumerGroup, messageConverter);
 	}
 	

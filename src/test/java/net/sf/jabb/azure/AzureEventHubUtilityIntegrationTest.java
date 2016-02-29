@@ -10,7 +10,6 @@ import java.util.List;
 import javax.jms.JMSException;
 
 import net.sf.jabb.dstream.StreamDataSupplierWithId;
-import net.sf.jabb.dstream.eventhub.EventHubQpidStreamDataSupplier;
 
 import org.junit.Test;
 

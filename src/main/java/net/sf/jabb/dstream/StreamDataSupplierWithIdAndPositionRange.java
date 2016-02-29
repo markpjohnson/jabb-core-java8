@@ -3,7 +3,6 @@
  */
 package net.sf.jabb.dstream;
 
-import java.time.Instant;
 import java.util.function.Function;
 
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
@@ -16,7 +15,7 @@ import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
  * @param <M> type of the message object
  *
  */
-public class StreamDataSupplierWithIdAndPositionRange<M> extends StreamDataSupplierWithId<M> implements StreamDataSupplierWithIdAndRange<M, String>{
+public class StreamDataSupplierWithIdAndPositionRange<M> extends StreamDataSupplierWithIdImpl<M> implements StreamDataSupplierWithIdAndRange<M, String>{
 	protected String fromPosition;
 	protected String toPosition;
 	

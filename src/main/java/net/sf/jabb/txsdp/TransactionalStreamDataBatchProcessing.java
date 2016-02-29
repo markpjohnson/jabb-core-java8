@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
  * @param <M> type of the data/message/event
  *
  */
-public class TransactionalStreamDataBatchProcessing<M> {
+public class TransactionalStreamDataBatchProcessing<M> implements StreamDataProcessing<M> {
 	static final Logger logger = LoggerFactory.getLogger(TransactionalStreamDataBatchProcessing.class);
 	
 	protected String id;
@@ -184,6 +184,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * @param processorId	ID of the processor
 	 * @return	a runnable processor that can be run in any thread
 	 */
+	@Override
 	public Runnable createProcessor(String processorId){
 		Validate.notNull(processorId, "Processor id cannot be null");
 		if (processors.containsKey(processorId)){
@@ -239,6 +240,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * Start processing. Once started, the processing can later be paused or stopped.
 	 * @param processorId ID of the processor to be started
 	 */
+	@Override
 	public void start(String processorId){
 		Processor runnable = processors.get(processorId);
 		Validate.notNull(runnable, "There is no processor with the id: " + processorId);
@@ -250,6 +252,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * Pause processing. Once paused, the processing can later be started or stopped.
 	 * @param processorId ID of the processor to be paused
 	 */
+	@Override
 	public void pause(String processorId){
 		Processor runnable = processors.get(processorId);
 		Validate.notNull(runnable, "There is no processor with the id: " + processorId);
@@ -261,6 +264,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * Stop processing. Once stopped, the processing cannot be restarted.
 	 * @param processorId ID of the processor to be stopped
 	 */
+	@Override
 	public void stop(String processorId){
 		Processor runnable = processors.get(processorId);
 		Validate.notNull(runnable, "There is no processor with the id: " + processorId);
@@ -271,6 +275,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	/**
 	 * Start processing. Once started, the processing can later be paused or stopped.
 	 */
+	@Override
 	public void startAll(){
 		for (Processor runnable: processors.values()){
 			start(runnable);
@@ -280,6 +285,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	/**
 	 * Pause processing. Once paused, the processing can later be started or stopped.
 	 */
+	@Override
 	public void pauseAll(){
 		for (Processor runnable: processors.values()){
 			pause(runnable);
@@ -289,6 +295,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	/**
 	 * Stop processing. Once stopped, the processing cannot be restarted.
 	 */
+	@Override
 	public void stopAll(){
 		for (Processor runnable: processors.values()){
 			stop(runnable);
@@ -614,6 +621,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * @throws TransactionStorageInfrastructureException		any exception happened in transaction storage
 	 * @throws DataStreamInfrastructureException				any exception happened in data stream 
 	 */
+	@Override
 	public Status getStatus() throws TransactionStorageInfrastructureException, DataStreamInfrastructureException{
 		Status status = new Status();
 		status.processorStatus = getProcessorStatus();
@@ -625,6 +633,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * Get the status of the processors
 	 * @return	status of the processors, key-ed by IDs of the processors in alphabet order
 	 */
+	@Override
 	public Map<String, ProcessorStatus> getProcessorStatus(){
 		Map<String, ProcessorStatus> result = new TreeMap<>();
 		for (Processor runnable: processors.values()){
@@ -641,6 +650,7 @@ public class TransactionalStreamDataBatchProcessing<M> {
 	 * @throws TransactionStorageInfrastructureException		any exception happened in transaction storage
 	 * @throws DataStreamInfrastructureException				any exception happened in data stream 
 	 */
+	@Override
 	public LinkedHashMap<String, StreamStatus> getStreamStatus() throws TransactionStorageInfrastructureException, DataStreamInfrastructureException{
 		List<StreamDataSupplierWithIdAndRange<M, ?>> localSuppliers = new ArrayList<>(suppliers.size());
 		localSuppliers.addAll(suppliers);

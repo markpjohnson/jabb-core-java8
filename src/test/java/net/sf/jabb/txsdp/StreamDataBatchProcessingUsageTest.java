@@ -19,7 +19,6 @@ import javax.jms.JMSException;
 
 import net.sf.jabb.azure.AzureEventHubUtility;
 import net.sf.jabb.dstream.StreamDataSupplierWithId;
-import net.sf.jabb.dstream.StreamDataSupplierWithIdAndPositionRange;
 import net.sf.jabb.dstream.StreamDataSupplierWithIdAndRange;
 import net.sf.jabb.dstream.ex.DataStreamInfrastructureException;
 import net.sf.jabb.seqtx.SequentialTransactionsCoordinator;
